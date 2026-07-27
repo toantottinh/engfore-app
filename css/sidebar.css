@@ -1,0 +1,112 @@
+/* ==========================================
+   SIDEBAR
+========================================== */
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--surface-sidebar);
+    color: var(--text-primary);
+    border-right: 1px solid var(--border-default);
+    padding-top: var(--space-4);
+    padding-bottom: 0;
+    overflow: hidden;
+}
+
+/* ==========================================
+   SIDEBAR LOGO
+========================================== */
+.sidebar-logo {
+    padding: 0 var(--space-4) var(--space-4) var(--space-4);
+    margin-bottom: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; /* Center the logo text */
+}
+
+.sidebar-logo a {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    text-decoration: none;
+    line-height: var(--line-height-tight);
+}
+
+/* ==========================================
+   SIDEBAR NAVIGATION
+========================================== */
+.sidebar-nav {
+    flex-grow: 1;
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.nav-group {
+    margin-bottom: var(--space-6);
+}
+
+.nav-group-title {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    padding: var(--space-2) var(--space-1); /* Adjust padding to align with items */
+    margin-bottom: var(--space-2);
+    letter-spacing: 0.05em; /* A subtle touch for uppercase titles */
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-1);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-normal);
+    transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease, border-left-color var(--duration-fast) ease;
+}
+
+.nav-item:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.nav-item.active {
+    background-color: var(--surface-selected);
+    color: var(--text-primary);
+    box-shadow: inset 3px 0 0 0 var(--brand-primary);
+}
+
+.nav-icon {
+    margin-right: var(--space-3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 20px;
+    flex-shrink: 0;
+}
+
+.nav-text {
+    flex: 1;
+}
+
+/* ==========================================
+   SIDEBAR FOOTER
+========================================== */
+.sidebar-footer {
+    margin-top: auto;
+    padding: var(--space-4);
+    text-align: left;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    line-height: var(--line-height-normal);
+    border-top: 1px solid var(--border-default);
+}

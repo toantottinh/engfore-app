@@ -1,0 +1,109 @@
+:root{
+
+    /* ==========================================
+       1. BRAND COLORS
+    ========================================== */
+    --brand-primary: #3B82F6; /* blue-500 */
+    --brand-primary-hover: #2563EB; /* blue-600 */
+    --brand-primary-pressed: #1D4ED8; /* blue-700 */
+
+    /* ==========================================
+       2. BACKGROUND COLORS
+    ========================================== */
+    --bg-default: #0F172A; /* slate-900 */
+    --bg-subtle: #1E293B; /* slate-800 */
+
+    /* ==========================================
+       3. SURFACE COLORS
+    ========================================== */
+    --surface-default: #1E293B; /* slate-800, for cards */
+    --surface-sidebar: #111827; /* gray-900, for sidebar */
+    --surface-hover: #334155; /* slate-700 */
+    --surface-pressed: #475569; /* slate-600 */
+    --surface-selected: #3B82F61A; /* 10% brand-primary */
+
+    /* ==========================================
+       4. TEXT COLORS
+    ========================================== */
+    --text-primary: #F8FAFC; /* slate-50 */
+    --text-secondary: #94A3B8; /* slate-400 */
+    --text-tertiary: #64748B; /* slate-500 */
+    --text-placeholder: #475569; /* slate-600 */
+    --text-disabled: #475569; /* slate-600 */
+    --text-on-primary: #FFFFFF;
+    --text-link: #60A5FA; /* blue-400 */
+
+    /* ==========================================
+       5. BORDER COLORS
+    ========================================== */
+    --border-default: #334155; /* slate-700 */
+    --border-subtle: #1E293B; /* slate-800 */
+    --border-interactive: #475569; /* slate-600 */
+    --border-focus: #3B82F6; /* brand-primary */
+
+    /* ==========================================
+       6. STATUS COLORS
+    ========================================== */
+    --status-success: #22C55E; /* green-500 */
+    --status-error: #EF4444; /* red-500 */
+    --status-warning: #F59E0B; /* amber-500 */
+    --status-info: #3B82F6; /* blue-500 */
+
+    /* ==========================================
+       7. BORDER RADIUS
+    ========================================== */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-full: 9999px;
+
+    /* ==========================================
+       8. SPACING SCALE
+    ========================================== */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+    --space-20: 80px;
+
+    /* ==========================================
+       9. SHADOWS
+    ========================================== */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.15);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.15), 0 2px 4px -2px rgb(0 0 0 / 0.15);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+    --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.1);
+
+    /* ==========================================
+       10. TRANSITION DURATION
+    ========================================== */
+    --duration-fast: 100ms;
+    --duration-base: 200ms;
+    --duration-slow: 300ms;
+
+    /* ==========================================
+       11. Z-INDEX
+    ========================================== */
+    --z-default: 1;
+    --z-sticky: 100;
+    --z-drawer: 200;
+    --z-modal: 300;
+    --z-popover: 400;
+    --z-tooltip: 500;
+
+    /* ==========================================
+       12. LAYOUT SIZES
+    ========================================== */
+    --sidebar-width: 260px;
+    --topbar-height: 70px;
+    --max-content-width: 1440px;
+
+}
