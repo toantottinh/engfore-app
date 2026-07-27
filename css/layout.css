@@ -1,43 +1,43 @@
 /* ==========================================
    APP LAYOUT
 ========================================== */
-
 .app-layout {
     display: flex;
     min-height: 100vh;
 }
 
 /* ==========================================
-   SIDEBAR
+   SIDEBAR (Cột bên)
 ========================================== */
-
 .sidebar {
     width: 260px;
     flex-shrink: 0;
-}
-
-/* ==========================================
-   APP CONTENT
-========================================== */
-
-.app-content {
-    flex: 1;
     display: flex;
     flex-direction: column;
 }
 
 /* ==========================================
-   TOPBAR
+   APP CONTENT WRAPPER (Trình bao bọc nội dung)
 ========================================== */
-
-.topbar {
-    height: 70px;
+.app-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* Ngăn chặn tràn nội dung trong flexbox */
 }
 
 /* ==========================================
-   MAIN CONTENT
+   TOPBAR (Thanh trên cùng)
 ========================================== */
+.topbar {
+    height: 70px;
+    flex-shrink: 0; /* Ngăn topbar bị co lại */
+}
 
+/* ==========================================
+   MAIN CONTENT (Nội dung chính)
+========================================== */
 .main-content {
-    flex: 1;
+    flex: 1; /* Lấp đầy không gian còn lại trong app-content */
+    overflow-y: auto; /* Cho phép cuộn khi nội dung vượt quá */
 }

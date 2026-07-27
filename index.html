@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EngFore - English Practice Platform</title>
+    <link rel="stylesheet" href="./css/variables.css">
+    <link rel="stylesheet" href="./css/base.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/components.css">
 </head>
 <body>
 
@@ -95,49 +99,55 @@
         </aside>
 
         <!-- =================================================================
-        TOPBAR
+        APP CONTENT WRAPPER
         ================================================================== -->
-        <header class="topbar">
+        <div class="app-content">
 
-            <!-- Topbar: Search -->
-            <div class="topbar-search">
-                <form action="/search" method="get" role="search">
-                    <label for="search-input" hidden>Search</label>
-                    <input type="search" id="search-input" name="q" placeholder="Search vocabulary...">
-                </form>
-            </div>
+            <!-- =================================================================
+            TOPBAR
+            ================================================================== -->
+            <header class="topbar">
 
-            <!-- Topbar: Actions -->
-            <div class="topbar-actions">
-                <button type="button" aria-label="Notifications">
-                    <!-- Notification Icon -->
-                </button>
-                <button type="button" aria-label="Help">
-                    <!-- Help Icon -->
-                </button>
-            </div>
+                <!-- Topbar: Search -->
+                <div class="topbar-search">
+                    <form action="/search" method="get" role="search">
+                        <label for="search-input" hidden>Tìm kiếm</label>
+                        <input type="search" id="search-input" name="q" placeholder="Tìm kiếm từ vựng...">
+                    </form>
+                </div>
 
-            <!-- Topbar: User -->
-            <div class="topbar-user">
-                <button type="button" aria-label="User menu">
-                    <!-- User Avatar -->
-                </button>
-            </div>
+                <!-- Topbar: Actions -->
+                <div class="topbar-actions">
+                    <button type="button" aria-label="Thông báo">
+                        <!-- Notification Icon -->
+                    </button>
+                    <button type="button" aria-label="Trợ giúp">
+                        <!-- Help Icon -->
+                    </button>
+                </div>
 
-        </header>
+                <!-- Topbar: User -->
+                <div class="topbar-user">
+                    <button type="button" aria-label="Menu người dùng">
+                        <!-- User Avatar -->
+                    </button>
+                </div>
 
-        <!-- =================================================================
-        MAIN CONTENT
-        ================================================================== -->
-        <main class="main-content">
+            </header>
 
-            <!-- Dashboard Placeholder -->
-            <section id="dashboard">
-                <h2>Dashboard</h2>
-                <p>Welcome back. Your dashboard content will appear here.</p>
-            </section>
+            <!-- =================================================================
+            MAIN CONTENT
+            ================================================================== -->
+            <main class="main-content">
 
-        </main>
+                <!-- Dashboard Placeholder -->
+                <section id="dashboard">
+                    <h2>Bảng điều khiển</h2>
+                    <p>Chào mừng bạn đã quay trở lại. Nội dung bảng điều khiển của bạn sẽ xuất hiện ở đây.</p>
+                </section>
+
+            </main>
+        </div>
 
     </div>
 
