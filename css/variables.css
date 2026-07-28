@@ -3,15 +3,15 @@
     /* ==========================================
        1. BRAND COLORS
     ========================================== */
-    --brand-primary: #3B82F6; /* blue-500 */
-    --brand-primary-hover: #2563EB; /* blue-600 */
-    --brand-primary-pressed: #1D4ED8; /* blue-700 */
+    --brand-primary: #2563EB;
+    --brand-primary-hover: #1D4ED8;
+    --brand-primary-pressed: #1E40AF;
 
     /* ==========================================
        2. BACKGROUND COLORS
     ========================================== */
-    --bg-default: #0F172A; /* slate-900 */
-    --bg-subtle: #1E293B; /* slate-800 */
+    --bg-default: #020617; /* slate-900 */
+    --bg-subtle: #202d41; /* slate-800 */
 
     /* ==========================================
        3. SURFACE COLORS
@@ -39,7 +39,7 @@
     --border-default: #334155; /* slate-700 */
     --border-subtle: #1E293B; /* slate-800 */
     --border-interactive: #475569; /* slate-600 */
-    --border-focus: #3B82F6; /* brand-primary */
+    --border-focus: var(--brand-primary);
 
     /* ==========================================
        6. STATUS COLORS
@@ -55,7 +55,6 @@
     --radius-sm: 4px;
     --radius-md: 6px;
     --radius-lg: 8px;
-    --radius-xl: 12px;
     --radius-full: 9999px;
 
     /* ==========================================
@@ -74,13 +73,22 @@
     --space-20: 80px;
 
     /* ==========================================
-       9. SHADOWS
-    ========================================== */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.15);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.15), 0 2px 4px -2px rgb(0 0 0 / 0.15);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.2);
-    --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.1);
+   9.TYPOGRAPHY
+========================================== */
+
+    --font-sans: "Geist", "Inter", sans-serif;
+
+    --font-mono: "Geist Mono", "JetBrains Mono", monospace;
+
+    --font-size-xs:12px;
+
+    --font-size-sm:14px;
+
+    --font-size-base:16px;
+
+    --font-size-lg:18px;
+
+    --font-size-xl:20px;
 
     /* ==========================================
        10. TRANSITION DURATION
@@ -106,4 +114,22 @@
     --topbar-height: 70px;
     --max-content-width: 1440px;
 
+    /* ========================================
+    13.Font Weight 
+    ===========================================*/
+    --font-weight-normal:400;
+
+    --font-weight-medium:500;
+
+    --font-weight-semibold:600;
+
+    --font-weight-bold:700;
+    /* ====================================
+    14. Line Height 
+    =====================================*/
+    --line-height-tight:1.2;
+
+    --line-height-normal:1.5;
+
+    --line-height-relaxed:1.75;
 }

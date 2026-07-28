@@ -1,0 +1,71 @@
+/* ==========================================
+   RESPONSIVE STYLES
+========================================== */
+
+/* ==========================================
+   TABLET & SMALLER DESKTOPS (<= 1024px)
+========================================== */
+@media (max-width: 1024px) {
+    /* Make sidebar narrower, icon-only */
+    .sidebar {
+        width: 80px;
+    }
+
+    /* Center the logo text (or icon) */
+    .sidebar-logo {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .sidebar-logo a {
+        font-size: var(--font-size-lg); /* Slightly smaller logo text */
+    }
+
+    /* Hide navigation text, show only icons */
+    .nav-text {
+        display: none;
+    }
+
+    .nav-item {
+        justify-content: center;
+    }
+
+    .nav-icon {
+        margin-right: 0;
+        width: 24px; /* Give icon a bit more space */
+        font-size: var(--font-size-xl);
+    }
+
+    .nav-group-title {
+        text-align: center;
+    }
+
+    .sidebar-footer {
+        display: none; /* Hide footer on smaller sidebar */
+    }
+
+    .main-content {
+        padding: var(--space-6);
+    }
+}
+
+/* ==========================================
+   MOBILE DEVICES (<= 768px)
+========================================== */
+@media (max-width: 768px) {
+    /* Hide the sidebar completely */
+    .sidebar {
+        display: none;
+    }
+
+    /* Topbar adjustments for mobile */
+    .topbar {
+        padding: 0 var(--space-4);
+    }
+
+    /* Main content adjustments */
+    .main-content {
+        padding: var(--space-4);
+    }
+}

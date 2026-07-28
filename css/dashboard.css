@@ -1,0 +1,79 @@
+/* ==========================================
+   MAIN CONTENT AREA
+========================================== */
+.main-content {
+    padding: var(--space-8);
+    background-color: var(--bg-default);
+}
+
+/* ==========================================
+   DASHBOARD SECTION
+========================================== */
+#dashboard {
+    display: grid;
+    gap: var(--space-6);
+    /* Define a flexible grid layout for dashboard widgets */
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+/* ==========================================
+   DASHBOARD WELCOME HEADER
+========================================== */
+.dashboard-header {
+    /* Make the header span the full width of the grid */
+    grid-column: 1 / -1;
+    margin-bottom: var(--space-2);
+}
+
+.dashboard-header h2 {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+    margin-bottom: var(--space-1);
+}
+
+.dashboard-header p {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+}
+
+/* ==========================================
+   GENERIC DASHBOARD CARD
+   (For future widgets like stats, progress, etc.)
+========================================== */
+.card {
+    background-color: var(--surface-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-4);
+}
+
+.card-title {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.card-content {
+    flex-grow: 1;
+    color: var(--text-secondary);
+}
+
+/* Example of a full-width card */
+.card.full-width {
+    grid-column: 1 / -1;
+}
