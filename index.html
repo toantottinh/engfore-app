@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./css/base.css">
     <link rel="stylesheet" href="./css/layout.css">
     <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="./css/dashboard.css">
 </head>
 <body>
 
@@ -141,11 +142,65 @@
             <main class="main-content">
 
                 <!-- Dashboard Placeholder -->
-                <section id="dashboard">
-                    <h2>Bảng điều khiển</h2>
-                    <p>Chào mừng bạn đã quay trở lại. Nội dung bảng điều khiển của bạn sẽ xuất hiện ở đây.</p>
-                </section>
+                <section class="dashboard">
+                    <header class="dashboard-header">
+                        <h1>Bảng điều khiển</h1>
+                        <p>Chào mừng bạn đã quay trở lại, Toàn!</p>
+                    </header>
 
+                    <div class="dashboard-grid">
+                        <!-- Daily Goal Card -->
+                        <article class="card card-daily-goal">
+                            <div class="card-body">
+                                <h2 class="card-title">Mục tiêu hôm nay</h2>
+                                <p>Học 10 từ vựng mới</p>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 40%;"></div>
+                                </div>
+                                <span class="progress-label">4/10 từ</span>
+                            </div>
+                        </article>
+
+                        <!-- Continue Learning Card -->
+                        <article class="card card-continue-learning">
+                            <div class="card-body">
+                                <h2 class="card-title">Tiếp tục học</h2>
+                                <p>Bài học: Thì hiện tại đơn</p>
+                                <a href="#" class="btn btn-primary">Bắt đầu</a>
+                            </div>
+                        </article>
+
+                        <!-- Weekly Progress Card -->
+                        <article class="card card-weekly-progress">
+                            <div class="card-body">
+                                <h2 class="card-title">Tiến độ tuần</h2>
+                                <p>Bạn đang đi đúng hướng để đạt được mục tiêu tuần này.</p>
+                                <!-- Placeholder for a small chart -->
+                                <div class="chart-placeholder"></div>
+                            </div>
+                        </article>
+
+                        <!-- New Words Card -->
+                        <article class="card card-new-words">
+                            <div class="card-header">
+                                <h2 class="card-title">Từ vựng mới</h2>
+                                <a href="/vocabulary" class="card-link">Xem tất cả</a>
+                            </div>
+                            <div class="card-body">
+                                <ul class="word-list">
+                                    <li>
+                                        <span class="word">Serendipity</span>
+                                        <span class="definition">Sự tình cờ may mắn</span>
+                                    </li>
+                                    <li>
+                                        <span class="word">Ephemeral</span>
+                                        <span class="definition">Phù du, chóng tàn</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </article>
+                    </div>
+                </section>
             </main>
         </div>
 
