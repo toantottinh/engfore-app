@@ -1,126 +1,136 @@
-/* =================================================================
-   DASHBOARD
-   ================================================================= */
-
-.dashboard {
-    padding: var(--space-lg);
-}
-
-.dashboard-header {
-    margin-bottom: var(--space-lg);
-}
-
-.dashboard-header h1 {
-    font-size: var(--font-size-xxl);
-    font-weight: 700;
-    color: var(--text-color-primary);
-    margin-bottom: var(--space-xs);
-}
-
-.dashboard-header p {
-    font-size: var(--font-size-md);
-    color: var(--text-color-secondary);
-}
-
-/* =================================================================
-   DASHBOARD GRID
-   ================================================================= */
-
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--space-md);
-}
-
-/* =================================================================
-   CARD STYLES
-   ================================================================= */
-
-.card {
-    background-color: var(--card-bg);
-    border-radius: var(--border-radius-md);
-    padding: var(--space-md);
-    box-shadow: var(--shadow-sm);
+/* ==========================================
+   DASHBOARD HERO
+========================================== */
+.dashboard-hero {
+    /* Inherits card styles from components.css */
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    align-items: flex-start; /* Align text to the left */
+    padding: var(--space-8); /* Generous padding for a hero section */
 }
 
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-sm);
+/* The .card-body class will provide its default padding,
+   which is suitable here. No need to override it to 0. */
+
+.hero-title {
+    font-size: var(--font-size-3xl); /* Large font size for greeting */
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+    line-height: var(--line-height-tight);
 }
 
-.card-title {
+.hero-subtitle {
     font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-color-primary);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4); /* Space before the button */
 }
 
-.card-link {
+/* Responsive adjustments for the hero section */
+@media (max-width: 1024px) {
+    .dashboard-hero {
+        padding: var(--space-6);
+    }
+    .hero-title {
+        font-size: var(--font-size-2xl);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-hero {
+        padding: var(--space-4);
+        text-align: center; /* Center text on mobile */
+        align-items: center; /* Center items for mobile */
+    }
+    .hero-title {
+        font-size: var(--font-size-xl); /* Smaller on mobile */
+    }
+    .hero-subtitle {
+        font-size: var(--font-size-base);
+    }
+}
+
+/* ==========================================
+   DASHBOARD STATISTICS
+========================================== */
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.stat-card {
+    /* Inherits .card styles */
+    padding: var(--space-4);
+}
+
+.stat-title {
     font-size: var(--font-size-sm);
-    color: var(--primary-color);
-    text-decoration: none;
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-1);
 }
 
-.card-link:hover {
-    text-decoration: underline;
+.stat-value {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
 }
 
-.card-body p {
-    color: var(--text-color-secondary);
-    margin-bottom: var(--space-md);
+/* Responsive adjustments for stats */
+@media (max-width: 1024px) {
+    .dashboard-stats {
+        grid-template-columns: repeat(2, 1fr); /* 2x2 grid on tablets */
+    }
 }
 
-/* Card: Daily Goal */
-.card-daily-goal .progress-bar {
-    width: 100%;
-    height: 8px;
-    background-color: var(--gray-200);
-    border-radius: var(--border-radius-sm);
-    overflow: hidden;
-    margin-bottom: var(--space-xs);
+@media (max-width: 768px) {
+    /* The 2x2 grid from tablet view works well on mobile too, so no change needed */
 }
 
-.card-daily-goal .progress {
-    height: 100%;
-    background-color: var(--primary-color);
+/* ==========================================
+   GENERAL SECTION STYLES
+========================================== */
+.section-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
 }
 
-.card-daily-goal .progress-label {
-    font-size: var(--font-size-sm);
-    color: var(--text-color-secondary);
-}
-
-/* Card: Continue Learning */
-.card-continue-learning {
-    background-color: var(--primary-color-light);
-}
-
-/* Card: Weekly Progress */
-.card-weekly-progress .chart-placeholder {
-    min-height: 80px; /* Placeholder height */
-    background-color: var(--gray-100);
-    border-radius: var(--border-radius-sm);
-}
-
-/* Card: New Words */
-.word-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.word-list li {
+/* ==========================================
+   DASHBOARD CONTINUE LEARNING
+========================================== */
+.continue-card {
+    /* Inherits .card styles */
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    padding: var(--space-xs) 0;
-    font-size: var(--font-size-sm);
-    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-4);
 }
 
-.word-list li:last-child {
-    border-bottom: none;
+.continue-card-content {
+    flex-grow: 1;
+    margin-right: var(--space-4);
+}
+
+/* Override default card title styles for this context */
+.continue-card .card-title {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-1);
+}
+
+.continue-card .card-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+}
+
+/* Make button smaller for this context */
+.continue-card .btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
 }

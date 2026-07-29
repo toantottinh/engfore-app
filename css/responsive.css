@@ -1,7 +1,7 @@
 /* ==========================================
    RESPONSIVE STYLES
 ========================================== */
-
+ 
 /* ==========================================
    TABLET & SMALLER DESKTOPS (<= 1024px)
 ========================================== */
@@ -9,6 +9,7 @@
     /* Make sidebar narrower, icon-only */
     .sidebar {
         width: 80px;
+        padding-top: var(--space-6);
     }
 
     /* Center the logo text (or icon) */
@@ -19,7 +20,7 @@
     }
 
     .sidebar-logo a {
-        font-size: var(--font-size-lg); /* Slightly smaller logo text */
+        font-size: var(--font-size-xl);
     }
 
     /* Hide navigation text, show only icons */
@@ -27,12 +28,14 @@
         display: none;
     }
 
-    .nav-item {
-        justify-content: center;
+    .nav-group {
+        padding: 0 var(--space-1);
     }
 
-    .nav-icon {
+    .nav-item {
+        justify-content: center;
         margin-right: 0;
+        padding: var(--space-3);
         width: 24px; /* Give icon a bit more space */
         font-size: var(--font-size-xl);
     }
@@ -45,8 +48,32 @@
         display: none; /* Hide footer on smaller sidebar */
     }
 
+    .app-content {
+        width: calc(100% - 80px);
+    }
+
     .main-content {
         padding: var(--space-6);
+    }
+
+    /* Dashboard Tablet */
+    .dashboard {
+        padding: var(--space-6);
+    }
+
+    .hero-grid {
+        grid-template-columns: 3fr 2fr; /* 60/40 split on tablet */
+    }
+
+    .stats-grid, .continue-learning, .recent-activity, .recommended-lessons {
+        grid-column: 1 / -1; /* All sections take full width */
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr); /* 2x2 grid for stats */
+    }
+    .lesson-grid {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     }
 }
 
@@ -54,18 +81,45 @@
    MOBILE DEVICES (<= 768px)
 ========================================== */
 @media (max-width: 768px) {
-    /* Hide the sidebar completely */
+    /* Hide the sidebar completely and show a burger menu (future) */
     .sidebar {
         display: none;
+    }
+
+    .app-content {
+        width: 100%;
     }
 
     /* Topbar adjustments for mobile */
     .topbar {
         padding: 0 var(--space-4);
     }
+    .topbar-search {
+        display: none; /* Hide search on mobile for more space */
+    }
 
     /* Main content adjustments */
     .main-content {
         padding: var(--space-4);
+    }
+
+    /* Dashboard Mobile */
+    .dashboard {
+        padding: var(--space-4);
+    }
+
+    .dashboard-overview { /* Renamed from .hero-grid */
+        grid-template-columns: 1fr; /* Stack hero and goal on mobile */
+    }
+    .dashboard-overview .hero-title { /* Adjust font size for mobile */
+        font-size: 28px;
+        white-space: normal; /* Allow wrapping on mobile for better readability */
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .dashboard-layout-grid, .stats-grid, .lesson-grid {
+        grid-template-columns: 1fr; /* Single column for all grids */
+        gap: var(--space-4);
     }
 }

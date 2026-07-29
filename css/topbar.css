@@ -1,10 +1,13 @@
 /* ==========================================
    TOPBAR
 ========================================== */
+
 .topbar {
     height: var(--topbar-height);
-    background-color: var(--bg-default);
+    background-color: transparent; /* Make topbar transparent */
     border-bottom: 1px solid var(--border-default);
+    position: sticky; /* Make it sticky */
+    top: 0;
     display: flex;
     align-items: center;
     padding: 0 var(--space-6);
@@ -14,13 +17,13 @@
 /* ==========================================
    TOPBAR SEARCH
 ========================================== */
+
 .topbar-search {
-    flex-grow: 1;
-    margin-right: var(--space-6);
+    flex-grow: 0; /* Don't let it grow, keep it to its content size */
 }
 
 .topbar-search input[type="search"] {
-    background-color: var(--surface-default);
+    background-color: var(--bg-subtle);
     border: 1px solid var(--border-interactive);
     border-radius: var(--radius-md);
     padding: var(--space-2) var(--space-3);
@@ -39,12 +42,20 @@
 .topbar-search input[type="search"]:focus {
     outline: none;
     border-color: var(--border-focus);
-    box-shadow: 0 0 0 2px var(--brand-primary-pressed);
+    box-shadow: 0 0 0 3px var(--surface-selected);
 }
 
 /* ==========================================
    TOPBAR ACTIONS & USER
 ========================================== */
+
+.topbar-right {
+    margin-left: auto; /* Push the right content to the end */
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
 .topbar-actions {
     display: flex;
     align-items: center;
@@ -79,10 +90,14 @@
     color: var(--text-primary);
 }
 
-/* Style for user avatar if it's an image */
-.topbar-user button img {
+.topbar-user button {
+    padding: 0; /* Remove padding for the avatar button */
+}
+
+/* Placeholder for user avatar */
+.topbar-user .user-avatar {
     width: 28px;
     height: 28px;
     border-radius: var(--radius-full);
-    object-fit: cover;
+    background-color: var(--surface-pressed);
 }

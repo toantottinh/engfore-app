@@ -1,210 +1,45 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EngFore - English Practice Platform</title>
-    <link rel="stylesheet" href="./css/variables.css">
-    <link rel="stylesheet" href="./css/base.css">
-    <link rel="stylesheet" href="./css/layout.css">
-    <link rel="stylesheet" href="./css/components.css">
-    <link rel="stylesheet" href="./css/dashboard.css">
-</head>
-<body>
-
-    <!-- =================================================================
-    APP LAYOUT WRAPPER
-    ================================================================== -->
-    <div class="app-layout">
-
-        <!-- =================================================================
-        SIDEBAR
-        ================================================================== -->
-        <aside class="sidebar">
-
-            <!-- Sidebar: Logo -->
-            <div class="sidebar-logo">
-                <a href="/dashboard">EngFore</a>
-            </div>
-
-            <!-- Sidebar: Navigation -->
-            <nav class="sidebar-nav">
-                <!-- Group: Main -->
-                <div class="nav-group">
-                    <h2 class="nav-group-title">MAIN</h2>
-                    <a href="/dashboard" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Dashboard</span>
-                    </a>
-                </div>
-
-                <!-- Group: Learning -->
-                <div class="nav-group">
-                    <h2 class="nav-group-title">LEARNING</h2>
-                    <a href="/vocabulary" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Vocabulary</span>
-                    </a>
-                </div>
-
-                <!-- Group: Practice -->
-                <div class="nav-group">
-                    <h2 class="nav-group-title">PRACTICE</h2>
-                    <a href="/review" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Review</span>
-                    </a>
-                </div>
-
-                <!-- Group: Community -->
-                <div class="nav-group">
-                    <h2 class="nav-group-title">COMMUNITY</h2>
-                    <a href="/community" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Community</span>
-                    </a>
-                </div>
-
-                <!-- Group: Analytics -->
-                <div class="nav-group">
-                    <h2 class="nav-group-title">ANALYTICS</h2>
-                    <a href="/analytics" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Analytics</span>
-                    </a>
-                </div>
-
-                <!-- Group: System -->
-                <div class="nav-group">
-                    <h2 class="nav-group-title">SYSTEM</h2>
-                    <a href="/settings" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Settings</span>
-                    </a>
-                    <a href="/premium" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Premium</span>
-                    </a>
-                    <a href="/feedback" class="nav-item">
-                        <span class="nav-icon"><!-- Icon SVG/Font --></span>
-                        <span class="nav-text">Feedback</span>
-                    </a>
-                </div>
-            </nav>
-
-            <!-- Sidebar: Footer -->
-            <footer class="sidebar-footer">
-                <p>&copy; 2026 EngFore</p>
-            </footer>
-
-        </aside>
-
-        <!-- =================================================================
-        APP CONTENT WRAPPER
-        ================================================================== -->
-        <div class="app-content">
-
-            <!-- =================================================================
-            TOPBAR
-            ================================================================== -->
-            <header class="topbar">
-
-                <!-- Topbar: Search -->
-                <div class="topbar-search">
-                    <form action="/search" method="get" role="search">
-                        <label for="search-input" hidden>Tìm kiếm</label>
-                        <input type="search" id="search-input" name="q" placeholder="Tìm kiếm từ vựng...">
-                    </form>
-                </div>
-
-                <!-- Topbar: Actions -->
-                <div class="topbar-actions">
-                    <button type="button" aria-label="Thông báo">
-                        <!-- Notification Icon -->
-                    </button>
-                    <button type="button" aria-label="Trợ giúp">
-                        <!-- Help Icon -->
-                    </button>
-                </div>
-
-                <!-- Topbar: User -->
-                <div class="topbar-user">
-                    <button type="button" aria-label="Menu người dùng">
-                        <!-- User Avatar -->
-                    </button>
-                </div>
-
-            </header>
-
-            <!-- =================================================================
-            MAIN CONTENT
-            ================================================================== -->
-            <main class="main-content">
-
-                <!-- Dashboard Placeholder -->
-                <section class="dashboard">
-                    <header class="dashboard-header">
-                        <h1>Bảng điều khiển</h1>
-                        <p>Chào mừng bạn đã quay trở lại, Toàn!</p>
-                    </header>
-
-                    <div class="dashboard-grid">
-                        <!-- Daily Goal Card -->
-                        <article class="card card-daily-goal">
-                            <div class="card-body">
-                                <h2 class="card-title">Mục tiêu hôm nay</h2>
-                                <p>Học 10 từ vựng mới</p>
-                                <div class="progress-bar">
-                                    <div class="progress" style="width: 40%;"></div>
-                                </div>
-                                <span class="progress-label">4/10 từ</span>
-                            </div>
-                        </article>
-
-                        <!-- Continue Learning Card -->
-                        <article class="card card-continue-learning">
-                            <div class="card-body">
-                                <h2 class="card-title">Tiếp tục học</h2>
-                                <p>Bài học: Thì hiện tại đơn</p>
-                                <a href="#" class="btn btn-primary">Bắt đầu</a>
-                            </div>
-                        </article>
-
-                        <!-- Weekly Progress Card -->
-                        <article class="card card-weekly-progress">
-                            <div class="card-body">
-                                <h2 class="card-title">Tiến độ tuần</h2>
-                                <p>Bạn đang đi đúng hướng để đạt được mục tiêu tuần này.</p>
-                                <!-- Placeholder for a small chart -->
-                                <div class="chart-placeholder"></div>
-                            </div>
-                        </article>
-
-                        <!-- New Words Card -->
-                        <article class="card card-new-words">
-                            <div class="card-header">
-                                <h2 class="card-title">Từ vựng mới</h2>
-                                <a href="/vocabulary" class="card-link">Xem tất cả</a>
-                            </div>
-                            <div class="card-body">
-                                <ul class="word-list">
-                                    <li>
-                                        <span class="word">Serendipity</span>
-                                        <span class="definition">Sự tình cờ may mắn</span>
-                                    </li>
-                                    <li>
-                                        <span class="word">Ephemeral</span>
-                                        <span class="definition">Phù du, chóng tàn</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </article>
-                    </div>
-                </section>
-            </main>
-        </div>
-
+<!-- 1. Hero -->
+<section class="dashboard-hero card">
+    <div class="card-body">
+        <h1 class="hero-title">Welcome back, Toàn!</h1>
+        <p class="hero-subtitle">Let's continue your learning journey.</p>
+        <button class="btn btn-primary mt-4">Start Learning</button>
     </div>
-
-</body>
-</html>
+</section>
+<!-- 2. Statistics -->
+<section class="dashboard-stats">
+    <article class="card stat-card">
+        <h3 class="stat-title">Vocabulary</h3>
+        <p class="stat-value">1,250</p>
+    </article>
+    <article class="card stat-card">
+        <h3 class="stat-title">Grammar</h3>
+        <p class="stat-value">85%</p>
+    </article>
+    <article class="card stat-card">
+        <h3 class="stat-title">Reading</h3>
+        <p class="stat-value">42</p>
+    </article>
+    <article class="card stat-card">
+        <h3 class="stat-title">Listening</h3>
+        <p class="stat-value">18</p>
+    </article>
+</section>
+<!-- 3. Continue Learning -->
+<section class="dashboard-continue">
+    <h2 class="section-title">Continue Learning</h2>
+    <article class="card continue-card">
+        <div class="continue-card-content">
+            <h3 class="card-title">Present Simple Tense</h3>
+            <p class="card-subtitle">Grammar Lesson</p>
+        </div>
+        <a href="#" class="btn btn-secondary">Continue</a>
+    </article>
+    <article class="card continue-card mt-4">
+        <div class="continue-card-content">
+            <h3 class="card-title">IT Vocabulary</h3>
+            <p class="card-subtitle">Vocabulary Deck</p>
+        </div>
+        <a href="#" class="btn btn-secondary">Continue</a>
+    </article>
+</section>
