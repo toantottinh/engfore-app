@@ -1,0 +1,227 @@
+/* ==========================================
+   VOCABULARY PAGE LAYOUT
+========================================== */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-8) var(--space-10);
+    border-bottom: 1px solid var(--border-default);
+}
+
+.page-title {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+}
+
+.page-actions {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.main-content {
+    padding: 0; /* Remove default padding to allow full-width sections */
+}
+
+/* ==========================================
+   FILTERS BAR
+========================================== */
+.filters-bar {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    margin: var(--space-8) var(--space-10);
+    border-radius: var(--radius-lg);
+}
+
+.search-control {
+    flex-grow: 1;
+    position: relative;
+}
+
+.search-control .icon {
+    position: absolute;
+    left: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+    width: 20px;
+}
+
+.search-control .input {
+    padding-left: var(--space-10);
+}
+
+.filter-controls {
+    display: flex;
+    gap: var(--space-4);
+    flex-shrink: 0;
+}
+
+/* ==========================================
+   VOCABULARY GRID & CARD
+========================================== */
+.vocabulary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--space-6);
+    padding: 0 var(--space-10) var(--space-10);
+}
+
+.word-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.word-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-4);
+}
+
+.word-card-title {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+.word-card-pronunciation {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.word-card-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.word-card-meaning {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-5);
+}
+
+.word-card-example {
+    font-style: italic;
+    color: var(--text-tertiary);
+    border-left: 2px solid var(--border-default);
+    padding-left: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+.word-card-footer {
+    margin-top: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-default);
+}
+
+.word-card-meta {
+    display: flex;
+    gap: var(--space-3);
+}
+
+/* ==========================================
+   EMPTY STATE
+========================================== */
+.empty-state {
+    text-align: center;
+    padding: var(--space-16);
+    margin: 0 var(--space-10) var(--space-10);
+}
+.empty-state .icon {
+    width: 64px;
+    height: 64px;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-6);
+}
+.empty-state h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+}
+.empty-state p {
+    color: var(--text-secondary);
+    margin-top: var(--space-2);
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* ==========================================
+   MODAL
+========================================== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    padding: var(--space-6);
+}
+
+.modal-card {
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-5);
+    border-bottom: 1px solid var(--border-default);
+}
+
+.modal-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+}
+
+.modal-form {
+    padding: var(--space-6);
+    overflow-y: auto;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-5);
+}
+
+.modal-footer {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border-default);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-4);
+}
+
+/* ==========================================
+   PAGINATION
+========================================== */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-8);
+    gap: var(--space-2);
+}
+
+.pagination button {
+    min-width: 40px;
+}
+
+.pagination button.active {
+    background-color: var(--brand-primary);
+    color: var(--text-on-primary);
+}

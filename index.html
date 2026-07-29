@@ -1,45 +1,347 @@
-<!-- 1. Hero -->
-<section class="dashboard-hero card">
-    <div class="card-body">
-        <h1 class="hero-title">Welcome back, Toàn!</h1>
-        <p class="hero-subtitle">Let's continue your learning journey.</p>
-        <button class="btn btn-primary mt-4">Start Learning</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - EngFore</title>
+
+    <!-- CSS Links -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/topbar.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-logo">
+                <a href="index.html" aria-label="EngFore Home">EngFore</a>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-group">
+                    <span class="nav-group-title">Learning</span>
+                    <a href="index.html" class="nav-item active" aria-current="page">
+                        <span class="nav-icon"><i class="icon" data-lucide="layout-dashboard"></i></span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                    <a href="pages/vocabulary.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="book-marked"></i></span>
+                        <span class="nav-text">Vocabulary</span>
+                    </a>
+                    <a href="pages/flashcards.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="layers"></i></span>
+                        <span class="nav-text">Flashcards</span>
+                    </a>
+                    <a href="pages/review.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="rotate-ccw"></i></span>
+                        <span class="nav-text">Review</span>
+                    </a>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-group-title">Practice</span>
+                    <a href="pages/grammar.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="pilcrow"></i></span>
+                        <span class="nav-text">Grammar</span>
+                    </a>
+                    <a href="pages/reading.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="book-open"></i></span>
+                        <span class="nav-text">Reading</span>
+                    </a>
+                    <a href="pages/listening.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="headphones"></i></span>
+                        <span class="nav-text">Listening</span>
+                    </a>
+                    <a href="pages/quiz.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="clipboard-check"></i></span>
+                        <span class="nav-text">Quiz</span>
+                    </a>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-group-title">Account</span>
+                    <a href="pages/profile.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="user"></i></span>
+                        <span class="nav-text">Profile</span>
+                    </a>
+                    <a href="pages/login.html" class="nav-item">
+                        <span class="nav-icon"><i class="icon" data-lucide="log-out"></i></span>
+                        <span class="nav-text">Sign Out</span>
+                    </a>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p>
+            </div>
+        </aside>
+        <div class="sidebar-overlay"></div>
+
+        <div class="app-content">
+            <!-- Topbar -->
+            <header class="topbar" role="banner">
+                <div class="topbar-left">
+                    <button class="btn-icon-only sidebar-toggle" aria-label="Toggle sidebar menu">
+                        <i class="icon" data-lucide="menu"></i>
+                    </button>
+                    <div class="topbar-search">
+                        <input type="search" placeholder="Search vocabulary, lessons..." aria-label="Search">
+                    </div>
+                </div>
+                <div class="topbar-right">
+                    <div class="topbar-actions">
+                        <button class="btn-icon-only" aria-label="Notifications">
+                            <i class="icon" data-lucide="bell"></i>
+                        </button>
+                        <button class="btn-icon-only" aria-label="Settings">
+                            <i class="icon" data-lucide="settings"></i>
+                        </button>
+                    </div>
+                    <div class="topbar-user">
+                        <button class="btn-icon-only" aria-label="User menu">
+                            <div class="user-avatar" role="img" aria-label="User avatar"></div>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-content" role="main">
+                <div class="dashboard-grid">
+
+    <!-- 1. Hero -->
+    <section class="dashboard-hero" aria-label="Welcome section">
+        <div class="hero-content">
+            <h1 class="hero-title">Welcome Back, Toàn!</h1>
+            <p class="hero-subtitle">Your progress is looking great. Keep the momentum going!</p>
+            <div class="hero-meta">
+                <div class="meta-item">
+                    <i class="icon" data-lucide="flame"></i>
+                    <span>12 day streak</span>
+                </div>
+                <div class="meta-item">
+                    <i class="icon" data-lucide="star"></i>
+                    <span>Level 5</span>
+                </div>
+                <div class="meta-item">
+                    <i class="icon" data-lucide="bar-chart-2"></i>
+                    <span>1,500 XP</span>
+                </div>
+            </div>
+            <button class="btn btn-primary">
+                <i class="icon" data-lucide="play"></i>
+                <span>Continue Lesson</span>
+            </button>
+        </div>
+        <div class="hero-illustration">
+            <i class="icon" data-lucide="graduation-cap"></i>
+        </div>
+    </section>
+
+    <!-- 2. Daily Goal -->
+    <section class="dashboard-daily-goal card" aria-label="Daily learning goal">
+        <div class="card-body">
+            <div class="section-header">
+                <h2 class="section-title">Daily Goal</h2>
+                <span class="goal-completion">60%</span>
+            </div>
+            <p class="card-subtitle">3 of 5 tasks completed today.</p>
+            <div class="progress-bar">
+                <div class="progress" style="width: 60%;"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Statistics -->
+    <div class="dashboard-stats" role="group" aria-label="Learning statistics">
+        <article class="stat-card card">
+            <div class="stat-header">
+                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="book-marked"></i></div>
+                <h3 class="stat-title">Vocabulary</h3>
+            </div>
+            <p class="stat-value">1,250</p>
+            <p class="stat-delta">+20 today</p>
+        </article>
+        <article class="stat-card card">
+            <div class="stat-header">
+                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="pilcrow"></i></div>
+                <h3 class="stat-title">Grammar</h3>
+            </div>
+            <p class="stat-value">85%</p>
+            <p class="stat-delta">Mastery</p>
+        </article>
+        <article class="stat-card card">
+            <div class="stat-header">
+                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="book-open"></i></div>
+                <h3 class="stat-title">Reading</h3>
+            </div>
+            <p class="stat-value">42</p>
+            <p class="stat-delta">Articles</p>
+        </article>
+        <article class="stat-card card">
+            <div class="stat-header">
+                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="headphones"></i></div>
+                <h3 class="stat-title">Listening</h3>
+            </div>
+            <p class="stat-value">18</p>
+            <p class="stat-delta">Exercises</p>
+        </article>
     </div>
-</section>
-<!-- 2. Statistics -->
-<section class="dashboard-stats">
-    <article class="card stat-card">
-        <h3 class="stat-title">Vocabulary</h3>
-        <p class="stat-value">1,250</p>
-    </article>
-    <article class="card stat-card">
-        <h3 class="stat-title">Grammar</h3>
-        <p class="stat-value">85%</p>
-    </article>
-    <article class="card stat-card">
-        <h3 class="stat-title">Reading</h3>
-        <p class="stat-value">42</p>
-    </article>
-    <article class="card stat-card">
-        <h3 class="stat-title">Listening</h3>
-        <p class="stat-value">18</p>
-    </article>
-</section>
-<!-- 3. Continue Learning -->
-<section class="dashboard-continue">
-    <h2 class="section-title">Continue Learning</h2>
-    <article class="card continue-card">
-        <div class="continue-card-content">
-            <h3 class="card-title">Present Simple Tense</h3>
-            <p class="card-subtitle">Grammar Lesson</p>
+
+    <!-- 4. Continue Learning -->
+    <section class="dashboard-continue" aria-label="Continue learning">
+        <h2 class="section-title">Continue Learning</h2>
+        <article class="continue-card card">
+            <div class="continue-card-thumbnail">
+                <i class="icon" data-lucide="pilcrow"></i>
+            </div>
+            <div class="continue-card-info">
+                <h3 class="card-title">Present Simple Tense Review</h3>
+                <p class="card-subtitle">Grammar Lesson</p>
+            </div>
+            <div class="continue-card-progress">
+                <span class="progress-text">50%</span>
+                <div class="progress-bar">
+                    <div class="progress" style="width: 50%;"></div>
+                </div>
+            </div>
+            <a href="pages/grammar.html" class="btn btn-secondary btn-icon-only" aria-label="Continue grammar lesson"><i class="icon" data-lucide="arrow-right"></i></a>
+        </article>
+        <article class="continue-card card">
+            <div class="continue-card-thumbnail">
+                <i class="icon" data-lucide="book-marked"></i>
+            </div>
+            <div class="continue-card-info">
+                <h3 class="card-title">IT Vocabulary - Part 3</h3>
+                <p class="card-subtitle">Vocabulary Deck</p>
+            </div>
+            <div class="continue-card-progress">
+                <span class="progress-text">80%</span>
+                <div class="progress-bar">
+                    <div class="progress" style="width: 80%;"></div>
+                </div>
+            </div>
+            <a href="pages/vocabulary.html" class="btn btn-secondary btn-icon-only" aria-label="Continue vocabulary lesson"><i class="icon" data-lucide="arrow-right"></i></a>
+        </article>
+    </section>
+
+    <!-- 5. Recent Activity -->
+    <section class="dashboard-activity" aria-label="Recent activity">
+        <h2 class="section-title">Recent Activity</h2>
+        <div class="activity-list card">
+            <div class="activity-item">
+                <div class="activity-timeline">
+                    <div class="activity-icon"><i class="icon" data-lucide="zap"></i></div>
+                    <div class="timeline-line"></div>
+                </div>
+                <div class="activity-content">
+                    <p class="activity-title">Learned 20 words in <strong>Business English</strong></p>
+                    <time class="activity-time">15m ago</time>
+                </div>
+            </div>
+            <div class="activity-item">
+                <div class="activity-timeline">
+                    <div class="activity-icon"><i class="icon" data-lucide="check-circle-2"></i></div>
+                    <div class="timeline-line"></div>
+                </div>
+                <div class="activity-content">
+                    <p class="activity-title">Completed Quiz: <strong>Conditionals</strong></p>
+                    <time class="activity-time">1h ago</time>
+                </div>
+            </div>
+            <div class="activity-item">
+                <div class="activity-timeline"><div class="activity-icon"><i class="icon" data-lucide="book-open-check"></i></div></div>
+                <div class="activity-content">
+                    <p class="activity-title">Finished reading <strong>The Digital Age</strong></p>
+                    <time class="activity-time">Yesterday</time>
+                </div>
+            </div>
         </div>
-        <a href="#" class="btn btn-secondary">Continue</a>
-    </article>
-    <article class="card continue-card mt-4">
-        <div class="continue-card-content">
-            <h3 class="card-title">IT Vocabulary</h3>
-            <p class="card-subtitle">Vocabulary Deck</p>
+    </section>
+
+    <!-- 6. Recommended Lessons -->
+    <section class="dashboard-recommended" aria-label="Recommended lessons">
+        <h2 class="section-title">Recommended For You</h2>
+        <div class="recommended-grid">
+            <article class="lesson-card card">
+                <div class="lesson-thumbnail" style="background-image: url('https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?q=80&w=2940&auto=format&fit=crop')" role="img" aria-label="Lesson thumbnail"></div>
+                <div class="lesson-content">
+                    <div>
+                        <h3 class="card-title">Conditional Sentences Type 2</h3>
+                        <span class="badge badge-warning">Intermediate</span>
+                    </div>
+                    <a href="pages/grammar.html" class="btn btn-secondary btn-icon-only" aria-label="Start grammar lesson"><i class="icon" data-lucide="play"></i></a>
+                </div>
+            </article>
+            <article class="lesson-card card">
+                <div class="lesson-thumbnail" style="background-image: url('https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=2940&auto=format&fit=crop')" role="img" aria-label="Lesson thumbnail"></div>
+                <div class="lesson-content">
+                    <div>
+                        <h3 class="card-title">Business English: Meetings</h3>
+                        <span class="badge badge-danger">Advanced</span>
+                    </div>
+                    <a href="pages/reading.html" class="btn btn-secondary btn-icon-only" aria-label="Start reading lesson"><i class="icon" data-lucide="play"></i></a>
+                </div>
+            </article>
+            <article class="lesson-card card">
+                <div class="lesson-thumbnail" style="background-image: url('https://images.unsplash.com/photo-1588196749597-9ff075ee6b5b?q=80&w=2874&auto=format&fit=crop')" role="img" aria-label="Lesson thumbnail"></div>
+                <div class="lesson-content">
+                    <div>
+                        <h3 class="card-title">Listening: A TED Talk on AI</h3>
+                        <span class="badge badge-warning">Intermediate</span>
+                    </div>
+                    <a href="pages/listening.html" class="btn btn-secondary btn-icon-only" aria-label="Start listening lesson"><i class="icon" data-lucide="play"></i></a>
+                </div>
+            </article>
         </div>
-        <a href="#" class="btn btn-secondary">Continue</a>
-    </article>
-</section>
+    </section>
+
+    <!-- 7. Weekly Streak / Heatmap -->
+    <section class="dashboard-streak" aria-label="Weekly learning streak">
+        <h2 class="section-title">This Week</h2>
+        <div class="streak-heatmap card card-body">
+            <div class="streak-grid">
+                <div class="streak-day">
+                    <span class="streak-label">Mon</span>
+                    <div class="streak-cell streak-cell-3"></div>
+                </div>
+                <div class="streak-day">
+                    <span class="streak-label">Tue</span>
+                    <div class="streak-cell streak-cell-2"></div>
+                </div>
+                <div class="streak-day">
+                    <span class="streak-label">Wed</span>
+                    <div class="streak-cell streak-cell-0"></div>
+                </div>
+                <div class="streak-day">
+                    <span class="streak-label">Thu</span>
+                    <div class="streak-cell streak-cell-1"></div>
+                </div>
+                <div class="streak-day">
+                    <span class="streak-label">Fri</span>
+                    <div class="streak-cell streak-cell-3"></div>
+                </div>
+                <div class="streak-day">
+                    <span class="streak-label">Sat</span>
+                    <div class="streak-cell streak-cell-4"></div>
+                </div>
+                <div class="streak-day">
+                    <span class="streak-label">Sun</span>
+                    <div class="streak-cell"></div>
+                </div>
+            </div>
+            <p class="streak-summary">Best streak: 12 days &middot; 45 activities this week</p>
+        </div>
+    </section>
+</div>
+        </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/main.js"></script>
+
+</body>
+</html>

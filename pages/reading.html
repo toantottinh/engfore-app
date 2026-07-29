@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading - EngFore</title>
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../css/topbar.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/pages/reading.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-logo"><a href="../index.html" aria-label="EngFore Home">EngFore</a></div>
+            <nav class="sidebar-nav">
+                <div class="nav-group">
+                    <span class="nav-group-title">Learning</span>
+                    <a href="../index.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="layout-dashboard"></i></span><span class="nav-text">Dashboard</span></a>
+                    <a href="vocabulary.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="book-marked"></i></span><span class="nav-text">Vocabulary</span></a>
+                    <a href="flashcards.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="layers"></i></span><span class="nav-text">Flashcards</span></a>
+                    <a href="review.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="rotate-ccw"></i></span><span class="nav-text">Review</span></a>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-group-title">Practice</span>
+                    <a href="grammar.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="pilcrow"></i></span><span class="nav-text">Grammar</span></a>
+                    <a href="reading.html" class="nav-item active" aria-current="page"><span class="nav-icon"><i class="icon" data-lucide="book-open"></i></span><span class="nav-text">Reading</span></a>
+                    <a href="listening.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="headphones"></i></span><span class="nav-text">Listening</span></a>
+                    <a href="quiz.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="clipboard-check"></i></span><span class="nav-text">Quiz</span></a>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-group-title">Account</span>
+                    <a href="profile.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="user"></i></span><span class="nav-text">Profile</span></a>
+                    <a href="login.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="log-out"></i></span><span class="nav-text">Sign Out</span></a>
+                </div>
+            </nav>
+            <div class="sidebar-footer"><p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p></div>
+        </aside>
+        <div class="app-content">
+            <header class="topbar" role="banner">
+                <div class="topbar-search"><input type="search" placeholder="Search articles..." aria-label="Search"></div>
+                <div class="topbar-right">
+                    <div class="topbar-actions">
+                        <button class="btn-icon-only" aria-label="Notifications"><i class="icon" data-lucide="bell"></i></button>
+                        <button class="btn-icon-only" aria-label="Settings"><i class="icon" data-lucide="settings"></i></button>
+                    </div>
+                    <div class="topbar-user">
+                        <button class="btn-icon-only" aria-label="User menu"><div class="user-avatar" role="img" aria-label="User avatar"></div></button>
+                    </div>
+                </div>
+            </header>
+            <main class="main-content" role="main">
+                <div class="reading-progress">
+                    <div class="progress-bar" style="max-width: 800px; margin: 0 auto;"><div class="progress" style="width: 35%;"></div></div>
+                </div>
+                <div class="reading-container">
+                    <article class="reading-article">
+                        <h1>The Future of Artificial Intelligence</h1>
+                        <div class="article-meta">
+                            <span>15 min read</span>
+                            <span>Intermediate</span>
+                            <span>Technology</span>
+                        </div>
+                        <p>Artificial Intelligence (AI) has become one of the most <span class="highlight-word" data-word="transformative" data-meaning="có tính biến đổi">transformative</span> technologies of our time. From healthcare to finance, AI systems are reshaping how we work, learn, and communicate.</p>
+                        <p>One of the key <span class="highlight-word" data-word="breakthroughs" data-meaning="đột phá">breakthroughs</span> in recent years has been in the field of natural language processing. Machines can now understand and generate human language with remarkable accuracy.</p>
+                        <p>However, there are also significant <span class="highlight-word" data-word="challenges" data-meaning="thách thức">challenges</span> that need to be addressed. Concerns about privacy, bias, and job displacement remain at the forefront of public discussion.</p>
+                        <p>Despite these challenges, the potential benefits of AI are enormous. In education, AI-powered tools can provide personalized learning experiences, helping students learn at their own pace.</p>
+                        <p>The key is to develop AI responsibly, ensuring that it serves humanity's best interests while minimizing potential risks.</p>
+                    </article>
+                </div>
+                <div class="reading-word-popup" id="word-popup">
+                    <p class="popup-word" id="popup-word">transformative</p>
+                    <p class="popup-meaning" id="popup-meaning">có tính biến đổi</p>
+                    <p class="popup-example">"AI is a transformative technology."</p>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="../js/main.js"></script>
+    <script>
+        document.querySelectorAll('.highlight-word').forEach(el => {
+            el.addEventListener('click', function() {
+                const popup = document.getElementById('word-popup');
+                document.getElementById('popup-word').textContent = this.dataset.word;
+                document.getElementById('popup-meaning').textContent = this.dataset.meaning;
+                popup.classList.add('active');
+                setTimeout(() => popup.classList.remove('active'), 3000);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -6,6 +6,7 @@
     --brand-primary: #2563EB;
     --brand-primary-hover: #1D4ED8;
     --brand-primary-pressed: #1E40AF;
+    --brand-accent-light: #60A5FA; /* blue-400 */
 
     /* ==========================================
        2. BACKGROUND COLORS
@@ -55,6 +56,7 @@
     --radius-sm: 4px;
     --radius-md: 6px;
     --radius-lg: 8px;
+    --radius-xl: 14px; /* Slightly larger for a softer look */
     --radius-full: 9999px;
 
     /* ==========================================
@@ -90,6 +92,10 @@
 
     --font-size-xl:20px;
 
+    --font-size-2xl: 28px; /* Increased for better hierarchy */
+    --font-size-3xl: 36px; /* Increased for better hierarchy */
+    --font-size-4xl: 44px; /* Increased for better hierarchy */
+    
     /* ==========================================
        10. TRANSITION DURATION
     ========================================== */

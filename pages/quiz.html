@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz - EngFore</title>
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/layout.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link rel="stylesheet" href="../css/topbar.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/pages/quiz.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-logo"><a href="../index.html" aria-label="EngFore Home">EngFore</a></div>
+            <nav class="sidebar-nav">
+                <div class="nav-group">
+                    <span class="nav-group-title">Learning</span>
+                    <a href="../index.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="layout-dashboard"></i></span><span class="nav-text">Dashboard</span></a>
+                    <a href="vocabulary.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="book-marked"></i></span><span class="nav-text">Vocabulary</span></a>
+                    <a href="flashcards.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="layers"></i></span><span class="nav-text">Flashcards</span></a>
+                    <a href="review.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="rotate-ccw"></i></span><span class="nav-text">Review</span></a>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-group-title">Practice</span>
+                    <a href="grammar.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="pilcrow"></i></span><span class="nav-text">Grammar</span></a>
+                    <a href="reading.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="book-open"></i></span><span class="nav-text">Reading</span></a>
+                    <a href="listening.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="headphones"></i></span><span class="nav-text">Listening</span></a>
+                    <a href="quiz.html" class="nav-item active" aria-current="page"><span class="nav-icon"><i class="icon" data-lucide="clipboard-check"></i></span><span class="nav-text">Quiz</span></a>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-group-title">Account</span>
+                    <a href="profile.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="user"></i></span><span class="nav-text">Profile</span></a>
+                    <a href="login.html" class="nav-item"><span class="nav-icon"><i class="icon" data-lucide="log-out"></i></span><span class="nav-text">Sign Out</span></a>
+                </div>
+            </nav>
+            <div class="sidebar-footer"><p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p></div>
+        </aside>
+        <div class="app-content">
+            <header class="topbar" role="banner">
+                <div class="topbar-search"><input type="search" placeholder="Search..." aria-label="Search"></div>
+                <div class="topbar-right">
+                    <div class="topbar-actions">
+                        <button class="btn-icon-only" aria-label="Notifications"><i class="icon" data-lucide="bell"></i></button>
+                        <button class="btn-icon-only" aria-label="Settings"><i class="icon" data-lucide="settings"></i></button>
+                    </div>
+                    <div class="topbar-user">
+                        <button class="btn-icon-only" aria-label="User menu"><div class="user-avatar" role="img" aria-label="User avatar"></div></button>
+                    </div>
+                </div>
+            </header>
+            <main class="main-content" role="main">
+                <div class="quiz-container">
+                    <div class="quiz-header">
+                        <h1>Conditionals Quiz</h1>
+                        <p class="quiz-subtitle">Test your knowledge of conditional sentences.</p>
+                    </div>
+                    <div class="quiz-progress">
+                        <div class="quiz-progress-text">
+                            <span>Question 3 of 10</span>
+                            <span>30%</span>
+                        </div>
+                        <div class="progress-bar"><div class="progress" style="width: 30%;"></div></div>
+                    </div>
+                    <div class="quiz-question">
+                        <p class="quiz-question-number">Question 3</p>
+                        <p class="quiz-question-text">If I _____ time, I would travel more.</p>
+                    </div>
+                    <div class="quiz-options">
+                        <label class="quiz-option">
+                            <span class="option-letter">A</span>
+                            <span class="option-text">have</span>
+                        </label>
+                        <label class="quiz-option">
+                            <span class="option-letter">B</span>
+                            <span class="option-text">had</span>
+                        </label>
+                        <label class="quiz-option">
+                            <span class="option-letter">C</span>
+                            <span class="option-text">would have</span>
+                        </label>
+                        <label class="quiz-option">
+                            <span class="option-letter">D</span>
+                            <span class="option-text">will have</span>
+                        </label>
+                    </div>
+                    <div class="quiz-navigation">
+                        <button class="btn btn-secondary">Previous</button>
+                        <button class="btn btn-primary">Next</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

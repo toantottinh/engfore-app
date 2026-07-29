@@ -1,0 +1,100 @@
+/* ==========================================
+   READING PAGE
+========================================== */
+.reading-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-10);
+}
+
+.reading-article {
+    line-height: var(--line-height-relaxed);
+}
+
+.reading-article h1 {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-4);
+}
+
+.reading-article .article-meta {
+    display: flex;
+    gap: var(--space-4);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-8);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--border-default);
+}
+
+.reading-article p {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-5);
+}
+
+.reading-article .highlight-word {
+    color: var(--brand-accent-light);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    border-bottom: 1px dashed var(--brand-accent-light);
+    transition: color var(--duration-fast) ease;
+}
+
+.reading-article .highlight-word:hover {
+    color: var(--text-primary);
+}
+
+.reading-word-popup {
+    position: fixed;
+    bottom: var(--space-8);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    padding: var(--space-5) var(--space-6);
+    max-width: 400px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: none;
+    z-index: var(--z-popover);
+}
+
+.reading-word-popup.active {
+    display: block;
+    animation: fade-in-up 0.2s ease-out forwards;
+}
+
+.reading-word-popup .popup-word {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-2);
+}
+
+.reading-word-popup .popup-meaning {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-1);
+}
+
+.reading-word-popup .popup-example {
+    font-style: italic;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
+}
+
+.reading-progress {
+    position: sticky;
+    top: var(--topbar-height);
+    background-color: var(--bg-default);
+    padding: var(--space-4) 0;
+    z-index: var(--z-default);
+}
+
+@media (max-width: 768px) {
+    .reading-container {
+        padding: var(--space-4);
+    }
+    .reading-article h1 {
+        font-size: var(--font-size-2xl);
+    }
+}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - EngFore</title>
+    <link rel="stylesheet" href="../css/variables.css">
+    <link rel="stylesheet" href="../css/base.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <link rel="stylesheet" href="../css/pages/login.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <a href="../index.html" class="auth-logo">EngFore</a>
+                <h1 class="auth-title">Welcome back</h1>
+                <p class="auth-subtitle">Enter your credentials to access your account.</p>
+            </div>
+
+            <form class="auth-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" id="email" class="input" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <div class="form-label-group">
+                        <label for="password" class="form-label">Password</label>
+                        <a href="forgot-password.html" class="form-link">Forgot password?</a>
+                    </div>
+                    <input type="password" id="password" class="input" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block mt-6">Log In</button>
+            </form>
+
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="register.html">Sign up</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

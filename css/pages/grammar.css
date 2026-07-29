@@ -1,0 +1,72 @@
+/* ==========================================
+   GRAMMAR PAGE
+========================================== */
+.grammar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-6);
+    padding: 0 var(--space-10) var(--space-10);
+}
+
+.grammar-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.grammar-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.grammar-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+    flex-shrink: 0;
+}
+
+.grammar-card-icon .icon {
+    width: 22px;
+    height: 22px;
+}
+
+.grammar-card-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.grammar-card-desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+    margin-bottom: var(--space-4);
+    flex-grow: 1;
+}
+
+.grammar-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-default);
+}
+
+.grammar-card-lessons {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+}
+
+@media (max-width: 768px) {
+    .grammar-grid {
+        padding: 0 var(--space-4) var(--space-4);
+        grid-template-columns: 1fr;
+    }
+}

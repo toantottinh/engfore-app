@@ -34,9 +34,9 @@
 
     .nav-item {
         justify-content: center;
-        margin-right: 0;
-        padding: var(--space-3);
-        width: 24px; /* Give icon a bit more space */
+        padding: 0;
+        width: 44px; /* Increase tap target size */
+        height: 44px;
         font-size: var(--font-size-xl);
     }
 
@@ -52,28 +52,39 @@
         width: calc(100% - 80px);
     }
 
-    .main-content {
+    /* Dashboard Grid Tablet */
+    .dashboard-grid {
+        grid-template-columns: repeat(8, 1fr); /* More flexible 8-col grid for tablet */
+        gap: var(--space-8); /* Consistent with desktop */
         padding: var(--space-6);
     }
-
-    /* Dashboard Tablet */
-    .dashboard {
-        padding: var(--space-6);
+    .dashboard-hero {
+        grid-column: 1 / -1; /* Hero takes full width */
     }
-
-    .hero-grid {
-        grid-template-columns: 3fr 2fr; /* 60/40 split on tablet */
+    .dashboard-daily-goal {
+        grid-column: 1 / -1; /* Stacks below hero */
     }
-
-    .stats-grid, .continue-learning, .recent-activity, .recommended-lessons {
-        grid-column: 1 / -1; /* All sections take full width */
+    .dashboard-continue {
+        grid-column: 1 / -1;
     }
-
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr); /* 2x2 grid for stats */
+    .dashboard-activity {
+        grid-column: 1 / -1;
     }
-    .lesson-grid {
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    .dashboard-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-6); /* Keep 2x2 gap */
+    }
+    .hero-illustration {
+        display: none; /* Keep illustration hidden on tablet */
+    }
+    .hero-title {
+        font-size: var(--font-size-3xl);
+    }
+    .dashboard-hero {
+        padding: var(--space-8);
+    }
+    .recommended-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }
 }
 
@@ -81,13 +92,39 @@
    MOBILE DEVICES (<= 768px)
 ========================================== */
 @media (max-width: 768px) {
-    /* Hide the sidebar completely and show a burger menu (future) */
+    /* Mobile sidebar */
     .sidebar {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        bottom: 0;
+        z-index: var(--z-drawer);
+        transition: left var(--duration-base) ease;
+        width: 260px;
+    }
+
+    .sidebar.sidebar-open {
+        left: 0;
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: calc(var(--z-drawer) - 1);
         display: none;
+    }
+
+    .sidebar.sidebar-open ~ .sidebar-overlay {
+        display: block;
     }
 
     .app-content {
         width: 100%;
+    }
+
+    .app-layout {
+        position: relative;
     }
 
     /* Topbar adjustments for mobile */
@@ -98,28 +135,26 @@
         display: none; /* Hide search on mobile for more space */
     }
 
-    /* Main content adjustments */
-    .main-content {
+    /* Dashboard Grid Mobile */
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Ensure single column */
+        .dashboard-continue,
+        .dashboard-activity {
+            grid-column: 1 / -1; /* Reset to full width */
+        }
         padding: var(--space-4);
+        gap: var(--space-6); /* Consistent with tablet */
     }
-
-    /* Dashboard Mobile */
-    .dashboard {
-        padding: var(--space-4);
+    .dashboard-stats {
+        grid-template-columns: 1fr;
     }
-
-    .dashboard-overview { /* Renamed from .hero-grid */
-        grid-template-columns: 1fr; /* Stack hero and goal on mobile */
+    .hero-title {
+        font-size: var(--font-size-2xl);
     }
-    .dashboard-overview .hero-title { /* Adjust font size for mobile */
-        font-size: 28px;
-        white-space: normal; /* Allow wrapping on mobile for better readability */
-        overflow: visible;
-        text-overflow: clip;
+    .dashboard-hero {
+        padding: var(--space-6);
     }
-
-    .dashboard-layout-grid, .stats-grid, .lesson-grid {
-        grid-template-columns: 1fr; /* Single column for all grids */
-        gap: var(--space-4);
+    .recommended-grid {
+        grid-template-columns: 1fr;
     }
 }

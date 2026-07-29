@@ -49,6 +49,12 @@
    TOPBAR ACTIONS & USER
 ========================================== */
 
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
 .topbar-right {
     margin-left: auto; /* Push the right content to the end */
     display: flex;
