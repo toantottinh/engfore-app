@@ -40,9 +40,14 @@
             </nav>
             <div class="sidebar-footer"><p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p></div>
         </aside>
+        <div class="sidebar-overlay"></div>
         <div class="app-content">
             <header class="topbar" role="banner">
-                <div class="topbar-search"><input type="search" placeholder="Search flashcards..." aria-label="Search"></div>
+                <div class="topbar-left">
+                    <button class="btn-icon-only sidebar-toggle" aria-label="Toggle sidebar menu"><i class="icon" data-lucide="menu"></i></button>
+                    <div class="topbar-search"><input type="search" placeholder="Search flashcards..." aria-label="Search"></div>
+                </div>
+
                 <div class="topbar-right">
                     <div class="topbar-actions">
                         <button class="btn-icon-only" aria-label="Notifications"><i class="icon" data-lucide="bell"></i></button>
@@ -57,7 +62,7 @@
                 <div class="page-header">
                     <h1 class="page-title">Flashcards</h1>
                     <div class="page-actions">
-                        <select class="input" style="width: auto;">
+                        <select id="deck-select" class="input" style="width: auto;" aria-label="Select flashcard deck">
                             <option>IT Vocabulary</option>
                             <option>Business English</option>
                             <option>Emotions</option>
@@ -65,24 +70,26 @@
                     </div>
                 </div>
                 <div class="flashcards-container">
-                    <span class="flashcard-counter">Card 1 of 12</span>
-                    <div class="flashcard" id="flashcard" onclick="this.classList.toggle('flipped')">
+                    <span class="flashcard-counter" id="flashcard-counter">Card 1 of 5</span>
+                    <div class="flashcard" id="flashcard" role="button" tabindex="0" aria-label="Flashcard, click to flip">
                         <div class="flashcard-inner">
                             <div class="flashcard-front">
-                                <p class="flashcard-word">Astonish</p>
-                                <p class="flashcard-pronunciation">/əˈstɒnɪʃ/</p>
-                                <p class="flashcard-hint">Tap to reveal meaning</p>
+                                <p class="flashcard-word" id="front-word">Astonish</p>
+                                <p class="flashcard-pronunciation" id="front-pronunciation">/əˈstɒnɪʃ/</p>
+                                <p class="flashcard-pos" id="front-pos">Verb</p>
+                                <p class="flashcard-hint">Click or press Space to reveal meaning</p>
                             </div>
                             <div class="flashcard-back">
-                                <p class="flashcard-meaning">Làm ngạc nhiên</p>
-                                <p class="flashcard-example">"The magician's tricks will astonish you."</p>
-                                <p class="flashcard-hint">Verb &middot; Emotions</p>
+                                <p class="flashcard-meaning" id="back-meaning">Làm ngạc nhiên</p>
+                                <p class="flashcard-example" id="back-example">"The magician's tricks will astonish you."</p>
+                                <p class="flashcard-hint">Tap to go back</p>
                             </div>
                         </div>
                     </div>
                     <div class="flashcard-actions">
-                        <button class="btn btn-secondary" aria-label="Previous card"><i class="icon" data-lucide="chevron-left"></i> Previous</button>
-                        <button class="btn btn-primary" aria-label="Next card">Next <i class="icon" data-lucide="chevron-right"></i></button>
+                        <button class="btn btn-secondary" id="prev-card-btn" aria-label="Previous card"><i class="icon" data-lucide="chevron-left"></i> Previous</button>
+                        <button class="btn btn-secondary" id="flip-card-btn" aria-label="Flip card"><i class="icon" data-lucide="rotate-cw"></i> Flip</button>
+                        <button class="btn btn-primary" id="next-card-btn" aria-label="Next card">Next <i class="icon" data-lucide="chevron-right"></i></button>
                     </div>
                 </div>
             </main>
@@ -90,5 +97,6 @@
     </div>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="../js/main.js"></script>
+    <script src="../js/pages/flashcards.js"></script>
 </body>
 </html>

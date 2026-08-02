@@ -221,6 +221,16 @@ document.addEventListener('DOMContentLoaded', () => {
     favoriteFilter.addEventListener('change', applyFiltersAndSort);
     sortBy.addEventListener('change', applyFiltersAndSort);
 
+    // --- GLOBAL SEARCH (from topbar) ---
+    document.addEventListener('vocabulary-search', (e) => {
+        const query = e.detail;
+        if (searchInput) {
+            searchInput.value = query;
+            applyFiltersAndSort();
+            searchInput.focus();
+        }
+    });
+
     // --- INITIALIZATION ---
     populateFilters();
     applyFiltersAndSort();

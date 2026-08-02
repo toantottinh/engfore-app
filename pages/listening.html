@@ -40,9 +40,14 @@
             </nav>
             <div class="sidebar-footer"><p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p></div>
         </aside>
+        <div class="sidebar-overlay"></div>
         <div class="app-content">
             <header class="topbar" role="banner">
-                <div class="topbar-search"><input type="search" placeholder="Search exercises..." aria-label="Search"></div>
+                <div class="topbar-left">
+                    <button class="btn-icon-only sidebar-toggle" aria-label="Toggle sidebar menu"><i class="icon" data-lucide="menu"></i></button>
+                    <div class="topbar-search"><input type="search" placeholder="Search exercises..." aria-label="Search"></div>
+                </div>
+
                 <div class="topbar-right">
                     <div class="topbar-actions">
                         <button class="btn-icon-only" aria-label="Notifications"><i class="icon" data-lucide="bell"></i></button>
@@ -78,7 +83,7 @@
                         </div>
                         <div class="player-controls">
                             <button class="btn-icon-only btn-secondary" aria-label="Rewind 15s"><i class="icon" data-lucide="rotate-ccw"></i></button>
-                            <button class="btn-icon-only play-btn" aria-label="Play"><i class="icon" data-lucide="play"></i></button>
+                            <button class="btn-icon-only play-btn" id="play-btn" aria-label="Play"><i class="icon" data-lucide="play"></i></button>
                             <button class="btn-icon-only btn-secondary" aria-label="Forward 15s"><i class="icon" data-lucide="rotate-cw"></i></button>
                         </div>
                     </div>
@@ -95,5 +100,6 @@
     </div>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="../js/main.js"></script>
+    <script src="../js/pages/listening.js"></script>
 </body>
 </html>

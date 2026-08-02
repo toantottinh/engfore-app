@@ -40,9 +40,14 @@
             </nav>
             <div class="sidebar-footer"><p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p></div>
         </aside>
+        <div class="sidebar-overlay"></div>
         <div class="app-content">
             <header class="topbar" role="banner">
-                <div class="topbar-search"><input type="search" placeholder="Search..." aria-label="Search"></div>
+                <div class="topbar-left">
+                    <button class="btn-icon-only sidebar-toggle" aria-label="Toggle sidebar menu"><i class="icon" data-lucide="menu"></i></button>
+                    <div class="topbar-search"><input type="search" placeholder="Search..." aria-label="Search"></div>
+                </div>
+
                 <div class="topbar-right">
                     <div class="topbar-actions">
                         <button class="btn-icon-only" aria-label="Notifications"><i class="icon" data-lucide="bell"></i></button>
@@ -60,37 +65,22 @@
                         <p class="quiz-subtitle">Test your knowledge of conditional sentences.</p>
                     </div>
                     <div class="quiz-progress">
-                        <div class="quiz-progress-text">
-                            <span>Question 3 of 10</span>
-                            <span>30%</span>
+                        <div class="quiz-progress-text" id="quiz-progress-text">
+                            <span>Question 1 of 10</span>
+                            <span>0%</span>
                         </div>
-                        <div class="progress-bar"><div class="progress" style="width: 30%;"></div></div>
+                        <div class="progress-bar"><div class="progress" id="quiz-progress-bar" style="width: 0%;"></div></div>
                     </div>
                     <div class="quiz-question">
-                        <p class="quiz-question-number">Question 3</p>
-                        <p class="quiz-question-text">If I _____ time, I would travel more.</p>
+                        <p class="quiz-question-number" id="quiz-question-number">Question 1</p>
+                        <p class="quiz-question-text" id="quiz-question-text">If I _____ time, I would travel more.</p>
                     </div>
-                    <div class="quiz-options">
-                        <label class="quiz-option">
-                            <span class="option-letter">A</span>
-                            <span class="option-text">have</span>
-                        </label>
-                        <label class="quiz-option">
-                            <span class="option-letter">B</span>
-                            <span class="option-text">had</span>
-                        </label>
-                        <label class="quiz-option">
-                            <span class="option-letter">C</span>
-                            <span class="option-text">would have</span>
-                        </label>
-                        <label class="quiz-option">
-                            <span class="option-letter">D</span>
-                            <span class="option-text">will have</span>
-                        </label>
+                    <div class="quiz-options" id="quiz-options">
+                        <!-- Options rendered by JS -->
                     </div>
                     <div class="quiz-navigation">
-                        <button class="btn btn-secondary">Previous</button>
-                        <button class="btn btn-primary">Next</button>
+                        <button class="btn btn-secondary" id="quiz-prev-btn" aria-label="Previous question">Previous</button>
+                        <button class="btn btn-primary" id="quiz-next-btn" aria-label="Next question">Next</button>
                     </div>
                 </div>
             </main>
@@ -98,5 +88,6 @@
     </div>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="../js/main.js"></script>
+    <script src="../js/pages/quiz.js"></script>
 </body>
 </html>

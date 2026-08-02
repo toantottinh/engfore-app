@@ -63,6 +63,14 @@
     color: var(--text-secondary);
 }
 
+.flashcard-pos {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: var(--space-2);
+}
+
 .flashcard-meaning {
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-semibold);

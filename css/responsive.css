@@ -138,12 +138,14 @@
     /* Dashboard Grid Mobile */
     .dashboard-grid {
         grid-template-columns: 1fr; /* Ensure single column */
-        .dashboard-continue,
-        .dashboard-activity {
-            grid-column: 1 / -1; /* Reset to full width */
-        }
         padding: var(--space-4);
         gap: var(--space-6); /* Consistent with tablet */
+    }
+    .dashboard-continue,
+    .dashboard-activity,
+    .dashboard-recommended,
+    .dashboard-streak {
+        grid-column: 1 / -1; /* Reset to full width */
     }
     .dashboard-stats {
         grid-template-columns: 1fr;

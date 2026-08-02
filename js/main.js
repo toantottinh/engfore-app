@@ -10,11 +10,19 @@ lucide.createIcons();
 (function() {
     const sidebar = document.querySelector('.sidebar');
     const toggleBtn = document.querySelector('.sidebar-toggle');
+    const overlay = document.querySelector('.sidebar-overlay');
 
     if (toggleBtn && sidebar) {
         toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('sidebar-open');
         });
+
+        // Close sidebar when clicking overlay
+        if (overlay) {
+            overlay.addEventListener('click', () => {
+                sidebar.classList.remove('sidebar-open');
+            });
+        }
 
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', (e) => {
