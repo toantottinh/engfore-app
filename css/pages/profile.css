@@ -1,31 +1,36 @@
-/* ==========================================
-   PROFILE PAGE
-========================================== */
+/* ==========================================================
+   ENGFORE PROFILE PAGE
+========================================================== */
 .profile-header {
     display: flex;
     align-items: center;
     gap: var(--space-8);
-    padding: var(--space-10);
-    border-bottom: 1px solid var(--border-default);
+    padding: var(--space-10) var(--space-10) var(--space-8);
+    background: var(--surface-default);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .profile-avatar-large {
-    width: 96px;
-    height: 96px;
+    width: 104px;
+    height: 104px;
     border-radius: var(--radius-full);
-    background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent-light));
+    background: linear-gradient(135deg, #6D5EF8 0%, #4F8CFF 60%, #38BDF8 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
     color: var(--text-on-primary);
     flex-shrink: 0;
+    box-shadow: 0 12px 32px rgba(109, 94, 248, 0.4);
+    border: 4px solid #FFFFFF;
 }
 
 .profile-info h1 {
     font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
 }
 
 .profile-info p {
@@ -33,59 +38,94 @@
     margin-top: var(--space-1);
 }
 
+/* ---------- Stats grid ---------- */
 .profile-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: var(--space-6);
-    padding: var(--space-10);
+    padding: var(--space-8) var(--space-10);
 }
 
 .profile-stat-card {
     text-align: center;
-    padding: var(--space-5);
+    padding: var(--space-6);
+    position: relative;
+    overflow: hidden;
+}
+
+.profile-stat-card::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 24px;
+    background: rgba(79, 140, 255, 0.08);
+    -webkit-mask-image: radial-gradient(circle at 8px 0, transparent 7px, #000 7.5px);
+    -webkit-mask-size: 16px 14px;
+    -webkit-mask-repeat: repeat-x;
+    -webkit-mask-position: bottom;
+    mask-image: radial-gradient(circle at 8px 0, transparent 7px, #000 7.5px);
+    mask-size: 16px 14px;
+    mask-repeat: repeat-x;
+    mask-position: bottom;
+    pointer-events: none;
 }
 
 .profile-stat-value {
     font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
     color: var(--text-primary);
+    letter-spacing: -0.02em;
 }
 
 .profile-stat-label {
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     margin-top: var(--space-1);
+    font-weight: var(--font-weight-medium);
 }
 
+/* ---------- Settings ---------- */
 .profile-settings {
-    padding: var(--space-10);
-    max-width: 600px;
+    padding: var(--space-4) var(--space-10) var(--space-10);
+    max-width: 700px;
 }
 
 .profile-section-title {
     font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
     margin-bottom: var(--space-6);
+    letter-spacing: -0.02em;
 }
 
 .profile-setting-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-4) 0;
-    border-bottom: 1px solid var(--border-default);
+    padding: var(--space-5) 0;
+    border-bottom: 1px solid var(--border-subtle);
+    transition: padding var(--duration-base) var(--duration-ease);
+}
+
+.profile-setting-item:hover {
+    padding-left: var(--space-2);
 }
 
 .profile-setting-label {
     font-size: var(--font-size-base);
     color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
 }
 
 .profile-setting-desc {
     font-size: var(--font-size-sm);
     color: var(--text-tertiary);
+    margin-top: var(--space-1);
 }
 
+/* ---------- Responsive ---------- */
 @media (max-width: 768px) {
     .profile-header {
         flex-direction: column;
@@ -94,9 +134,10 @@
     }
     .profile-stats-grid {
         grid-template-columns: repeat(2, 1fr);
-        padding: var(--space-4);
+        padding: var(--space-5) var(--space-4);
     }
     .profile-settings {
-        padding: var(--space-4);
+        padding: var(--space-4) var(--space-4) var(--space-8);
     }
 }
+

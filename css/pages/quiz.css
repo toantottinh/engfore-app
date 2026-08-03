@@ -1,6 +1,6 @@
-/* ==========================================
-   QUIZ PAGE
-========================================== */
+/* ==========================================================
+   ENGFORE QUIZ PAGE
+========================================================== */
 .quiz-container {
     max-width: 720px;
     margin: 0 auto;
@@ -9,12 +9,14 @@
 
 .quiz-header {
     text-align: center;
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-10);
 }
 
 .quiz-header h1 {
     font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
     margin-bottom: var(--space-2);
 }
 
@@ -23,7 +25,7 @@
 }
 
 .quiz-progress {
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-10);
 }
 
 .quiz-progress-text {
@@ -31,18 +33,26 @@
     justify-content: space-between;
     font-size: var(--font-size-sm);
     color: var(--text-tertiary);
+    font-weight: var(--font-weight-medium);
     margin-bottom: var(--space-3);
 }
 
 .quiz-question {
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-10);
+    background: var(--surface-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    padding: var(--space-8);
+    box-shadow: var(--shadow-card);
+    animation: fade-in-up 0.3s var(--duration-ease) forwards;
 }
 
 .quiz-question-number {
     font-size: var(--font-size-sm);
-    color: var(--text-tertiary);
+    color: var(--brand-primary);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
+    font-weight: var(--font-weight-bold);
     margin-bottom: var(--space-3);
 }
 
@@ -57,7 +67,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-10);
 }
 
 .quiz-option {
@@ -67,14 +77,21 @@
     padding: var(--space-4) var(--space-5);
     background: var(--surface-default);
     border: 2px solid var(--border-default);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     cursor: pointer;
-    transition: border-color var(--duration-fast) ease, background-color var(--duration-fast) ease;
+    transition:
+        border-color var(--duration-base) var(--duration-ease),
+        background-color var(--duration-base) var(--duration-ease),
+        transform var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease);
+    will-change: transform, border-color;
 }
 
 .quiz-option:hover {
-    border-color: var(--border-interactive);
+    border-color: var(--brand-accent-light);
     background-color: var(--surface-hover);
+    transform: translateX(4px);
+    box-shadow: var(--shadow-soft);
 }
 
 .quiz-option.selected {
@@ -84,35 +101,50 @@
 
 .quiz-option.correct {
     border-color: var(--status-success);
-    background-color: rgba(34, 197, 94, 0.1);
+    background-color: var(--status-success-bg);
 }
 
 .quiz-option.incorrect {
     border-color: var(--status-error);
-    background-color: rgba(239, 68, 68, 0.1);
+    background-color: var(--status-error-bg);
 }
 
 .quiz-option .option-letter {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: var(--radius-full);
-    background: var(--surface-hover);
+    background: var(--bg-subtle);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: var(--font-weight-bold);
     font-size: var(--font-size-sm);
     flex-shrink: 0;
+    color: var(--text-secondary);
+    transition:
+        background var(--duration-base) var(--duration-ease),
+        color var(--duration-base) var(--duration-ease);
 }
 
 .quiz-option.selected .option-letter {
-    background: var(--brand-primary);
+    background: var(--brand-gradient);
     color: var(--text-on-primary);
+}
+
+.quiz-option.correct .option-letter {
+    background: var(--status-success);
+    color: #FFFFFF;
+}
+
+.quiz-option.incorrect .option-letter {
+    background: var(--status-error);
+    color: #FFFFFF;
 }
 
 .quiz-option .option-text {
     flex: 1;
     color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
 }
 
 .quiz-navigation {
@@ -121,22 +153,33 @@
     align-items: center;
 }
 
+/* ---------- Results ---------- */
 .quiz-results {
     text-align: center;
-    padding: var(--space-10);
+    padding: var(--space-12) var(--space-8);
+    background: var(--surface-default);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+    animation: fade-in-up 0.4s var(--duration-ease) forwards;
 }
 
 .quiz-results .result-score {
     font-size: var(--font-size-6xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--brand-primary);
+    font-weight: var(--font-weight-extrabold);
+    background: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
     margin-bottom: var(--space-2);
+    letter-spacing: -0.03em;
 }
 
 .quiz-results .result-label {
     font-size: var(--font-size-lg);
     color: var(--text-secondary);
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-8);
+    font-weight: var(--font-weight-medium);
 }
 
 .quiz-results .result-details {
@@ -147,27 +190,33 @@
 }
 
 .quiz-results .result-stat {
-    padding: var(--space-4);
+    padding: var(--space-5);
     border-radius: var(--radius-lg);
-    background: var(--surface-default);
-    border: 1px solid var(--border-default);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-subtle);
 }
 
 .quiz-results .result-stat-value {
     font-size: var(--font-size-2xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: -0.02em;
 }
 
 .quiz-results .result-stat-label {
     font-size: var(--font-size-sm);
     color: var(--text-tertiary);
+    font-weight: var(--font-weight-medium);
 }
 
 @media (max-width: 768px) {
     .quiz-container {
-        padding: var(--space-4);
+        padding: var(--space-5) var(--space-4);
+    }
+    .quiz-question {
+        padding: var(--space-6);
     }
     .quiz-results .result-details {
         grid-template-columns: 1fr;
     }
 }
+

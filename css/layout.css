@@ -1,46 +1,41 @@
-/* ==========================================
-   APP LAYOUT
-========================================== */
+/* ==========================================================
+   ENGFORE APP LAYOUT
+========================================================== */
+
 .app-layout {
     display: flex;
     height: 100vh;
 }
 
-/* ==========================================
-   SIDEBAR (Cột bên)
-========================================== */
+/* ---------- Sidebar ---------- */
 .sidebar {
-    width: 260px;
+    width: var(--sidebar-width);
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-/* ==========================================
-   APP CONTENT WRAPPER (Trình bao bọc nội dung)
-========================================== */
+/* ---------- App content wrapper ---------- */
 .app-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-width: 0; /* Ngăn chặn tràn nội dung trong flexbox */
+    min-width: 0; /* prevents flex overflow */
 }
 
-/* ==========================================
-   TOPBAR (Thanh trên cùng)
-========================================== */
+/* ---------- Topbar ---------- */
 .topbar {
-    height: 70px;
-    flex-shrink: 0; /* Ngăn topbar bị co lại */
-    display:flex;
-    align-items:center;
+    height: var(--topbar-height);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
 }
 
-/* ==========================================
-   MAIN CONTENT (Nội dung chính)
-========================================== */
+/* ---------- Main content ---------- */
 .main-content {
-    flex: 1; /* Lấp đầy không gian còn lại trong app-content */
-    overflow-y: auto; /* Cho phép cuộn khi nội dung vượt quá */
+    flex: 1;
+    overflow-y: auto;
+    scroll-behavior: smooth;
 }
+

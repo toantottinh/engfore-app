@@ -1,26 +1,33 @@
-/* ==========================================
-   VOCABULARY PAGE LAYOUT
-========================================== */
+/* ==========================================================
+   ENGFORE VOCABULARY PAGE
+========================================================== */
 .page-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: var(--space-8) var(--space-10);
-    border-bottom: 1px solid var(--border-default);
+    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-default);
 }
 
 .page-title {
     font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
 }
 
 .page-actions {
     display: flex;
-    gap: var(--space-4);
+    gap: var(--space-3);
 }
 
 .main-content {
-    padding: 0; /* Remove default padding to allow full-width sections */
+    padding: 0; /* allow full-width sections */
 }
 
 /* ==========================================
@@ -29,33 +36,46 @@
 .filters-bar {
     display: flex;
     gap: var(--space-4);
-    padding: var(--space-4);
-    margin: var(--space-8) var(--space-10);
+    align-items: center;
+    padding: var(--space-5);
+    margin: var(--space-8) var(--space-10) var(--space-6);
     border-radius: var(--radius-lg);
+    flex-wrap: wrap;
 }
 
 .search-control {
     flex-grow: 1;
     position: relative;
+    min-width: 220px;
 }
 
 .search-control .icon {
     position: absolute;
-    left: var(--space-3);
+    left: var(--space-4);
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-tertiary);
-    width: 20px;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
 }
 
 .search-control .input {
-    padding-left: var(--space-10);
+    padding-left: var(--space-12);
+    border-radius: var(--radius-md);
 }
 
 .filter-controls {
     display: flex;
-    gap: var(--space-4);
+    gap: var(--space-3);
     flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.filter-controls .input {
+    width: auto;
+    min-width: 150px;
+    cursor: pointer;
 }
 
 /* ==========================================
@@ -63,7 +83,7 @@
 ========================================== */
 .vocabulary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: var(--space-6);
     padding: 0 var(--space-10) var(--space-10);
 }
@@ -71,6 +91,7 @@
 .word-card {
     display: flex;
     flex-direction: column;
+    animation: fade-in-up 0.4s var(--duration-ease) backwards;
 }
 
 .word-card-header {
@@ -84,12 +105,14 @@
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
     color: var(--text-primary);
+    letter-spacing: -0.02em;
 }
 
 .word-card-pronunciation {
     font-family: var(--font-mono);
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
 }
 
 .word-card-actions {
@@ -101,14 +124,18 @@
     font-size: var(--font-size-lg);
     color: var(--text-secondary);
     margin-bottom: var(--space-5);
+    line-height: var(--line-height-normal);
 }
 
 .word-card-example {
     font-style: italic;
     color: var(--text-tertiary);
-    border-left: 2px solid var(--border-default);
-    padding-left: var(--space-4);
+    border-left: 3px solid var(--brand-accent-light);
+    background: var(--bg-subtle);
+    padding: var(--space-4);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     margin-bottom: var(--space-5);
+    line-height: var(--line-height-relaxed);
 }
 
 .word-card-footer {
@@ -117,12 +144,13 @@
     justify-content: space-between;
     align-items: center;
     padding-top: var(--space-4);
-    border-top: 1px solid var(--border-default);
+    border-top: 1px solid var(--border-subtle);
 }
 
 .word-card-meta {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--space-2);
+    flex-wrap: wrap;
 }
 
 /* ==========================================
@@ -133,22 +161,28 @@
     padding: var(--space-16);
     margin: 0 var(--space-10) var(--space-10);
 }
+
 .empty-state .icon {
     width: 64px;
     height: 64px;
-    color: var(--text-tertiary);
+    color: var(--brand-primary);
     margin-bottom: var(--space-6);
+    opacity: 0.5;
 }
+
 .empty-state h2 {
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
 }
+
 .empty-state p {
     color: var(--text-secondary);
     margin-top: var(--space-2);
     max-width: 400px;
     margin-left: auto;
     margin-right: auto;
+    margin-bottom: var(--space-6);
 }
 
 /* ==========================================
@@ -157,7 +191,8 @@
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background-color: rgba(0,0,0,0.7);
+    background-color: rgba(16, 23, 40, 0.55);
+    backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -171,19 +206,23 @@
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+    box-shadow: var(--shadow-pop);
+    animation: fade-in-up 0.3s var(--duration-ease) forwards;
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-5);
-    border-bottom: 1px solid var(--border-default);
+    padding: var(--space-6);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .modal-title {
     font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
 }
 
 .modal-form {
@@ -200,10 +239,10 @@
 .modal-footer {
     margin-top: var(--space-6);
     padding-top: var(--space-6);
-    border-top: 1px solid var(--border-default);
+    border-top: 1px solid var(--border-subtle);
     display: flex;
     justify-content: flex-end;
-    gap: var(--space-4);
+    gap: var(--space-3);
 }
 
 /* ==========================================
@@ -219,9 +258,43 @@
 
 .pagination button {
     min-width: 40px;
+    border-radius: var(--radius-sm);
 }
 
 .pagination button.active {
-    background-color: var(--brand-primary);
+    background: var(--brand-gradient);
     color: var(--text-on-primary);
+    box-shadow: 0 4px 14px rgba(109, 94, 248, 0.35);
 }
+
+/* ==========================================
+   RESPONSIVE
+========================================== */
+@media (max-width: 768px) {
+    .page-header {
+        padding: var(--space-6) var(--space-4);
+        flex-wrap: wrap;
+        gap: var(--space-4);
+    }
+    .page-title {
+        font-size: var(--font-size-2xl);
+    }
+    .filters-bar {
+        margin: var(--space-6) var(--space-4);
+    }
+    .vocabulary-grid {
+        padding: 0 var(--space-4) var(--space-6);
+        grid-template-columns: 1fr;
+    }
+    .empty-state {
+        margin: 0 var(--space-4) var(--space-6);
+        padding: var(--space-10) var(--space-6);
+    }
+    .filter-controls {
+        width: 100%;
+    }
+    .filter-controls .input {
+        width: 100%;
+    }
+}
+

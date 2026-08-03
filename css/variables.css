@@ -1,62 +1,102 @@
-:root{
+/* ==========================================================
+   ENGFORE DESIGN TOKENS — "Pastel 2026"
+   Soft modern pastel design system
+   Inspired by Duolingo Max, Linear, Raycast, Vercel, Stripe
+========================================================== */
+
+/* Inter font — loaded first so every component can use it */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    /* ==========================================
+       0. BRAND — GRADIENT
+    ========================================== */
+    --brand-gradient-start: #6D5EF8;
+    --brand-gradient-end: #4F8CFF;
+    --brand-gradient: linear-gradient(135deg, #6D5EF8 0%, #4F8CFF 100%);
 
     /* ==========================================
        1. BRAND COLORS
     ========================================== */
-    --brand-primary: #2563EB;
-    --brand-primary-hover: #1D4ED8;
-    --brand-primary-pressed: #1E40AF;
-    --brand-accent-light: #60A5FA; /* blue-400 */
+    --brand-primary: #6D5EF8;
+    --brand-primary-hover: #5A4AF0;
+    --brand-primary-pressed: #4A3CE0;
+    --brand-accent-light: #8B7DFA; /* soft purple accent */
 
     /* ==========================================
        2. BACKGROUND COLORS
     ========================================== */
-    --bg-default: #020617; /* slate-900 */
-    --bg-subtle: #202d41; /* slate-800 */
+    --bg-default: #F6F8FC; /* pastel app background */
+    --bg-subtle: #F1F4FA;  /* subtle fill (search, wells, tracks) */
 
     /* ==========================================
        3. SURFACE COLORS
     ========================================== */
-    --surface-default: #1E293B; /* slate-800, for cards */
-    --surface-sidebar: #111827; /* gray-900, for sidebar */
-    --surface-hover: #334155; /* slate-700 */
-    --surface-pressed: #475569; /* slate-600 */
-    --surface-selected: #3B82F61A; /* 10% brand-primary */
+    --surface-default: #FFFFFF;            /* cards */
+    --surface-sidebar: #101728;            /* sidebar gradient start */
+    --surface-hover: #F4F6FB;              /* hover fill */
+    --surface-pressed: #E8ECF5;            /* pressed fill */
+    --surface-selected: rgba(109, 94, 248, 0.12); /* selection + focus ring */
 
     /* ==========================================
        4. TEXT COLORS
     ========================================== */
-    --text-primary: #F8FAFC; /* slate-50 */
-    --text-secondary: #94A3B8; /* slate-400 */
-    --text-tertiary: #64748B; /* slate-500 */
-    --text-placeholder: #475569; /* slate-600 */
-    --text-disabled: #475569; /* slate-600 */
+    --text-primary: #111827;
+    --text-secondary: #667085;
+    --text-tertiary: #98A2B3;
+    --text-placeholder: #98A2B3;
+    --text-disabled: #B7BFCE;
     --text-on-primary: #FFFFFF;
-    --text-link: #60A5FA; /* blue-400 */
+    --text-link: #6D5EF8;
 
     /* ==========================================
        5. BORDER COLORS
     ========================================== */
-    --border-default: #334155; /* slate-700 */
-    --border-subtle: #1E293B; /* slate-800 */
-    --border-interactive: #475569; /* slate-600 */
-    --border-focus: var(--brand-primary);
+    --border-default: #E7EBF3;
+    --border-subtle: #EDF1F7;
+    --border-interactive: #D5DCE8;
+    --border-focus: #6D5EF8;
 
     /* ==========================================
        6. STATUS COLORS
     ========================================== */
-    --status-success: #22C55E; /* green-500 */
-    --status-error: #EF4444; /* red-500 */
-    --status-warning: #F59E0B; /* amber-500 */
-    --status-info: #3B82F6; /* blue-500 */
+    --status-success: #22C55E;
+    --status-error: #EF4444;
+    --status-warning: #F59E0B;
+    --status-info: #4F8CFF;
+    --status-success-bg: rgba(34, 197, 94, 0.12);
+    --status-error-bg: rgba(239, 68, 68, 0.12);
+    --status-warning-bg: rgba(245, 158, 11, 0.14);
+    --status-info-bg: rgba(79, 140, 255, 0.12);
+
+    /* ==========================================
+       6b. STAT-CARD ACCENTS
+    ========================================== */
+    --accent-blue: #4F8CFF;
+    --accent-blue-bg: rgba(79, 140, 255, 0.12);
+    --accent-green: #22C55E;
+    --accent-green-bg: rgba(34, 197, 94, 0.12);
+    --accent-orange: #FB923C;
+    --accent-orange-bg: rgba(251, 146, 60, 0.14);
+    --accent-purple: #A78BFA;
+    --accent-purple-bg: rgba(167, 139, 250, 0.18);
+
+    /* ==========================================
+       6c. SHADOWS
+    ========================================== */
+    --shadow-card: 0 12px 40px rgba(18, 38, 63, 0.08);
+    --shadow-card-hover: 0 20px 48px rgba(18, 38, 63, 0.14);
+    --shadow-soft: 0 4px 16px rgba(18, 38, 63, 0.06);
+    --shadow-pop: 0 20px 60px rgba(18, 38, 63, 0.16);
+    --shadow-glow: 0 8px 24px rgba(109, 94, 248, 0.35);
 
     /* ==========================================
        7. BORDER RADIUS
     ========================================== */
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 8px;
-    --radius-xl: 14px; /* Slightly larger for a softer look */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
     --radius-full: 9999px;
 
     /* ==========================================
@@ -73,35 +113,31 @@
     --space-12: 48px;
     --space-16: 64px;
     --space-20: 80px;
+    --space-24: 96px;
 
     /* ==========================================
-   9.TYPOGRAPHY
-========================================== */
+       9. TYPOGRAPHY
+    ========================================== */
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", monospace;
 
-    --font-sans: "Geist", "Inter", sans-serif;
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-base: 16px;
+    --font-size-lg: 18px;
+    --font-size-xl: 20px;
+    --font-size-2xl: 28px;
+    --font-size-3xl: 36px;
+    --font-size-4xl: 44px;
+    --font-size-6xl: 56px;
 
-    --font-mono: "Geist Mono", "JetBrains Mono", monospace;
-
-    --font-size-xs:12px;
-
-    --font-size-sm:14px;
-
-    --font-size-base:16px;
-
-    --font-size-lg:18px;
-
-    --font-size-xl:20px;
-
-    --font-size-2xl: 28px; /* Increased for better hierarchy */
-    --font-size-3xl: 36px; /* Increased for better hierarchy */
-    --font-size-4xl: 44px; /* Increased for better hierarchy */
-    
     /* ==========================================
        10. TRANSITION DURATION
     ========================================== */
-    --duration-fast: 100ms;
-    --duration-base: 200ms;
-    --duration-slow: 300ms;
+    --duration-fast: 150ms;
+    --duration-base: 250ms;
+    --duration-slow: 400ms;
+    --duration-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
     /* ==========================================
        11. Z-INDEX
@@ -116,26 +152,61 @@
     /* ==========================================
        12. LAYOUT SIZES
     ========================================== */
-    --sidebar-width: 260px;
-    --topbar-height: 70px;
+    --sidebar-width: 264px;
+    --topbar-height: 72px;
     --max-content-width: 1440px;
 
-    /* ========================================
-    13.Font Weight 
-    ===========================================*/
-    --font-weight-normal:400;
+    /* ==========================================
+       13. FONT WEIGHT
+    ========================================== */
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
 
-    --font-weight-medium:500;
+/* ==========================================
+       14. LINE HEIGHT
+    ========================================== */
+    --line-height-tight: 1.2;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
 
-    --font-weight-semibold:600;
+    /* ==========================================
+       15. GLASSMORPHISM (additive — premium white glass)
+    ========================================== */
+    --glass-bg: rgba(255, 255, 255, 0.72);
+    --glass-bg-strong: rgba(255, 255, 255, 0.86);
+    --glass-bg-soft: rgba(255, 255, 255, 0.5);
+    --glass-border: rgba(255, 255, 255, 0.65);
+    --glass-highlight: rgba(255, 255, 255, 0.9);
+    --glass-blur: 20px;
+    --glass-saturate: 180%;
 
-    --font-weight-bold:700;
-    /* ====================================
-    14. Line Height 
-    =====================================*/
-    --line-height-tight:1.2;
+    /* ----------------------------------------------------------
+       16. SOFT / LAYERED SHADOWS (premium, airy)
+    ---------------------------------------------------------- */
+    --shadow-soft-1: 0 1px 2px rgba(18, 38, 63, 0.04);
+    --shadow-soft-2: 0 4px 12px rgba(18, 38, 63, 0.05);
+    --shadow-soft-3: 0 12px 32px rgba(18, 38, 63, 0.07);
+    --shadow-glass: 0 8px 32px rgba(18, 38, 63, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    --shadow-glass-hover: 0 20px 48px rgba(18, 38, 63, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    --shadow-glow-soft: 0 8px 28px rgba(109, 94, 248, 0.28);
+    --shadow-glow-strong: 0 14px 40px rgba(109, 94, 248, 0.42);
 
-    --line-height-normal:1.5;
-
-    --line-height-relaxed:1.75;
+    /* ----------------------------------------------------------
+       17. RICH GRADIENTS (premium headline / buttons)
+    ---------------------------------------------------------- */
+    --gradient-hero-title: linear-gradient(120deg, #1B1F3B 0%, #6D5EF8 45%, #4F8CFF 80%);
+    --gradient-hero-mesh:
+        radial-gradient(120% 140% at 8% 0%, rgba(109, 94, 248, 0.16) 0%, transparent 52%),
+        radial-gradient(90% 120% at 100% 0%, rgba(79, 140, 255, 0.18) 0%, transparent 50%),
+        radial-gradient(80% 100% at 50% 120%, rgba(167, 139, 250, 0.12) 0%, transparent 55%);
+    --gradient-mesh-soft:
+        radial-gradient(120% 120% at 90% 0%, rgba(109, 94, 248, 0.1) 0%, transparent 55%),
+        radial-gradient(100% 120% at 0% 100%, rgba(79, 140, 255, 0.08) 0%, transparent 55%);
+    --gradient-primary-soft: linear-gradient(135deg, rgba(109, 94, 248, 0.14) 0%, rgba(79, 140, 255, 0.12) 100%);
+    --gradient-btn-primary: linear-gradient(135deg, #7A6CFF 0%, #5A8BFF 100%);
+    --gradient-img-fade: linear-gradient(180deg, rgba(16, 23, 40, 0) 40%, rgba(16, 23, 40, 0.55) 100%);
 }
+

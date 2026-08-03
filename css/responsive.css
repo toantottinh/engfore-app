@@ -1,68 +1,21 @@
-/* ==========================================
-   RESPONSIVE STYLES
-========================================== */
- 
-/* ==========================================
-   TABLET & SMALLER DESKTOPS (<= 1024px)
-========================================== */
-@media (max-width: 1024px) {
-    /* Make sidebar narrower, icon-only */
-    .sidebar {
-        width: 80px;
-        padding-top: var(--space-6);
-    }
+/* ==========================================================
+   ENGFORE RESPONSIVE STYLES
+========================================================== */
 
-    /* Center the logo text (or icon) */
-    .sidebar-logo {
-        justify-content: center;
-        padding-left: 0;
-        padding-right: 0;
-    }
-
-    .sidebar-logo a {
-        font-size: var(--font-size-xl);
-    }
-
-    /* Hide navigation text, show only icons */
-    .nav-text {
-        display: none;
-    }
-
-    .nav-group {
-        padding: 0 var(--space-1);
-    }
-
-    .nav-item {
-        justify-content: center;
-        padding: 0;
-        width: 44px; /* Increase tap target size */
-        height: 44px;
-        font-size: var(--font-size-xl);
-    }
-
-    .nav-group-title {
-        text-align: center;
-    }
-
-    .sidebar-footer {
-        display: none; /* Hide footer on smaller sidebar */
-    }
-
-    .app-content {
-        width: calc(100% - 80px);
-    }
-
-    /* Dashboard Grid Tablet */
+/* ==========================================================
+   TABLET & SMALLER DESKTOPS (<= 1180px)
+========================================================== */
+@media (max-width: 1180px) {
     .dashboard-grid {
-        grid-template-columns: repeat(8, 1fr); /* More flexible 8-col grid for tablet */
-        gap: var(--space-8); /* Consistent with desktop */
+        grid-template-columns: repeat(8, 1fr);
+        gap: var(--space-6);
         padding: var(--space-6);
     }
     .dashboard-hero {
-        grid-column: 1 / -1; /* Hero takes full width */
+        grid-column: 1 / -1;
     }
     .dashboard-daily-goal {
-        grid-column: 1 / -1; /* Stacks below hero */
+        grid-column: 1 / -1;
     }
     .dashboard-continue {
         grid-column: 1 / -1;
@@ -72,10 +25,10 @@
     }
     .dashboard-stats {
         grid-template-columns: repeat(2, 1fr);
-        gap: var(--space-6); /* Keep 2x2 gap */
+        gap: var(--space-6);
     }
     .hero-illustration {
-        display: none; /* Keep illustration hidden on tablet */
+        display: none;
     }
     .hero-title {
         font-size: var(--font-size-3xl);
@@ -86,31 +39,111 @@
     .recommended-grid {
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }
+    .continue-card-progress {
+        flex-basis: 140px;
+    }
 }
 
-/* ==========================================
-   MOBILE DEVICES (<= 768px)
-========================================== */
+/* ==========================================================
+   TABLET (<= 1024px) — icon-only sidebar
+========================================================== */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 84px;
+        padding-top: var(--space-4);
+    }
+
+    .sidebar-logo {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .sidebar-logo a {
+        font-size: 0;
+    }
+
+    /* keep only the gradient dot */
+    .sidebar-logo a::before {
+        width: 12px;
+        height: 12px;
+    }
+
+    .nav-text {
+        display: none;
+    }
+
+    .nav-group {
+        padding: 0 var(--space-2);
+    }
+
+    .nav-item {
+        justify-content: center;
+        padding: 0;
+        width: 48px;
+        height: 48px;
+        margin: 0 auto var(--space-2) auto;
+        border-radius: var(--radius-md);
+    }
+
+    .nav-item.active::before {
+        left: auto;
+        right: -2px;
+        top: 24%;
+        bottom: 24%;
+        width: 3px;
+    }
+
+    .nav-group-title {
+        text-align: center;
+        font-size: 10px;
+    }
+
+    .nav-icon {
+        margin-right: 0;
+    }
+
+    .sidebar-footer {
+        display: none;
+    }
+
+    .app-content {
+        width: calc(100% - 84px);
+    }
+
+    .topbar {
+        padding: 0 var(--space-6);
+    }
+}
+
+/* ==========================================================
+   MOBILE (<= 768px)
+========================================================== */
 @media (max-width: 768px) {
-    /* Mobile sidebar */
     .sidebar {
         position: fixed;
         left: -280px;
         top: 0;
         bottom: 0;
         z-index: var(--z-drawer);
-        transition: left var(--duration-base) ease;
-        width: 260px;
+        transition: left var(--duration-base) var(--duration-ease);
+        width: 264px;
+        padding-top: 0;
     }
 
     .sidebar.sidebar-open {
         left: 0;
     }
 
+    .sidebar.sidebar-open .sidebar-logo a {
+        font-size: var(--font-size-xl);
+    }
+
     .sidebar-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(16, 23, 40, 0.5);
+        backdrop-filter: blur(2px);
         z-index: calc(var(--z-drawer) - 1);
         display: none;
     }
@@ -127,36 +160,56 @@
         position: relative;
     }
 
-    /* Topbar adjustments for mobile */
     .topbar {
         padding: 0 var(--space-4);
     }
+
     .topbar-search {
-        display: none; /* Hide search on mobile for more space */
+        display: none;
     }
 
-    /* Dashboard Grid Mobile */
     .dashboard-grid {
-        grid-template-columns: 1fr; /* Ensure single column */
+        grid-template-columns: 1fr;
         padding: var(--space-4);
-        gap: var(--space-6); /* Consistent with tablet */
+        gap: var(--space-5);
     }
+
     .dashboard-continue,
     .dashboard-activity,
     .dashboard-recommended,
     .dashboard-streak {
-        grid-column: 1 / -1; /* Reset to full width */
+        grid-column: 1 / -1;
     }
+
     .dashboard-stats {
         grid-template-columns: 1fr;
     }
+
     .hero-title {
         font-size: var(--font-size-2xl);
     }
+
     .dashboard-hero {
         padding: var(--space-6);
     }
+
     .recommended-grid {
         grid-template-columns: 1fr;
     }
+
+    .continue-card {
+        flex-wrap: wrap;
+        gap: var(--space-4);
+    }
+
+    .continue-card-progress {
+        flex-basis: 100%;
+        order: 3;
+    }
+
+    .continue-card .btn-icon-only {
+        transform: none;
+        opacity: 1;
+    }
 }
+

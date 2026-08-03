@@ -1,6 +1,6 @@
-/* ==========================================
-   AUTH PAGE LAYOUT
-========================================== */
+/* ==========================================================
+   ENGFORE AUTH PAGES — login / register / forgot-password
+========================================================== */
 body {
     background-color: var(--bg-default);
     color: var(--text-primary);
@@ -9,11 +9,15 @@ body {
     justify-content: center;
     min-height: 100vh;
     padding: var(--space-6);
+    background-image:
+        radial-gradient(50% 40% at 15% 10%, rgba(109, 94, 248, 0.1) 0%, transparent 60%),
+        radial-gradient(50% 40% at 85% 90%, rgba(79, 140, 255, 0.1) 0%, transparent 60%),
+        radial-gradient(40% 30% at 90% 10%, rgba(167, 139, 250, 0.08) 0%, transparent 60%);
 }
 
 .auth-container {
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
 }
 
 .auth-card {
@@ -21,7 +25,8 @@ body {
     border: 1px solid var(--border-default);
     border-radius: var(--radius-xl);
     padding: var(--space-10);
-    box-shadow: 0 10px 30px rgba(0,0,0,.2);
+    box-shadow: var(--shadow-card);
+    animation: fade-in-up 0.5s var(--duration-ease) forwards;
 }
 
 .auth-header {
@@ -31,25 +36,39 @@ body {
 
 .auth-logo {
     font-size: var(--font-size-2xl);
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-extrabold);
     color: var(--text-primary);
     text-decoration: none;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.auth-logo::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    background: var(--brand-gradient);
+    box-shadow: 0 0 14px rgba(109, 94, 248, 0.6);
 }
 
 .auth-title {
     font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    margin-top: var(--space-4);
+    font-weight: var(--font-weight-extrabold);
+    color: var(--text-primary);
+    margin-top: var(--space-5);
+    letter-spacing: -0.03em;
 }
 
 .auth-subtitle {
     color: var(--text-secondary);
     margin-top: var(--space-2);
+    font-size: var(--font-size-base);
 }
 
-/* ==========================================
-   AUTH FORM
-========================================== */
+/* ---------- Form ---------- */
 .form-group {
     margin-bottom: var(--space-5);
 }
@@ -57,8 +76,9 @@ body {
 .form-label {
     display: block;
     font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-semibold);
     margin-bottom: var(--space-2);
+    color: var(--text-primary);
 }
 
 .form-label-group {
@@ -71,6 +91,13 @@ body {
     font-size: var(--font-size-sm);
     color: var(--text-link);
     text-decoration: none;
+    font-weight: var(--font-weight-medium);
+    transition: color var(--duration-base) var(--duration-ease);
+}
+
+.form-link:hover {
+    color: var(--brand-primary-hover);
+    text-decoration: underline;
 }
 
 .btn-block {
@@ -86,6 +113,19 @@ body {
 
 .auth-footer a {
     color: var(--text-link);
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-semibold);
     text-decoration: none;
+    transition: color var(--duration-base) var(--duration-ease);
 }
+
+.auth-footer a:hover {
+    color: var(--brand-primary-hover);
+    text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+    .auth-card {
+        padding: var(--space-8);
+    }
+}
+

@@ -1,87 +1,148 @@
-/* ==========================================
-   SIDEBAR
-========================================== */
+/* ==========================================================
+   ENGFORE SIDEBAR — dark gradient + glowing active pill
+========================================================== */
+
 .sidebar {
     width: var(--sidebar-width);
-    background-color: var(--surface-sidebar);
+    background:
+        radial-gradient(120% 80% at 0% 0%, rgba(109, 94, 248, 0.18) 0%, transparent 50%),
+        linear-gradient(180deg, #101728 0%, #161D35 100%);
     color: var(--text-primary);
-    border-right: 1px solid var(--border-default);
-    padding-top: var(--space-4);
-    padding-bottom: 0;
-    overflow: hidden;
+    position: relative;
+    z-index: var(--z-sticky);
 }
 
-/* ==========================================
-   SIDEBAR LOGO
-========================================== */
+/* subtle inner glow along right edge */
+.sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(109, 94, 248, 0.5), rgba(255, 255, 255, 0.06) 40%, transparent);
+    pointer-events: none;
+}
+
+/* ---------- Logo ---------- */
 .sidebar-logo {
-    padding: 0 var(--space-4) var(--space-4) var(--space-4);
-    margin-bottom: var(--space-4);
+    padding: var(--space-8) var(--space-6) var(--space-6) var(--space-6);
     display: flex;
     align-items: center;
-    justify-content: flex-start; /* Align logo to the left */
+    justify-content: flex-start;
 }
 
 .sidebar-logo a {
     font-family: var(--font-sans);
     font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--text-primary);
+    font-weight: var(--font-weight-extrabold);
+    color: #FFFFFF;
     text-decoration: none;
     line-height: var(--line-height-tight);
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
 }
 
-/* ==========================================
-   SIDEBAR NAVIGATION
-========================================== */
+/* soft gradient dot next to logo */
+.sidebar-logo a::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background: var(--brand-gradient);
+    box-shadow: 0 0 12px rgba(109, 94, 248, 0.7);
+    flex-shrink: 0;
+}
+
+/* ---------- Navigation ---------- */
 .sidebar-nav {
     flex-grow: 1;
-    padding-left: var(--space-3);
-    padding-right: var(--space-3);
+    padding: 0 var(--space-4);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    min-height:0;
+    min-height: 0;
+    scrollbar-width: thin;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-full);
 }
 
 .nav-group {
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-8);
 }
 
 .nav-group-title {
     font-family: var(--font-sans);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
-    color: var(--text-tertiary);
+    color: rgba(148, 163, 184, 0.75);
     text-transform: uppercase;
-    padding: var(--space-2) var(--space-1); /* Adjust padding to align with items */
+    padding: var(--space-2) var(--space-3);
     margin-bottom: var(--space-2);
-    letter-spacing: 0.05em; /* A subtle touch for uppercase titles */
+    letter-spacing: 0.09em;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
     margin-bottom: var(--space-1);
     border-radius: var(--radius-md);
-    color: var(--text-secondary);
+    color: rgba(203, 213, 225, 0.72);
     text-decoration: none;
     font-family: var(--font-sans);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     line-height: var(--line-height-normal);
-    transition:background-color var(--duration-fast) ease,color var(--duration-fast) ease,box-shadow var(--duration-fast) ease;
+    position: relative;
+    transition:
+        background-color var(--duration-base) var(--duration-ease),
+        color var(--duration-base) var(--duration-ease),
+        transform var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease);
+    will-change: transform, background-color, color;
 }
+
 .nav-item:hover {
-    background-color: var(--surface-hover);
-    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #FFFFFF;
+    transform: translateX(4px);
 }
 
 .nav-item.active {
-    background-color: var(--surface-selected);
-    color: var(--text-primary);
-    box-shadow: inset 3px 0 0 0 var(--brand-primary);
+    background: linear-gradient(135deg, rgba(109, 94, 248, 0.28) 0%, rgba(79, 140, 255, 0.22) 100%);
+    color: #FFFFFF;
+    font-weight: var(--font-weight-semibold);
+    box-shadow:
+        0 6px 18px rgba(109, 94, 248, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(139, 125, 250, 0.25);
+}
+
+.nav-item.active:hover {
+    transform: translateX(4px);
+}
+
+/* accent glow bar on active item */
+.nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    border-radius: var(--radius-full);
+    background: var(--brand-gradient);
+    box-shadow: 0 0 12px rgba(109, 94, 248, 0.8);
 }
 
 .nav-icon {
@@ -91,22 +152,27 @@
     align-items: center;
     width: 20px;
     flex-shrink: 0;
+    transition: transform var(--duration-base) var(--duration-ease);
+}
+
+.nav-item:hover .nav-icon {
+    transform: scale(1.12);
 }
 
 .nav-text {
     flex: 1;
 }
 
-/* ==========================================
-   SIDEBAR FOOTER
-========================================== */
+/* ---------- Footer ---------- */
 .sidebar-footer {
     margin-top: auto;
-    padding: var(--space-4);
+    padding: var(--space-5) var(--space-6);
     text-align: left;
     font-family: var(--font-sans);
-    font-size: var(--font-size-sm);
-    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    color: rgba(148, 163, 184, 0.6);
     line-height: var(--line-height-normal);
-    border-top: 1px solid var(--border-default);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    letter-spacing: 0.02em;
 }
+

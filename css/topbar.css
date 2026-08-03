@@ -1,72 +1,81 @@
-/* ==========================================
-   TOPBAR
-========================================== */
+/* ==========================================================
+   ENGFORE TOPBAR — frosted glass + pill search
+========================================================== */
 
 .topbar {
     height: var(--topbar-height);
-    background-color: transparent; /* Make topbar transparent */
-    border-bottom: 1px solid var(--border-default);
-    position: sticky; /* Make it sticky */
+    background-color: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border-bottom: 1px solid var(--border-subtle);
+    position: sticky;
     top: 0;
+    z-index: var(--z-sticky);
     display: flex;
     align-items: center;
-    padding: 0 var(--space-6);
-    flex-shrink: 0; /* Prevent topbar from shrinking */
+    padding: 0 var(--space-8);
+    flex-shrink: 0;
+    gap: var(--space-4);
 }
 
-/* ==========================================
-   TOPBAR SEARCH
-========================================== */
-
+/* ---------- Search ---------- */
 .topbar-search {
-    flex-grow: 0; /* Don't let it grow, keep it to its content size */
+    flex-grow: 1;
+    max-width: 420px;
 }
 
 .topbar-search input[type="search"] {
     background-color: var(--bg-subtle);
-    border: 1px solid var(--border-interactive);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    padding: var(--space-2) var(--space-5);
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: var(--font-size-sm);
     width: 100%;
-    max-width: 400px; /* Limit search bar width */
-    transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+    box-shadow: 0 2px 8px rgba(18, 38, 63, 0.04);
+    transition:
+        border-color var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease),
+        background-color var(--duration-base) var(--duration-ease);
 }
 
 .topbar-search input[type="search"]::placeholder {
     color: var(--text-placeholder);
 }
 
+.topbar-search input[type="search"]:hover {
+    border-color: var(--border-interactive);
+    background-color: #FFFFFF;
+}
+
 .topbar-search input[type="search"]:focus {
     outline: none;
     border-color: var(--border-focus);
-    box-shadow: 0 0 0 3px var(--surface-selected);
+    background-color: #FFFFFF;
+    box-shadow: 0 0 0 4px var(--surface-selected), 0 4px 16px rgba(109, 94, 248, 0.12);
 }
 
-/* ==========================================
-   TOPBAR ACTIONS & USER
-========================================== */
-
+/* ---------- Left / Right ---------- */
 .topbar-left {
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    flex: 1;
 }
 
 .topbar-right {
-    margin-left: auto; /* Push the right content to the end */
+    margin-left: auto;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
 }
 
 .topbar-actions {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-right: var(--space-4);
+    margin-right: var(--space-2);
 }
 
 .topbar-user {
@@ -74,7 +83,7 @@
     align-items: center;
 }
 
-/* Generic button style for topbar actions */
+/* ---------- Generic icon buttons ---------- */
 .topbar-actions button,
 .topbar-user button {
     display: flex;
@@ -82,28 +91,45 @@
     justify-content: center;
     background-color: transparent;
     color: var(--text-secondary);
-    border: none;
-    border-radius: var(--radius-md);
-    width: 36px;
-    height: 36px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    width: 40px;
+    height: 40px;
     cursor: pointer;
-    transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+    transition:
+        background-color var(--duration-base) var(--duration-ease),
+        color var(--duration-base) var(--duration-ease),
+        border-color var(--duration-base) var(--duration-ease),
+        transform var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease);
+    will-change: transform, background-color;
 }
 
 .topbar-actions button:hover,
 .topbar-user button:hover {
     background-color: var(--surface-hover);
-    color: var(--text-primary);
+    color: var(--brand-primary);
+    border-color: var(--border-default);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+}
+
+.topbar-actions button:active,
+.topbar-user button:active {
+    transform: translateY(0) scale(0.96);
 }
 
 .topbar-user button {
-    padding: 0; /* Remove padding for the avatar button */
+    padding: 0;
 }
 
-/* Placeholder for user avatar */
+/* ---------- User avatar ---------- */
 .topbar-user .user-avatar {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-full);
-    background-color: var(--surface-pressed);
+    background: linear-gradient(135deg, #6D5EF8 0%, #4F8CFF 100%);
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 2px 8px rgba(109, 94, 248, 0.35);
 }
+

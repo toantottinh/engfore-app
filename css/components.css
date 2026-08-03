@@ -1,11 +1,14 @@
 /* ==========================================================
-   CARD
+   ENGFORE COMPONENTS — cards, buttons, forms, progress
 ========================================================== */
 
+/* ----------------------------------------------------------
+   Shared entrance animation (used across all pages)
+---------------------------------------------------------- */
 @keyframes fade-in-up {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(12px);
     }
     to {
         opacity: 1;
@@ -13,236 +16,306 @@
     }
 }
 
-.card{
+@keyframes progress-shine {
+    from { background-position: 0 0; }
+    to { background-position: 48px 0; }
+}
+
+@keyframes pulse-soft {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 0.9; transform: scale(1.08); }
+}
+
+/* ==========================================================
+   CARD
+========================================================== */
+.card {
     background: var(--surface-default);
     border: 1px solid var(--border-default);
-    border-radius: var(--radius-xl); /* Consistent radius */
-    box-shadow: 0 1px 2px rgba(0,0,0,.07), inset 0 1px 0 hsla(0,0%,100%,.03);
-    transition: border-color var(--duration-base) ease, box-shadow var(--duration-base) ease, transform var(--duration-base) ease;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+    transition:
+        transform var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease),
+        border-color var(--duration-base) var(--duration-ease);
+    will-change: transform, box-shadow;
 }
 
 .card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 hsla(0,0%,100%,.03);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card-hover);
     border-color: var(--border-interactive);
 }
 
-.card-body{
-    padding: var(--space-6);
+.card-body {
+    padding: var(--space-8);
 }
 
-.card-title{
+.card-title {
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
     margin-bottom: var(--space-2);
+    letter-spacing: -0.01em;
 }
 
-.card-subtitle{
+.card-subtitle {
     color: var(--text-secondary);
     line-height: var(--line-height-normal);
+    font-size: var(--font-size-sm);
 }
-
-
 
 /* ==========================================================
-   BUTTON
+   BUTTONS
 ========================================================== */
-
-.btn{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-
-    padding: var(--space-3) var(--space-5);
-
-    border:none;
-    border-radius: var(--radius-lg); /* Consistent radius */
-
-    cursor:pointer;
-
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-6);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
-
-    transition: background-color var(--duration-base) ease, transform var(--duration-fast) ease, box-shadow var(--duration-base) ease;
-    will-change: transform, opacity;
+    font-family: var(--font-sans);
+    letter-spacing: 0.01em;
+    transition:
+        transform var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease),
+        background-color var(--duration-base) var(--duration-ease),
+        border-color var(--duration-base) var(--duration-ease),
+        color var(--duration-base) var(--duration-ease);
+    will-change: transform, box-shadow;
+    white-space: nowrap;
 }
 
-.btn-primary{
-    background: var(--brand-primary);
+.btn:active {
+    transform: translateY(0) scale(0.97);
+}
+
+/* Primary — gradient with lift + glow */
+.btn-primary {
+    background: var(--brand-gradient);
     color: var(--text-on-primary);
-    box-shadow: 0 1px 1px rgba(0,0,0,.1), inset 0 1px 0 hsla(0,0%,100%,.05);
+    box-shadow: 0 4px 14px rgba(109, 94, 248, 0.32);
 }
 
-.btn-primary:hover{
-    background: var(--brand-primary-hover);
-    transform: translateY(-1px); /* Slightly less lift for buttons */
-    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2), 0 2px 4px rgba(0,0,0,.1);
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 26px rgba(109, 94, 248, 0.45);
 }
 
-.btn-secondary{
+.btn-primary:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: 0 4px 14px rgba(109, 94, 248, 0.3);
+}
+
+/* Secondary — outline style */
+.btn-secondary {
+    background: var(--surface-default);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-interactive);
+    box-shadow: 0 1px 2px rgba(18, 38, 63, 0.03);
+}
+
+.btn-secondary:hover {
     background: var(--surface-hover);
-    color: var(--text-primary);
-    border: 1px solid var(--border-default);
+    color: var(--brand-primary);
+    border-color: var(--brand-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(18, 38, 63, 0.1);
 }
 
-.btn-secondary:hover{
-    background: var(--surface-pressed);
-    transform: translateY(-1px); /* Slightly less lift for buttons */
-    border-color: var(--border-interactive);
-    box-shadow: 0 0 12px rgba(71, 85, 105, 0.2);
+.btn-secondary:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: none;
 }
 
+/* Small button */
+.btn-sm {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-xs);
+    border-radius: var(--radius-sm);
+}
 
+/* Block button */
+.btn-block {
+    width: 100%;
+}
+
+/* Icon-only button — now fully standalone (works on pages without dashboard.css) */
+.btn-icon-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition:
+        background-color var(--duration-base) var(--duration-ease),
+        color var(--duration-base) var(--duration-ease),
+        border-color var(--duration-base) var(--duration-ease),
+        transform var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease);
+    will-change: transform, background-color;
+}
+
+.btn-icon-only:hover {
+    background-color: var(--surface-hover);
+    color: var(--brand-primary);
+    border-color: var(--border-default);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-soft);
+}
+
+.btn-icon-only:active {
+    transform: scale(0.94);
+}
+
+/* Secondary icon-only variant (used in cards, modals, pagination) */
+.btn-icon-only.btn-secondary {
+    background: var(--surface-default);
+    border-color: var(--border-default);
+    color: var(--text-secondary);
+}
+
+.btn-icon-only.btn-secondary:hover {
+    background: var(--surface-hover);
+    color: var(--brand-primary);
+    border-color: var(--border-focus);
+}
 
 /* ==========================================================
    PROGRESS
 ========================================================== */
-
-.progress-bar{
-
-    width:100%;
+.progress-bar {
+    width: 100%;
     height: var(--space-2);
-
-    background: var(--surface-pressed);
-
+    background: var(--bg-subtle);
     border-radius: var(--radius-full);
-
-    overflow:hidden;
-    position: relative; /* Needed for pseudo-element */
+    overflow: hidden;
+    position: relative;
 }
 
-.progress{
-    height:100%;
-    background: linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-accent-light) 100%);
+.progress {
+    height: 100%;
+    background: var(--brand-gradient);
     border-radius: var(--radius-full);
-    transition: width 0.4s ease;
+    transition: width 0.6s var(--duration-ease);
+    position: relative;
+    overflow: hidden;
 }
 
+/* subtle moving sheen */
 .progress::after {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
+    inset: 0;
     background-image: linear-gradient(
         -45deg,
-        rgba(255, 255, 255, 0.15) 25%,
+        rgba(255, 255, 255, 0.28) 25%,
         transparent 25%,
         transparent 50%,
-        rgba(255, 255, 255, 0.15) 50%,
-        rgba(255, 255, 255, 0.15) 75%,
+        rgba(255, 255, 255, 0.28) 50%,
+        rgba(255, 255, 255, 0.28) 75%,
         transparent 75%,
         transparent
     );
-    z-index: 1;
-    background-size: 30px 30px;
-    animation: progress-shine 2s linear infinite;
+    background-size: 48px 48px;
+    animation: progress-shine 2.4s linear infinite;
     opacity: 0.5;
 }
-
-@keyframes progress-shine {
-    from { background-position: 0 0; }
-    to { background-position: 60px 0; }
-}
-
-
 
 /* ==========================================================
    BADGE
 ========================================================== */
-
-.badge{
-
-    display:inline-block;
-
+.badge {
+    display: inline-flex;
+    align-items: center;
     padding: var(--space-1) var(--space-3);
-
     border-radius: var(--radius-full);
-
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.02em;
+    line-height: 1.6;
 }
 
-.badge-success{
-    background: rgba(34, 197, 94, 0.1);
-    color: #22C55E;
+.badge-success {
+    background: var(--status-success-bg);
+    color: #16A34A;
 }
 
-.badge-warning{
-    background: rgba(245, 158, 11, 0.1);
-    color: #F59E0B;
+.badge-warning {
+    background: var(--status-warning-bg);
+    color: #D97706;
 }
 
-.badge-danger{
-    background: rgba(239, 68, 68, 0.1);
-    color: #EF4444;
+.badge-danger {
+    background: var(--status-error-bg);
+    color: #DC2626;
 }
-
-
 
 /* ==========================================================
    INPUT
 ========================================================== */
-
-.input{
-
-    width:100%;
+.input {
+    width: 100%;
     padding: var(--space-3) var(--space-4);
     background-color: var(--surface-default);
     color: var(--text-primary);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg); /* Consistent radius */
-    outline:none;
-    transition: border-color var(--duration-base) ease, box-shadow var(--duration-base) ease;
+    border: 1px solid var(--border-interactive);
+    border-radius: var(--radius-md);
+    outline: none;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    transition:
+        border-color var(--duration-base) var(--duration-ease),
+        box-shadow var(--duration-base) var(--duration-ease),
+        background-color var(--duration-base) var(--duration-ease);
 }
 
-.input:focus{
+.input::placeholder {
+    color: var(--text-placeholder);
+}
+
+.input:hover {
+    border-color: var(--border-default);
+}
+
+.input:focus {
     border-color: var(--border-focus);
-    box-shadow: 0 0 0 3px var(--surface-selected);
+    background-color: #FFFFFF;
+    box-shadow: 0 0 0 4px var(--surface-selected);
 }
-
-
 
 /* ==========================================================
    UTILITIES
 ========================================================== */
-
-.text-center{
-
-    text-align:center;
-
+.text-center {
+    text-align: center;
 }
 
-.mt-2{
-
+.mt-2 {
     margin-top: var(--space-2);
-
 }
 
-.mt-4{
-
+.mt-4 {
     margin-top: var(--space-4);
-
 }
 
-.mt-6{
-
+.mt-6 {
     margin-top: var(--space-6);
-
 }
-
-.btn-sm {
-    padding: var(--space-2) var(--space-4);
-    font-size: var(--font-size-xs);
-}
-
-
 
 /* ==========================================================
    TOGGLE SWITCH
 ========================================================== */
-
 .toggle {
     position: relative;
     display: inline-flex;
@@ -259,27 +332,29 @@
 
 .toggle-slider {
     position: relative;
-    width: 44px;
-    height: 24px;
+    width: 46px;
+    height: 26px;
     background-color: var(--surface-pressed);
     border-radius: var(--radius-full);
-    transition: background-color var(--duration-base) ease;
+    transition: background-color var(--duration-base) var(--duration-ease), box-shadow var(--duration-base) var(--duration-ease);
 }
 
 .toggle-slider::after {
     content: '';
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: 3px;
+    left: 3px;
     width: 20px;
     height: 20px;
     border-radius: var(--radius-full);
-    background-color: var(--text-primary);
-    transition: transform var(--duration-base) ease;
+    background-color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(18, 38, 63, 0.2);
+    transition: transform var(--duration-base) var(--duration-ease);
 }
 
 .toggle input:checked + .toggle-slider {
-    background-color: var(--brand-primary);
+    background: var(--brand-gradient);
+    box-shadow: 0 4px 12px rgba(109, 94, 248, 0.35);
 }
 
 .toggle input:checked + .toggle-slider::after {
@@ -287,23 +362,22 @@
 }
 
 .toggle input:focus-visible + .toggle-slider {
-    box-shadow: 0 0 0 3px var(--surface-selected);
+    box-shadow: 0 0 0 4px var(--surface-selected);
 }
-
-
 
 /* ==========================================================
    TOAST NOTIFICATIONS
 ========================================================== */
-
 .toast {
-    background: var(--surface-default);
+    background: #FFFFFF;
     border: 1px solid var(--border-default);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-pop);
+    color: var(--text-primary);
 }
 
 .toast-success {
-    border-color: var(--status-success);
+    border-left: 4px solid var(--status-success);
 }
 
 .toast-success .icon {
@@ -311,9 +385,10 @@
 }
 
 .toast-error {
-    border-color: var(--status-error);
+    border-left: 4px solid var(--status-error);
 }
 
 .toast-error .icon {
     color: var(--status-error);
 }
+

@@ -1,11 +1,71 @@
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
+/* ==========================================================
+   ENGFORE BASE — global reset, typography, background
+========================================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-body{
-
-    font-family:Geist, sans-serif;
-
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
+
+body {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    color: var(--text-primary);
+    background-color: var(--bg-default);
+    /* subtle ambient pastel gradients */
+    background-image:
+        radial-gradient(circle at 12% 0%, rgba(109, 94, 248, 0.05) 0%, transparent 34%),
+        radial-gradient(circle at 100% 6%, rgba(79, 140, 255, 0.06) 0%, transparent 30%);
+    background-attachment: fixed;
+    min-height: 100vh;
+}
+
+::selection {
+    background: var(--surface-selected);
+    color: var(--brand-primary);
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #D5DCE8;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--bg-default);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #B7BFCE;
+}
+
+/* ---------- Accessibility: focus ring ---------- */
+:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button {
+    font-family: inherit;
+}
+
