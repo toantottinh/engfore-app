@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 /* ==========================================================
    ENGFORE DESIGN TOKENS — "Pastel 2026"
    Soft modern pastel design system
@@ -7,6 +5,7 @@
 ========================================================== */
 
 /* Inter font — loaded first so every component can use it */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
     /* ==========================================
@@ -210,3 +209,4 @@
     --gradient-btn-primary: linear-gradient(135deg, #7A6CFF 0%, #5A8BFF 100%);
     --gradient-img-fade: linear-gradient(180deg, rgba(16, 23, 40, 0) 40%, rgba(16, 23, 40, 0.55) 100%);
 }
+
