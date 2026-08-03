@@ -1,127 +1,76 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- DUMMY REVIEW ITEMS (translate Vietnamese -> English) ---
-    const items = [
-        { prompt: 'Làm ngạc nhiên', answer: 'astonish', hint: '/əˈstɒnɪʃ/' },
-        { prompt: 'Phổ biến, ở đâu cũng có', answer: 'ubiquitous', hint: '/juːˈbɪkwɪtəs/' },
-        { prompt: 'Phát triển', answer: 'develop', hint: '/dɪˈveləp/' },
-        { prompt: 'Doanh thu', answer: 'revenue', hint: '/ˈrevənjuː/' },
-        { prompt: 'Đàm phán', answer: 'negotiate', hint: '/nɪˈɡəʊʃieɪt/' },
-        { prompt: 'Thuật toán', answer: 'algorithm', hint: '/ˈælɡərɪðəm/' },
-        { prompt: 'Triển khai', answer: 'implement', hint: '/ˈɪmplɪment/' },
-        { prompt: 'Sự tình cờ may mắn', answer: 'serendipity', hint: '/ˌserənˈdɪpəti/' },
-        { prompt: 'Bền vững', answer: 'sustainable', hint: '/səˈsteɪnəbl/' },
-        { prompt: 'Bên liên quan', answer: 'stakeholder', hint: '/ˈsteɪkhəʊldə/' },
+    const cards = [
+        { word: 'Astonish', pronunciation: '/əˈstɒnɪʃ/', meaning: 'Làm ngạc nhiên', example: "The magician's tricks will astonish you.", pos: 'Verb' },
+        { word: 'Ubiquitous', pronunciation: '/juːˈbɪkwɪtəs/', meaning: 'Phổ biến, ở đâu cũng có', example: 'Coffee shops are ubiquitous in the city.', pos: 'Adjective' },
+        { word: 'Implement', pronunciation: '/ˈɪmplɪment/', meaning: 'Triển khai', example: 'We will implement the new system next week.', pos: 'Verb' },
+        { word: 'Revenue', pronunciation: '/ˈrevənjuː/', meaning: 'Doanh thu', example: 'The company reported record revenue.', pos: 'Noun' },
+        { word: 'Negotiate', pronunciation: '/nɪˈɡəʊʃieɪt/', meaning: 'Đàm phán', example: 'We need to negotiate a better deal.', pos: 'Verb' },
+        { word: 'Algorithm', pronunciation: '/ˈælɡərɪðəm/', meaning: 'Thuật toán', example: 'This algorithm sorts data efficiently.', pos: 'Noun' },
+        { word: 'Develop', pronunciation: '/dɪˈveləp/', meaning: 'Phát triển', example: 'The company plans to develop new software.', pos: 'Verb' },
+        { word: 'Sustainable', pronunciation: '/səˈsteɪnəbl/', meaning: 'Bền vững', example: 'We need sustainable growth.', pos: 'Adjective' },
+        { word: 'Stakeholder', pronunciation: '/ˈsteɪkhəʊldə/', meaning: 'Bên liên quan', example: 'All stakeholders approved the plan.', pos: 'Noun' },
+        { word: 'Serendipity', pronunciation: '/ˌserənˈdɪpəti/', meaning: 'Sự tình cờ may mắn', example: 'Finding that book was pure serendipity.', pos: 'Noun' }
     ];
-
-    // --- DOM ELEMENTS ---
-    const promptLabel = document.getElementById('review-prompt-label');
-    const promptWord = document.getElementById('review-prompt-word');
-    const input = document.getElementById('review-input');
-    const feedback = document.getElementById('review-feedback');
-    const correctStat = document.getElementById('review-correct');
-    const incorrectStat = document.getElementById('review-incorrect');
-    const remainingStat = document.getElementById('review-remaining');
-    const progressBar = document.getElementById('review-progress');
-    const checkBtn = document.getElementById('review-check-btn');
-    const skipBtn = document.getElementById('review-skip-btn');
-
-    // --- STATE ---
-    let currentIndex = 0;
-    let correct = 0;
-    let incorrect = 0;
-    let answered = false;
-
-    const renderQuestion = () => {
-        const item = items[currentIndex];
-        promptLabel.textContent = 'Translate to English';
-        promptWord.textContent = item.prompt;
-        input.value = '';
-        input.classList.remove('correct', 'incorrect');
-        input.disabled = false;
-        answered = false;
-        feedback.innerHTML = '';
-        remainingStat.textContent = items.length - currentIndex;
-        progressBar.style.width = `${(currentIndex / items.length) * 100}%`;
-        checkBtn.textContent = 'Check';
-        input.focus();
+    const get = (id) => document.getElementById(id);
+    const flashcard = get('review-flashcard');
+    const revealButton = get('review-check-btn');
+    const difficultyActions = get('difficulty-actions');
+    const session = get('review-session');
+    const emptyState = document.querySelector('.review-empty-state');
+    const state = { index: 0, revealed: false, correct: 0, again: 0 };
+    const render = () => {
+        const card = cards[state.index];
+        get('review-prompt-word').textContent = card.word;
+        get('review-pronunciation').textContent = card.pronunciation;
+        get('review-prompt-label').textContent = card.pos;
+        get('review-meaning').textContent = card.meaning;
+        get('review-ipa').textContent = card.pronunciation;
+        get('review-example').textContent = `“${card.example}”`;
+        get('review-card-count').textContent = `Card ${state.index + 1} of ${cards.length}`;
+        get('review-remaining').textContent = cards.length - state.index;
+        get('session-percent').textContent = `${Math.round((state.index / cards.length) * 100)}% complete`;
+        get('review-progress').style.width = `${(state.index / cards.length) * 100}%`;
+        flashcard.classList.remove('flipped');
+        difficultyActions.hidden = true;
+        revealButton.hidden = false;
+        state.revealed = false;
     };
-
-    const normalize = (s) => s.trim().toLowerCase().replace(/[^a-z\s]/g, '');
-
-    const checkAnswer = () => {
-        const item = items[currentIndex];
-        const userAnswer = normalize(input.value);
-        const isCorrect = userAnswer === normalize(item.answer);
-
-        if (isCorrect) {
-            correct++;
-            input.classList.add('correct');
-            feedback.innerHTML = '<p class="review-feedback-correct">✓ Correct! Great job!</p>';
-        } else {
-            incorrect++;
-            input.classList.add('incorrect');
-            feedback.innerHTML = `<p class="review-feedback-incorrect">✗ Not quite. The answer is: <strong>${item.answer}</strong></p><p class="review-feedback-answer">${item.hint}</p>`;
-        }
-
-        input.disabled = true;
-        answered = true;
-        correctStat.textContent = correct;
-        incorrectStat.textContent = incorrect;
-        checkBtn.textContent = 'Next';
-
-        if (currentIndex === items.length - 1) {
-            checkBtn.textContent = 'Finish';
-            setTimeout(() => {
-                if (typeof window.showToast === 'function') {
-                    const pct = Math.round((correct / items.length) * 100);
-                    window.showToast(pct >= 80 ? `Session complete! ${correct}/${items.length} correct. Excellent!` : `Session complete! ${correct}/${items.length} correct.`, pct >= 60 ? 'success' : 'error');
-                }
-            }, 300);
-        }
+    const reveal = () => {
+        if (state.revealed) return;
+        flashcard.classList.add('flipped');
+        difficultyActions.hidden = false;
+        revealButton.hidden = true;
+        state.revealed = true;
     };
-
-    const nextQuestion = () => {
-        if (currentIndex < items.length - 1) {
-            currentIndex++;
-            renderQuestion();
-        } else {
-            // Session complete - restart
-            currentIndex = 0;
-            correct = 0;
-            incorrect = 0;
-            renderQuestion();
-            correctStat.textContent = '0';
-            incorrectStat.textContent = '0';
+    const rate = (rating) => {
+        if (rating === 'again') state.again += 1; else state.correct += 1;
+        get('review-correct').textContent = state.correct;
+        get('review-incorrect').textContent = state.again;
+        state.index += 1;
+        if (state.index === cards.length) {
+            session.hidden = true;
+            emptyState.hidden = false;
+            get('review-progress').style.width = '100%';
+            get('session-percent').textContent = '100% complete';
+            return;
         }
+        render();
     };
-
-    const handleSubmit = () => {
-        if (!answered) {
-            checkAnswer();
-        } else {
-            nextQuestion();
+    flashcard.addEventListener('click', reveal);
+    flashcard.addEventListener('keydown', (event) => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); reveal(); } });
+    revealButton.addEventListener('click', reveal);
+    get('start-review-btn').addEventListener('click', () => {
+        if (session.hidden) {
+            state.index = 0;
+            state.revealed = false;
+            session.hidden = false;
+            emptyState.hidden = true;
+            render();
         }
-    };
-
-    const handleSkip = () => {
-        if (!answered) {
-            incorrect++;
-            incorrectStat.textContent = incorrect;
-        }
-        nextQuestion();
-    };
-
-    // --- EVENT LISTENERS ---
-    checkBtn.addEventListener('click', handleSubmit);
-    skipBtn.addEventListener('click', handleSkip);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSubmit();
-        }
+        flashcard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        flashcard.focus({ preventScroll: true });
     });
-
-    // --- INITIALIZATION ---
-    renderQuestion();
+    difficultyActions.addEventListener('click', (event) => { const button = event.target.closest('[data-rating]'); if (button) rate(button.dataset.rating); });
+    get('audio-btn').addEventListener('click', (event) => { event.stopPropagation(); if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(cards[state.index].word)); } });
+    render();
 });
-
