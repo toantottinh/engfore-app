@@ -59,39 +59,28 @@
                 </div>
             </header>
             <main class="main-content" role="main">
-                <section class="review-page" aria-labelledby="review-title">
-                    <div class="review-header">
-                        <div>
-                            <p class="review-eyebrow"><i class="icon" data-lucide="sparkles"></i> Spaced repetition</p>
-                            <h1 id="review-title">Review</h1>
-                            <p>Strengthen the words that matter most, one recall at a time.</p>
-                        </div>
-                        <button class="btn btn-primary start-review-btn" id="start-review-btn" type="button"><i class="icon" data-lucide="play"></i> Start review <span>10 cards</span></button>
+                <div class="review-container">
+                    <div class="review-stats">
+                        <div class="review-stat"><i class="icon" data-lucide="check-circle"></i> Correct: <span class="review-stat-value" id="review-correct">0</span></div>
+                        <div class="review-stat"><i class="icon" data-lucide="x-circle"></i> Incorrect: <span class="review-stat-value" id="review-incorrect">0</span></div>
+                        <div class="review-stat"><i class="icon" data-lucide="layers"></i> Remaining: <span class="review-stat-value" id="review-remaining">10</span></div>
                     </div>
-
-                    <section class="review-overview" aria-label="Today's review summary">
-                        <article class="review-overview-card due"><span class="overview-icon"><i class="icon" data-lucide="layers-3"></i></span><div><span>Review due today</span><strong>10</strong><small>cards waiting for you</small></div></article>
-                        <article class="review-overview-card time"><span class="overview-icon"><i class="icon" data-lucide="clock-3"></i></span><div><span>Estimated time</span><strong>4 min</strong><small>at your usual pace</small></div></article>
-                        <article class="review-overview-card accuracy"><span class="overview-icon"><i class="icon" data-lucide="target"></i></span><div><span>Accuracy</span><strong>86%</strong><small>last 7 days</small></div></article>
-                        <article class="review-overview-card streak"><span class="overview-icon"><i class="icon" data-lucide="flame"></i></span><div><span>Current streak</span><strong>4 days</strong><small>your best is 12 days</small></div></article>
-                    </section>
-
-                    <div class="review-layout" id="review-session">
-                        <section class="review-container card" aria-labelledby="session-title">
-                            <div class="session-header"><div><p class="section-kicker">Review session</p><h2 id="session-title">IT Vocabulary</h2></div><span class="session-percent" id="session-percent">0% complete</span></div>
-                            <div class="review-progress"><div class="progress-caption"><span id="review-card-count">Card 1 of 10</span><span><strong id="review-remaining">10</strong> remaining</span></div><div class="progress-bar"><div class="progress" id="review-progress" style="width: 0%"></div></div></div>
-                            <div class="review-stats" aria-label="Review score"><div class="review-stat"><i class="icon" data-lucide="circle-check"></i> Correct <span class="review-stat-value" id="review-correct">0</span></div><div class="review-stat"><i class="icon" data-lucide="circle-x"></i> Again <span class="review-stat-value" id="review-incorrect">0</span></div></div>
-                            <div class="review-flashcard" id="review-flashcard" role="button" tabindex="0" aria-label="Review flashcard. Select to reveal the answer."><div class="review-flashcard-inner"><div class="review-card-face review-card-front"><div class="review-card-top"><span class="review-card-label">English</span><span class="review-card-number">01</span></div><div class="review-card-content"><p class="review-prompt-word" id="review-prompt-word">Astonish</p><p class="review-pronunciation" id="review-pronunciation">/əˈstɒnɪʃ/</p><span class="review-pos" id="review-prompt-label">Verb</span></div><p class="review-card-hint"><i class="icon" data-lucide="rotate-cw"></i> Click to reveal the answer</p></div><div class="review-card-face review-card-back"><div class="review-card-top"><span class="review-card-label">Vietnamese</span><button class="audio-button" id="audio-btn" type="button" aria-label="Play pronunciation"><i class="icon" data-lucide="volume-2"></i> Listen</button></div><div class="review-card-content"><p class="review-meaning" id="review-meaning">Làm ngạc nhiên</p><p class="review-ipa" id="review-ipa">/əˈstɒnɪʃ/</p><p class="review-example" id="review-example">“The magician's tricks will astonish you.”</p></div><p class="review-card-hint"><i class="icon" data-lucide="mouse-pointer-2"></i> How well did you remember it?</p></div></div></div>
-                            <div class="review-actions" id="review-actions"><button class="btn btn-reveal" id="review-check-btn" type="button"><i class="icon" data-lucide="rotate-cw"></i> Reveal answer</button></div>
-                            <div class="difficulty-actions" id="difficulty-actions" hidden aria-label="Choose card difficulty"><button class="difficulty-btn again" data-rating="again" type="button"><span>Again</span><small>&lt; 1 min</small></button><button class="difficulty-btn hard" data-rating="hard" type="button"><span>Hard</span><small>&lt; 6 min</small></button><button class="difficulty-btn good" data-rating="good" type="button"><span>Good</span><small>&lt; 1 day</small></button><button class="difficulty-btn easy" data-rating="easy" type="button"><span>Easy</span><small>4 days</small></button></div>
-                        </section>
-                        <aside class="review-sidebar" aria-label="Review insights"><section class="review-tip card"><div class="tip-icon"><i class="icon" data-lucide="lightbulb"></i></div><div><p class="section-kicker">Study tip</p><h2>Recall before revealing</h2><p>Give yourself a moment to remember. A little effort makes the memory stick.</p></div></section><section class="review-queue card"><div class="queue-heading"><div><p class="section-kicker">Up next</p><h2>Review queue</h2></div><i class="icon" data-lucide="list-checks"></i></div><ol><li><span>Ubiquitous</span><small>Medium</small></li><li><span>Implement</span><small>Hard</small></li><li><span>Revenue</span><small>Learning</small></li></ol><p class="queue-note"><i class="icon" data-lucide="sparkle"></i> 7 more cards after these</p></section></aside>
+                    <div class="review-progress">
+                        <div class="progress-bar"><div class="progress" id="review-progress" style="width: 0%;"></div></div>
                     </div>
-
-                    <section class="review-performance" aria-labelledby="performance-title"><div class="section-heading"><div><p class="section-kicker">Your progress</p><h2 id="performance-title">Review performance</h2></div><span>Last 7 days</span></div><div class="performance-grid"><article class="performance-card card"><span class="performance-icon learned"><i class="icon" data-lucide="graduation-cap"></i></span><div><span>Cards learned</span><strong>68</strong><small>+8 this week</small></div></article><article class="performance-card card"><span class="performance-icon accuracy"><i class="icon" data-lucide="badge-check"></i></span><div><span>Accuracy</span><strong>86%</strong><small>+4% from last week</small></div></article><article class="performance-card card"><span class="performance-icon streak"><i class="icon" data-lucide="flame"></i></span><div><span>Review streak</span><strong>4 days</strong><small>Keep your momentum</small></div></article><article class="performance-card card"><span class="performance-icon response"><i class="icon" data-lucide="timer"></i></span><div><span>Avg. response time</span><strong>3.8s</strong><small>0.5s faster this week</small></div></article></div></section>
-                    <section class="review-empty-state card" hidden aria-labelledby="caught-up-title"><div class="empty-illustration"><i class="icon" data-lucide="party-popper"></i><span></span><span></span></div><h2 id="caught-up-title">You’re all caught up!</h2><p>There are no cards due today. Come back tomorrow or explore a new deck.</p><a class="btn btn-primary" href="flashcards.html"><i class="icon" data-lucide="layers"></i> Explore flashcards</a></section>
-                    <section class="review-loading" hidden aria-label="Loading review"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-progress"></span><span class="skeleton skeleton-review-card"></span><div class="skeleton-buttons"><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span></div></section>
-                </section>
+                    <div class="review-prompt">
+                        <p class="review-prompt-label" id="review-prompt-label">Translate to English</p>
+                        <p class="review-prompt-word" id="review-prompt-word">Làm ngạc nhiên</p>
+                    </div>
+                    <div class="review-input-group">
+                        <input type="text" class="review-input" id="review-input" placeholder="Type your answer..." autofocus aria-label="Type your answer">
+                    </div>
+                    <div class="review-feedback" id="review-feedback"></div>
+                    <div class="review-actions">
+                        <button class="btn btn-secondary" id="review-skip-btn">Skip</button>
+                        <button class="btn btn-primary" id="review-check-btn">Check</button>
+                    </div>
+                </div>
             </main>
         </div>
     </div>
