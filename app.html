@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - EngFore</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1A1A1A">
+
+    <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>EngFore</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#/" class="nav-item">Vocabulary</a>
+                <a href="#/review" class="nav-item">Review <span id="review-count-badge" class="nav-badge"></span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="#/profile" class="nav-item">Profile</a>
+                <button id="logout-button" class="logout-button">Đăng xuất</button>
+            </div>
+        </aside>
+        <main class="main-content">
+            <div id="app-root"></div>
+        </main>
+    </div>
+    <script type="module" src="/main.js"></script>
+</body>
+</html>

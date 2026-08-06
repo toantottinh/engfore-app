@@ -1,0 +1,146 @@
+.vocab-library-container {
+    padding: 2rem 2.5rem;
+}
+
+.vocab-library-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.vocab-library-header h1 {
+    font-size: 1.8rem;
+}
+
+.vocab-library-header .actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.search-input {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.sort-select {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+.add-set-btn {
+    background-color: #4A4DEE; /* Một màu nhấn thương hiệu */
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.add-set-btn:hover {
+    background-color: #3839B3;
+}
+
+.empty-state {
+    color: var(--text-secondary);
+    grid-column: 1 / -1; /* Make it span all columns in the grid */
+    text-align: center;
+}
+
+.vocab-set-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.vocab-set-card {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    position: relative;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    transition: border-color 0.2s, transform 0.2s;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.vocab-set-card:hover {
+    border-color: #4A4DEE;
+    transform: translateY(-2px);
+}
+
+.vocab-set-card-link {
+    text-decoration: none;
+    flex-grow: 1;
+}
+
+.vocab-set-card h3 {
+    font-size: 1.1rem;
+    color: var(--text-color);
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    /* Truncate long text */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vocab-set-card p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.delete-set-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.delete-set-btn:hover {
+    color: #ff4d4d; /* Màu đỏ cảnh báo */
+    background-color: rgba(255, 77, 77, 0.1);
+}
+
+.edit-set-btn {
+    position: absolute;
+    top: 8px;
+    right: 38px; /* Đặt cạnh nút xóa */
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.edit-set-btn:hover {
+    color: #4A4DEE; /* Màu thương hiệu */
+    background-color: rgba(74, 77, 238, 0.1);
+}

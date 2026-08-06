@@ -1,0 +1,124 @@
+.profile-container {
+    max-width: 600px;
+    margin: 4rem auto;
+    padding: 2rem;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.profile-container h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.avatar-img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1rem;
+    border: 2px solid var(--border-color);
+}
+
+.hidden-input {
+    display: none;
+}
+
+.avatar-section label {
+    cursor: pointer;
+}
+
+#profile-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+#profile-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+#profile-form input {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+#profile-form input:disabled {
+    background-color: #252525;
+    cursor: not-allowed;
+}
+
+#profile-form .btn-primary {
+    width: 100%;
+    padding: 0.8rem;
+    font-size: 1rem;
+}
+
+.status-message {
+    text-align: center;
+    margin-top: 1rem;
+    min-height: 1.2em;
+    color: #28a745; /* Green for success */
+}
+
+.notification-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.notification-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.notification-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+/* The switch - https://www.w3schools.com/howto/howto_css_switch.asp */
+.switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
+input:checked + .slider { background-color: #4A4DEE; }
+input:focus + .slider { box-shadow: 0 0 1px #4A4DEE; }
+input:checked + .slider:before { transform: translateX(22px); }
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+
+.stats-section {
+    margin-top: 3rem;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.stats-section h2 {
+    margin-bottom: 1.5rem;
+}
+
+.chart-container {
+    position: relative;
+    max-width: 350px;
+    margin: 0 auto;
+}

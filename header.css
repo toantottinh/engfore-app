@@ -1,0 +1,55 @@
+.app-header {
+    height: 60px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--spacing-6);
+}
+
+.header-content {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.user-menu {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+}
+
+.user-menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 120%;
+    right: 0;
+    background-color: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    min-width: 150px;
+    padding: var(--spacing-2);
+    z-index: 10;
+}
+
+.user-menu:hover .user-menu-dropdown {
+    display: block;
+}
+
+.user-menu-dropdown a {
+    display: block;
+    padding: var(--spacing-2) var(--spacing-4);
+    color: var(--foreground);
+}

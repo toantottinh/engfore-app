@@ -1,0 +1,38 @@
+<div class="profile-container">
+    <h1>My Profile</h1>
+    <form id="profile-form">
+        <div class="avatar-section">
+            <img id="avatar-preview" src="https://via.placeholder.com/100" alt="User Avatar" class="avatar-img">
+            <label for="avatar-upload" class="btn-secondary">Change Avatar</label>
+            <input type="file" id="avatar-upload" accept="image/*" class="hidden-input">
+        </div>
+
+        <div class="form-group">
+            <label for="email-display">Email</label>
+            <input type="email" id="email-display" disabled>
+        </div>
+
+        <div class="form-group">
+            <label for="username-input">Username</label>
+            <input type="text" id="username-input" placeholder="Enter your username">
+        </div>
+
+        <button type="submit" class="btn-primary">Save Changes</button>
+        <p id="profile-status" class="status-message"></p>
+    </form>
+
+    <div class="notification-section">
+        <h2>Notifications</h2>
+        <div class="notification-setting">
+            <p>Enable review reminders</p>
+            <label class="switch"><input type="checkbox" id="notifications-toggle"><span class="slider round"></span></label>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h2>Learning Progress</h2>
+        <div class="chart-container">
+            <canvas id="mastery-chart"></canvas>
+        </div>
+    </div>
+</div>

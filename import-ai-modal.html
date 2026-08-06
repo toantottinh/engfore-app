@@ -1,0 +1,32 @@
+<div id="import-ai-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <button class="modal-close-btn">&times;</button>
+        <h2>Import with AI</h2>
+        <div class="modal-steps">
+            <div class="step">
+                <h4>Step 1: Copy Prompt</h4>
+                <p>Click the button below to copy a prompt designed for ChatGPT.</p>
+                <div class="prompt-box">
+                    <pre id="ai-prompt-text"></pre>
+                    <button id="copy-prompt-btn">Copy</button>
+                </div>
+            </div>
+            <div class="step">
+                <h4>Step 2: Paste AI Result</h4>
+                <p>Paste the entire result from the AI into the text area below.</p>
+                <textarea id="ai-result-textarea" rows="10" placeholder="Paste text here..."></textarea>
+            </div>
+        </div>
+        <div id="preview-section" class="hidden">
+            <h4>Preview</h4>
+            <div id="preview-table-container">
+                <!-- Preview table will be rendered here -->
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="preview-btn" class="btn-secondary">Preview</button>
+            <button id="import-btn" class="btn-primary" disabled>Import</button>
+        </div>
+        <p id="import-status" class="import-status"></p>
+    </div>
+</div>

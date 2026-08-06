@@ -1,0 +1,180 @@
+.practice-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-color);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    color: var(--text-color);
+}
+
+.practice-header {
+    display: flex;
+    align-items: center;
+    padding: 1rem 2rem;
+    gap: 1.5rem;
+}
+
+.exit-btn {
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.progress-bar-container {
+    flex-grow: 1;
+    background-color: var(--border-color);
+    border-radius: 10px;
+    height: 12px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: #4A4DEE;
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+.practice-main {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    padding: 2rem;
+}
+
+.practice-view {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Flashcard Styles */
+.flashcard {
+    width: 100%;
+    height: 300px;
+    perspective: 1000px;
+    background-color: transparent;
+    margin-bottom: 2rem;
+}
+
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+
+.flashcard-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    font-size: 2rem;
+}
+
+.flashcard-back {
+    transform: rotateY(180deg);
+    flex-direction: column;
+    gap: 1rem;
+    font-size: 1.2rem;
+    align-items: flex-start;
+    text-align: left;
+}
+.flashcard-back .word-and-audio {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+/* Typing Styles */
+.typing-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.typing-meaning {
+    font-size: 2rem;
+    font-style: italic;
+    color: var(--text-secondary);
+    margin-bottom: 0;
+}
+
+.typing-input {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.5rem;
+    text-align: center;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-color);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.typing-input:focus {
+    border-bottom-color: #4A4DEE;
+}
+
+.typing-input.wrong {
+    border-bottom-color: #ff4d4d;
+    animation: shake 0.5s;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+.hint-area {
+    margin-top: 1.5rem;
+    min-height: 2em;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.2em;
+}
+
+.audio-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: color 0.2s;
+}
+.audio-btn:hover {
+    color: var(--text-color);
+}

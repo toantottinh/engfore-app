@@ -1,347 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - EngFore</title>
-
-    <!-- CSS Links -->
-    <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/sidebar.css">
-    <link rel="stylesheet" href="css/topbar.css">
-    <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/responsive.css">
+    <title>EngFore - Play but Learn</title>
+    <link rel="stylesheet" href="/landing.css">
 </head>
 <body>
-    <div class="app-layout">
-        <!-- Sidebar -->
-        <aside class="sidebar" role="navigation" aria-label="Main navigation">
-            <div class="sidebar-logo">
-                <a href="index.html" aria-label="EngFore Home">EngFore</a>
-            </div>
-            <nav class="sidebar-nav">
-                <div class="nav-group">
-                    <span class="nav-group-title">Học tập</span>
-                    <a href="index.html" class="nav-item active" aria-current="page">
-                        <span class="nav-icon"><i class="icon" data-lucide="layout-dashboard"></i></span>
-                        <span class="nav-text">Trang chủ</span>
-                    </a>
-                    <a href="pages/vocabulary.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="book-marked"></i></span>
-                        <span class="nav-text">Từ vựng</span>
-                    </a>
-                    <a href="pages/flashcards.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="layers"></i></span>
-                        <span class="nav-text">Flashcards</span>
-                    </a>
-                    <a href="pages/review.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="rotate-ccw"></i></span>
-                        <span class="nav-text">Ôn tập</span>
-                    </a>
-                </div>
-                <div class="nav-group">
-                    <span class="nav-group-title">Luyện tập</span>
-                    <a href="pages/grammar.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="pilcrow"></i></span>
-                        <span class="nav-text">Ngữ pháp</span>
-                    </a>
-                    <a href="pages/reading.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="book-open"></i></span>
-                        <span class="nav-text">Đọc hiểu</span>
-                    </a>
-                    <a href="pages/listening.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="headphones"></i></span>
-                        <span class="nav-text">Luyện nghe</span>
-                    </a>
-                    <a href="pages/quiz.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="clipboard-check"></i></span>
-                        <span class="nav-text">Bài kiểm tra</span>
-                    </a>
-                </div>
-                <div class="nav-group">
-                    <span class="nav-group-title">Tài khoản</span>
-                    <a href="pages/profile.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="user"></i></span>
-                        <span class="nav-text">Hồ sơ</span>
-                    </a>
-                    <a href="pages/login.html" class="nav-item">
-                        <span class="nav-icon"><i class="icon" data-lucide="log-out"></i></span>
-                        <span class="nav-text">Đăng xuất</span>
-                    </a>
-                </div>
+    <div class="page-container">
+        <header class="landing-header">
+            <div class="logo">EngFore</div>
+            <nav class="landing-nav">
+                <a href="/login.html" class="btn btn-secondary">Đăng nhập</a>
+                <a href="/signup.html" class="btn btn-primary">Bắt đầu miễn phí</a>
             </nav>
-            <div class="sidebar-footer">
-                <p>EngFore v1.0 &mdash; Stop Guessing. Start Typing.</p>
-            </div>
-        </aside>
-        <div class="sidebar-overlay"></div>
+        </header>
 
-        <div class="app-content">
-            <!-- Topbar -->
-            <header class="topbar" role="banner">
-                <div class="topbar-left">
-                    <button class="btn-icon-only sidebar-toggle" aria-label="Toggle sidebar menu">
-                        <i class="icon" data-lucide="menu"></i>
-                    </button>
-                    <div class="topbar-search">
-                        <input type="search" placeholder="Tìm kiếm từ vựng, bài học..." aria-label="Search">
-                    </div>
-                </div>
-                <div class="topbar-right">
-                    <div class="topbar-actions">
-                        <button class="btn-icon-only" aria-label="Notifications">
-                            <i class="icon" data-lucide="bell"></i>
-                        </button>
-                        <button class="btn-icon-only" aria-label="Settings">
-                            <i class="icon" data-lucide="settings"></i>
-                        </button>
-                    </div>
-                    <div class="topbar-user">
-                        <button class="btn-icon-only" aria-label="User menu">
-                            <div class="user-avatar" role="img" aria-label="User avatar"></div>
-                        </button>
-                    </div>
-                </div>
-            </header>
+        <main class="landing-main">
+            <section class="hero">
+                <h1 class="hero-title">Học từ vựng không còn nhàm chán.</h1>
+                <p class="hero-subtitle">EngFore biến việc học từ vựng thành một trải nghiệm chủ động và thú vị. <br>Đúng với triết lý: <strong>Play but Learn</strong>.</p>
+                <a href="/signup.html" class="btn btn-primary btn-large">Tạo tài khoản ngay</a>
+            </section>
 
-            <main class="main-content" role="main">
-                <div class="dashboard-grid">
-
-    <!-- 1. Hero -->
-    <section class="dashboard-hero" aria-labelledby="hero-title">
-        <div class="hero-content">
-            <h1 id="hero-title" class="hero-title">Chào mừng trở lại, Toàn!</h1>
-            <p class="hero-subtitle">Bạn đang học rất tốt. Hãy duy trì phong độ này!</p>
-            <div class="hero-meta">
-                <div class="meta-item">
-                    <i class="icon" data-lucide="flame"></i>
-                    <span>12 ngày chuỗi học</span>
+            <section class="features">
+                <div class="feature-card">
+                    <h3>Practice First</h3>
+                    <p>Không cần suy nghĩ hôm nay học gì. Mở EngFore và bắt đầu luyện tập ngay lập tức với các từ vựng được chuẩn bị sẵn.</p>
                 </div>
-                <div class="meta-item">
-                    <i class="icon" data-lucide="star"></i>
-                    <span>Cấp độ 5</span>
+                <div class="feature-card">
+                    <h3>Think in English</h3>
+                    <p>Mọi ví dụ, mô tả đều bằng tiếng Anh. Giúp bạn xây dựng thói quen tư duy trực tiếp bằng ngôn ngữ đang học.</p>
                 </div>
-                <div class="meta-item">
-                    <i class="icon" data-lucide="bar-chart-2"></i>
-                    <span>1,500 XP</span>
+                <div class="feature-card">
+                    <h3>Import with AI</h3>
+                    <p>Dễ dàng tạo bộ từ vựng theo chủ đề bạn muốn chỉ với một thao tác sao chép và dán từ ChatGPT.</p>
                 </div>
-            </div>
-            <button class="btn btn-primary">
-                <i class="icon" data-lucide="play"></i>
-                <span>Tiếp tục học</span>
-            </button>
-        </div>
-        <div class="hero-illustration">
-            <i class="icon" data-lucide="graduation-cap"></i>
-        </div>
-    </section>
-
-    <!-- 2. Daily Goal -->
-    <section class="dashboard-daily-goal card" aria-labelledby="daily-goal-title">
-        <div class="card-body">
-            <div class="section-header">
-                <h2 id="daily-goal-title" class="section-title">Mục tiêu hôm nay</h2>
-                <span class="goal-completion">60%</span>
-            </div>
-            <p class="card-subtitle">Đã hoàn thành 3/5 nhiệm vụ.</p>
-            <div class="progress-bar">
-                <div class="progress" style="width: 60%;"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 3. Statistics -->
-    <div class="dashboard-stats" role="group" aria-label="Thống kê học tập">
-        <article class="stat-card card">
-            <div class="stat-header">
-                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="book-marked"></i></div>
-                <h3 class="stat-title">Từ vựng</h3>
-            </div>
-            <p class="stat-value">1,250</p>
-            <p class="stat-delta">+20 hôm nay</p>
-        </article>
-        <article class="stat-card card">
-            <div class="stat-header">
-                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="pilcrow"></i></div>
-                <h3 class="stat-title">Ngữ pháp</h3>
-            </div>
-            <p class="stat-value">85%</p>
-            <p class="stat-delta">Mức thành thạo</p>
-        </article>
-        <article class="stat-card card">
-            <div class="stat-header">
-                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="book-open"></i></div>
-                <h3 class="stat-title">Bài đọc</h3>
-            </div>
-            <p class="stat-value">42</p>
-            <p class="stat-delta">Bài đã đọc</p>
-        </article>
-        <article class="stat-card card">
-            <div class="stat-header">
-                <div class="stat-icon-wrapper"><i class="icon stat-icon" data-lucide="headphones"></i></div>
-                <h3 class="stat-title">Bài nghe</h3>
-            </div>
-            <p class="stat-value">18</p>
-            <p class="stat-delta">Bài đã học</p>
-        </article>
-    </div>
-
-    <!-- 4. Continue Learning -->
-    <section class="dashboard-continue" aria-labelledby="continue-learning-title">
-        <h2 id="continue-learning-title" class="section-title">Tiếp tục học</h2>
-        <article class="continue-card card">
-            <div class="continue-card-thumbnail">
-                <i class="icon" data-lucide="pilcrow"></i>
-            </div>
-            <div class="continue-card-info">
-                <h3 class="card-title">Present Simple Tense Review</h3>
-                <p class="card-subtitle">Bài học Ngữ pháp</p>
-            </div>
-            <div class="continue-card-progress">
-                <span class="progress-text">50%</span>
-                <div class="progress-bar">
-                    <div class="progress" style="width: 50%;"></div>
-                </div>
-            </div>
-            <a href="pages/grammar.html" class="btn btn-secondary btn-icon-only" aria-label="Continue grammar lesson"><i class="icon" data-lucide="arrow-right"></i></a>
-        </article>
-        <article class="continue-card card">
-            <div class="continue-card-thumbnail">
-                <i class="icon" data-lucide="book-marked"></i>
-            </div>
-            <div class="continue-card-info">
-                <h3 class="card-title">IT Vocabulary - Part 3</h3>
-                <p class="card-subtitle">Bộ từ vựng</p>
-            </div>
-            <div class="continue-card-progress">
-                <span class="progress-text">80%</span>
-                <div class="progress-bar">
-                    <div class="progress" style="width: 80%;"></div>
-                </div>
-            </div>
-            <a href="pages/vocabulary.html" class="btn btn-secondary btn-icon-only" aria-label="Continue vocabulary lesson"><i class="icon" data-lucide="arrow-right"></i></a>
-        </article>
-    </section>
-
-    <!-- 5. Recent Activity -->
-    <section class="dashboard-activity" aria-labelledby="recent-activity-title">
-        <h2 id="recent-activity-title" class="section-title">Hoạt động gần đây</h2>
-        <div class="activity-list card">
-            <div class="activity-item">
-                <div class="activity-timeline">
-                    <div class="activity-icon"><i class="icon" data-lucide="zap"></i></div>
-                    <div class="timeline-line"></div>
-                </div>
-                <div class="activity-content">
-                    <p class="activity-title">Đã học 20 từ trong <strong>Business English</strong></p>
-                    <time class="activity-time">15 phút trước</time>
-                </div>
-            </div>
-            <div class="activity-item">
-                <div class="activity-timeline">
-                    <div class="activity-icon"><i class="icon" data-lucide="check-circle-2"></i></div>
-                    <div class="timeline-line"></div>
-                </div>
-                <div class="activity-content">
-                    <p class="activity-title">Hoàn thành Bài kiểm tra: <strong>Conditionals</strong></p>
-                    <time class="activity-time">1 giờ trước</time>
-                </div>
-            </div>
-            <div class="activity-item">
-                <div class="activity-timeline"><div class="activity-icon"><i class="icon" data-lucide="book-open-check"></i></div></div>
-                <div class="activity-content">
-                    <p class="activity-title">Đã đọc xong <strong>The Digital Age</strong></p>
-                    <time class="activity-time">Hôm qua</time>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 6. Recommended Lessons -->
-    <section class="dashboard-recommended" aria-labelledby="recommended-lessons-title">
-        <h2 id="recommended-lessons-title" class="section-title">Gợi ý dành cho bạn</h2>
-        <div class="recommended-grid">
-            <article class="lesson-card card">
-                <div class="lesson-thumbnail" style="background-image: url('https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?q=80&w=2940&auto=format&fit=crop')" role="img" aria-label="Lesson thumbnail"></div>
-                <div class="lesson-content">
-                    <div>
-                        <h3 class="card-title">Conditional Sentences Type 2</h3>
-                        <span class="badge badge-warning">Trung cấp</span>
-                    </div>
-                    <a href="pages/grammar.html" class="btn btn-secondary btn-icon-only" aria-label="Start grammar lesson"><i class="icon" data-lucide="play"></i></a>
-                </div>
-            </article>
-            <article class="lesson-card card">
-                <div class="lesson-thumbnail" style="background-image: url('https://images.unsplash.com/photo-1516321497487-e288fb19713f?q=80&w=2940&auto=format&fit=crop')" role="img" aria-label="Lesson thumbnail"></div>
-                <div class="lesson-content">
-                    <div>
-                        <h3 class="card-title">Business English: Meetings</h3>
-                        <span class="badge badge-danger">Nâng cao</span>
-                    </div>
-                    <a href="pages/reading.html" class="btn btn-secondary btn-icon-only" aria-label="Start reading lesson"><i class="icon" data-lucide="play"></i></a>
-                </div>
-            </article>
-            <article class="lesson-card card">
-                <div class="lesson-thumbnail" style="background-image: url('https://images.unsplash.com/photo-1588196749597-9ff075ee6b5b?q=80&w=2874&auto=format&fit=crop')" role="img" aria-label="Lesson thumbnail"></div>
-                <div class="lesson-content">
-                    <div>
-                        <h3 class="card-title">Listening: A TED Talk on AI</h3>
-                        <span class="badge badge-warning">Trung cấp</span>
-                    </div>
-                    <a href="pages/listening.html" class="btn btn-secondary btn-icon-only" aria-label="Start listening lesson"><i class="icon" data-lucide="play"></i></a>
-                </div>
-            </article>
-        </div>
-    </section>
-
-    <!-- 7. Weekly Streak / Heatmap -->
-    <section class="dashboard-streak" aria-labelledby="weekly-streak-title">
-        <h2 id="weekly-streak-title" class="section-title">Tuần này</h2>
-        <div class="streak-heatmap card card-body">
-            <div class="streak-grid">
-                <div class="streak-day">
-                    <span class="streak-label">T2</span>
-                    <div class="streak-cell streak-cell-3"></div>
-                </div>
-                <div class="streak-day">
-                    <span class="streak-label">T3</span>
-                    <div class="streak-cell streak-cell-2"></div>
-                </div>
-                <div class="streak-day">
-                    <span class="streak-label">T4</span>
-                    <div class="streak-cell streak-cell-0"></div>
-                </div>
-                <div class="streak-day">
-                    <span class="streak-label">T5</span>
-                    <div class="streak-cell streak-cell-1"></div>
-                </div>
-                <div class="streak-day">
-                    <span class="streak-label">T6</span>
-                    <div class="streak-cell streak-cell-3"></div>
-                </div>
-                <div class="streak-day">
-                    <span class="streak-label">T7</span>
-                    <div class="streak-cell streak-cell-4"></div>
-                </div>
-                <div class="streak-day">
-                    <span class="streak-label">CN</span>
-                    <div class="streak-cell"></div>
-                </div>
-            </div>
-            <p class="streak-summary">Chuỗi dài nhất: 12 ngày &middot; 45 hoạt động trong tuần</p>
-        </div>
-    </section>
-</div>
+            </section>
         </main>
-        </div>
+
+        <footer class="landing-footer">
+            <p>&copy; 2026 EngFore. All rights reserved.</p>
+        </footer>
     </div>
-
-    <!-- Scripts -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="js/main.js"></script>
-
 </body>
 </html>

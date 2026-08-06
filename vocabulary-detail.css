@@ -1,0 +1,150 @@
+.vocab-detail-container {
+    padding: 2rem 2.5rem;
+}
+
+.vocab-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.back-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.back-link:hover {
+    color: var(--text-color);
+}
+
+.vocab-detail-header h1 {
+    font-size: 1.8rem;
+    flex-grow: 1;
+}
+
+.vocab-detail-header .actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.import-ai-btn, .add-word-btn {
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.import-ai-btn {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.add-word-btn {
+    background-color: #4A4DEE;
+    color: white;
+}
+
+.practice-btn {
+    background-color: #28a745; /* Màu xanh lá cây cho hành động chính */
+}
+
+.practice-btn:hover {
+    background-color: #218838;
+}
+
+.word-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.word-card {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    position: relative;
+}
+
+.word-card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.word-card-header .word {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.word-card-header .ipa {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.word-card-body .meaning {
+    font-size: 1.1rem;
+    font-style: italic;
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+.word-card-body .example {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    border-left: 3px solid var(--border-color);
+    padding-left: 1rem;
+    margin: 0;
+}
+
+.empty-state {
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 4rem;
+}
+
+.delete-word-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.delete-word-btn:hover {
+    color: #ff4d4d; /* Màu đỏ cảnh báo */
+    background-color: rgba(255, 77, 77, 0.1);
+}
+
+.edit-word-btn {
+    position: absolute;
+    top: 8px;
+    right: 38px; /* Đặt cạnh nút xóa */
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.edit-word-btn:hover {
+    color: #4A4DEE; /* Màu thương hiệu */
+    background-color: rgba(74, 77, 238, 0.1);
+}
