@@ -108,115 +108,194 @@
             </header>
 
             <main class="main-content">
-                <div class="page-header">
-                    <h1 class="page-title">My Vocabulary</h1>
-                    <div class="page-actions">
-                        <button class="btn btn-secondary">Import CSV</button>
-                        <button class="btn btn-primary" id="add-word-btn">
+                <!-- ==========================================================
+                   VIEW 1: VOCABULARY SETS (Default View)
+                ========================================================== -->
+                <div id="library-view">
+                    <div class="page-header">
+                        <div>
+                            <h1 class="page-title">Thư viện từ vựng</h1>
+                            <p class="page-subtitle">Thư viện từ vựng cá nhân của bạn.</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" id="add-vocabulary-btn">
+                                <i class="icon" data-lucide="plus"></i>
+                                <span>Thêm bộ từ</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar -->
+                    <div class="list-toolbar card">
+                        <div class="search-control">
+                            <i class="icon" data-lucide="search"></i>
+                            <input type="search" id="search-sets-input" class="input" placeholder="Tìm bộ từ...">
+                        </div>
+                        <div class="filter-controls">
+                            <select id="sort-sets-select" class="input">
+                                <option value="newest">Sắp xếp: Mới nhất</option>
+                                <option value="oldest">Sắp xếp: Cũ nhất</option>
+                                <option value="name_asc">Sắp xếp: Tên (A-Z)</option>
+                                <option value="last_studied">Sắp xếp: Học gần đây</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Vocabulary Sets Section -->
+                    <div id="sets-grid" class="sets-grid">
+                        <!-- Set cards will be rendered here by JS -->
+                        <!-- Loading Skeleton Placeholder -->
+                        <div class="set-card-skeleton card"></div>
+                        <div class="set-card-skeleton card"></div>
+                        <div class="set-card-skeleton card"></div>
+                    </div>
+
+                    <!-- Empty State (Initially Hidden) -->
+                    <div id="empty-state" class="empty-state card" style="display: none;">
+                        <div class="empty-state-icon">📚</div>
+                        <h2>Chưa có bộ từ vựng nào.</h2>
+                        <p>Tạo bộ từ đầu tiên của bạn để bắt đầu học.</p>
+                        <button class="btn btn-primary mt-4" id="empty-new-set-button">
                             <i class="icon" data-lucide="plus"></i>
-                            <span>Add Word</span>
+                            <span>Tạo bộ từ</span>
                         </button>
                     </div>
                 </div>
 
-                <div class="filters-bar card">
-                    <div class="search-control">
-                        <i class="icon" data-lucide="search"></i>
-                        <input type="search" id="search-input" class="input" placeholder="Search words...">
+                <!-- ==========================================================
+                   VIEW 2: VOCABULARY SET DETAIL (Initially Hidden)
+                ========================================================== -->
+                <div id="set-detail-view" style="display: none;">
+                    <div class="page-header">
+                        <div class="detail-header-left">
+                            <button class="btn btn-secondary" id="back-to-library-button">
+                                <i class="icon" data-lucide="arrow-left"></i>
+                                <span>Quay lại</span>
+                            </button>
+                            <div>
+                                <h1 class="page-title" id="set-detail-title">Set Name</h1>
+                                <p class="page-subtitle" id="set-detail-description">Loading...</p>
+                            </div>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary">
+                                <i class="icon" data-lucide="play"></i>
+                                <span>Bắt đầu học</span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="filter-controls">
-                        <select id="category-filter" class="input">
-                            <option value="all">All Categories</option>
-                            <!-- Options will be populated by JS -->
-                        </select>
-                        <select id="difficulty-filter" class="input">
-                            <option value="all">All Difficulties</option>
-                            <option value="easy">Easy</option>
-                            <option value="medium">Medium</option>
-                            <option value="hard">Hard</option>
-                        </select>
-                        <select id="favorite-filter" class="input">
-                            <option value="all">All Words</option>
-                            <option value="favorites">Favorites Only</option>
-                        </select>
-                        <select id="sort-by" class="input">
-                            <option value="newest">Sort by Newest</option>
-                            <option value="oldest">Sort by Oldest</option>
-                            <option value="alphabetical">Sort Alphabetically</option>
-                        </select>
+
+                    <!-- Set Statistics Section -->
+                    <div id="set-stats-grid" class="stats-grid">
+                        <!-- Set-specific stat cards will be rendered here by JS -->
                     </div>
-                </div>
 
-                <div id="vocabulary-list" class="vocabulary-grid">
-                    <!-- Vocabulary cards will be rendered here by JS -->
-                </div>
+                    <div id="word-list-container">
+                        <!-- Toolbar -->
+                        <div class="list-toolbar card">
+                            <div class="search-control">
+                                <i class="icon" data-lucide="search"></i>
+                                <input type="search" id="list-search-input" class="input" placeholder="Tìm từ trong bộ này...">
+                            </div>
+                            <div class="filter-controls">
+                                <button class="btn btn-secondary"><i class="icon" data-lucide="arrow-up-down"></i> Sắp xếp</button>
+                            </div>
+                        </div>
+                        <!-- Vocabulary List Table -->
+                        <div id="word-cards-grid" class="word-cards-grid">
+                            <!-- Word cards will be rendered here by JS -->
+                        </div>
+                    </div>
 
-                <div id="empty-state" class="empty-state card" style="display: none;">
-                    <i class="icon" data-lucide="folder-search"></i>
-                    <h2>No Words Found</h2>
-                    <p>Your vocabulary list is empty. Add a new word to get started!</p>
-                    <button class="btn btn-primary mt-4" id="empty-add-word-btn">Add Your First Word</button>
-                </div>
-
-                <div id="pagination" class="pagination">
-                    <!-- Pagination controls will be rendered here by JS -->
+                    <!-- Empty State for Set Detail -->
+                    <div id="detail-empty-state" class="empty-state card" style="display: none;">
+                        <div class="empty-state-icon">✨</div>
+                        <h2>Bộ từ này chưa có từ nào.</h2>
+                        <p>Nhấn 'Thêm từ bằng AI' để bắt đầu.</p>
+                        <button class="btn btn-primary mt-4" id="add-words-ai-btn"><i class="icon" data-lucide="wand"></i> Thêm từ bằng AI</button>
+                    </div>
                 </div>
             </main>
         </div>
     </div>
 
-    <!-- Add/Edit Word Modal -->
-    <div id="word-modal" class="modal-overlay" style="display: none;">
+    <!-- ==========================================================
+           MODAL: CREATE VOCABULARY SET
+    ========================================================== -->
+    <div id="create-set-modal" class="modal-overlay" style="display: none;">
         <div class="modal-card card">
             <div class="modal-header">
-                <h2 id="modal-title" class="modal-title">Add New Word</h2>
-                <button id="close-modal-btn" class="btn-icon-only btn-secondary"><i class="icon" data-lucide="x"></i></button>
+                <h2 class="modal-title">Tạo bộ từ vựng mới</h2>
+                <button id="close-create-set-modal-btn" class="btn-icon-only btn-secondary"><i class="icon" data-lucide="x"></i></button>
             </div>
-            <form id="word-form" class="modal-form">
-                <input type="hidden" id="word-id">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="word" class="form-label">Word</label>
-                        <input type="text" id="word" class="input" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="pronunciation" class="form-label">Pronunciation</label>
-                        <input type="text" id="pronunciation" class="input">
-                    </div>
+            <form id="create-set-form" class="modal-form">
+                <div class="form-group">
+                    <label for="set-name-input" class="form-label">Tên bộ từ <span class="required">*</span></label>
+                    <input type="text" id="set-name-input" class="input" maxlength="100" required>
+                    <p id="set-name-error" class="validation-error"></p>
                 </div>
                 <div class="form-group">
-                    <label for="meaning" class="form-label">Vietnamese Meaning</label>
-                    <input type="text" id="meaning" class="input" required>
-                </div>
-                <div class="form-group">
-                    <label for="example" class="form-label">Example Sentence</label>
-                    <textarea id="example" class="input" rows="3"></textarea>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="part-of-speech" class="form-label">Part of Speech</label>
-                        <select id="part-of-speech" class="input"><option>Noun</option><option>Verb</option><option>Adjective</option><option>Adverb</option><option>Other</option></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="category" class="form-label">Category</label>
-                        <input type="text" id="category" class="input">
-                    </div>
-                    <div class="form-group">
-                        <label for="difficulty" class="form-label">Difficulty</label>
-                        <select id="difficulty" class="input"><option>Easy</option><option>Medium</option><option>Hard</option></select>
-                    </div>
+                    <label for="set-description-input" class="form-label">Mô tả (không bắt buộc)</label>
+                    <textarea id="set-description-input" class="input" rows="3" maxlength="300"></textarea>
+                    <p id="set-description-error" class="validation-error"></p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" id="cancel-btn" class="btn btn-secondary">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Word</button>
+                    <button type="button" id="cancel-create-set-btn" class="btn btn-secondary">Hủy</button>
+                    <button type="submit" id="create-set-btn" class="btn btn-primary">
+                        <span class="btn-text">Tạo và tiếp tục</span>
+                        <span class="spinner" style="display: none;"></span>
+                    </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ==========================================================
+           MODAL: IMPORT WORDS (AI)
+    ========================================================== -->
+    <div id="import-words-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card card">
+            <div class="modal-header">
+                <h2 class="modal-title">Thêm từ bằng AI</h2>
+                <button id="close-import-modal-btn" class="btn-icon-only btn-secondary"><i class="icon" data-lucide="x"></i></button>
+            </div>
+
+            <!-- Step 1: AI Prompt -->
+            <div id="import-step-1" class="modal-step">
+                <div class="modal-instructions">
+                    <p>1. Nhấn "Sao chép Prompt".</p>
+                    <p>2. Dán prompt vào ChatGPT (hoặc AI tương tự).</p>
+                    <p>3. Sao chép kết quả do AI tạo ra.</p>
+                    <p>4. Quay lại EngFore và nhấn "Tiếp tục".</p>
+                </div>
+                <div class="prompt-box">
+                    <pre id="ai-prompt-text"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button id="copy-prompt-btn" class="btn btn-secondary"><i class="icon" data-lucide="copy"></i> Sao chép Prompt</button>
+                    <button id="import-continue-1" class="btn btn-primary">Tiếp tục</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Paste & Preview -->
+            <div id="import-step-2" class="modal-step" style="display: none;">
+                <p class="form-label">Dán kết quả từ AI vào ô bên dưới.</p>
+                <textarea id="paste-textarea" class="input" rows="10" placeholder="Paste AI result here..."></textarea>
+                <div id="import-preview-container" style="display: none;">
+                    <p class="form-label" id="preview-summary"></p>
+                    <div id="preview-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="import-back-2" class="btn btn-secondary">Quay lại</button>
+                    <button id="preview-words-btn" class="btn btn-primary">Xem trước</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Scripts -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="../js/main.js"></script>
-    <script src="../js/vocabulary.js"></script>
+    <script type="module" src="../js/pages/vocabulary.js"></script>
 </body>
 </html>
