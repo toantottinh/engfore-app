@@ -1,18 +1,16 @@
 import { dbService } from './db.service.js';
 import { authService } from './auth.service.js';
-import { ttsService } from './tts.service.js';
+import { practiceEngine } from './practice-engine.js';
+import { offlineSyncService } from './offline-sync.service.js';
 
 // State management
 let reviewWords = [];
 let currentWordIndex = 0;
 let sessionResults = [];
-let wrongAttempts = 0;
 
-// DOM element references
-let progressBar, progressText;
-let flashcardView, typingView;
-let flashcard, flashcardFront, flashcardBack, flipBtn;
-let typingMeaning, typingInput, hintArea, typingAudioBtn;
+let progressBar, progressText; // DOM element references
+let gameModeContainer;
+let currentActiveGameMode = null;
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -23,15 +21,15 @@ function shuffleArray(array) {
 
 export async function renderReviewSession(rootElement) {
     // 1. Tải CSS (tái sử dụng từ practice)
-    if (!document.querySelector('link[href="/practice.css"]')) {
+    if (!document.querySelector('link[href="/practice-session.css"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = '/practice.css';
+        link.href = '/practice-session.css';
         document.head.appendChild(link);
     }
 
     // 2. Tải HTML (tái sử dụng từ practice)
-    const response = await fetch('/practice.html');
+    const response = await fetch('/practice-session.html');
     if (!response.ok) {
         rootElement.innerHTML = `<p style="color: red; padding: 2rem;">Error loading review session.</p>`;
         return;
@@ -67,23 +65,12 @@ export async function renderReviewSession(rootElement) {
 }
 
 function setupReviewEventListeners() {
-    document.getElementById('exit-practice-btn').href = `#/`;
+    const exitBtn = document.getElementById('exit-practice-btn');
+    exitBtn.href = `#/`;
 
     progressBar = document.getElementById('progress-bar');
     progressText = document.getElementById('progress-text');
-    flashcardView = document.getElementById('flashcard-view');
-    typingView = document.getElementById('typing-view');
-    flashcard = document.getElementById('flashcard');
-    flashcardFront = document.getElementById('flashcard-front');
-    flashcardBack = document.getElementById('flashcard-back');
-    flipBtn = document.getElementById('flip-btn');
-    typingMeaning = document.getElementById('typing-meaning');
-    typingInput = document.getElementById('typing-input');
-    hintArea = document.getElementById('hint-area');
-    typingAudioBtn = document.getElementById('typing-audio-btn');
-
-    flipBtn.addEventListener('click', handleFlip);
-    typingInput.addEventListener('keydown', handleTyping);
+    gameModeContainer = document.getElementById('game-mode-container');
 }
 
 function startSession() {
@@ -92,71 +79,34 @@ function startSession() {
     loadWord(currentWordIndex);
 }
 
-function loadWord(index) {
+async function loadWord(index) {
     if (index >= reviewWords.length) {
         showCompletionScreen();
         return;
     }
+
+    if (currentActiveGameMode && currentActiveGameMode.cleanup) {
+        currentActiveGameMode.cleanup();
+    }
+
     const wordData = reviewWords[index];
-    flashcardView.classList.remove('hidden');
-    typingView.classList.add('hidden');
-    flashcard.classList.remove('flipped');
-    flashcardFront.textContent = wordData.meaning;
-    flashcardBack.innerHTML = `
-        <div class="word-and-audio">
-            <span>${wordData.words.word}</span>
-            <button id="flashcard-audio-btn" class="audio-btn" title="Listen">🔊</button>
-        </div>
-        <div>/${wordData.words.ipa || '...'}/</div>
-        <div style="font-style: italic; color: var(--text-secondary); margin-top: 1rem;">"${wordData.example || 'No example'}"</div>`;
-    document.getElementById('flashcard-audio-btn').addEventListener('click', () => {
-        ttsService.speak(wordData.words.word);
-    });
-    typingMeaning.textContent = wordData.meaning;
-    typingInput.value = '';
-    typingAudioBtn.onclick = () => ttsService.speak(wordData.words.word);
-    typingInput.classList.remove('wrong');
-    hintArea.textContent = '';
-    wrongAttempts = 0;
+    const gameMode = await practiceEngine.getGameModeForWord(wordData, null); // No setId for review
+    currentActiveGameMode = gameMode;
+
+    if (gameMode) {
+        await practiceEngine.run(gameMode, wordData, gameModeContainer, handleGameModeComplete, null);
+    }
+
     updateProgress();
 }
 
-function handleFlip() {
-    flashcard.classList.add('flipped');
-    setTimeout(() => {
-        flashcardView.classList.add('hidden');
-        typingView.classList.remove('hidden');
-        typingInput.focus();
-    }, 600);
-}
-
-function handleTyping(event) {
-    typingInput.classList.remove('wrong');
-    if (event.key !== 'Enter') return;
-    const userAnswer = typingInput.value.trim().toLowerCase();
-    const correctAnswer = reviewWords[currentWordIndex].words.word.trim().toLowerCase();
-    if (userAnswer === correctAnswer) {
-        ttsService.speak(correctAnswer); // Auditory reinforcement
-        sessionResults.push({ word_sense_id: reviewWords[currentWordIndex].id, wrongAttempts });
-        currentWordIndex++;
-        loadWord(currentWordIndex);
-    } else {
-        typingInput.classList.add('wrong');
-        wrongAttempts++;
-        showHint(correctAnswer);
-    }
-}
-
-function showHint(correctAnswer) {
-    let hint = '';
-    const vowels = 'aeiou';
-    switch (wrongAttempts) {
-        case 1: hint = correctAnswer[0] + ' _'.repeat(correctAnswer.length - 1); break;
-        case 2: hint = correctAnswer.length > 1 ? correctAnswer[0] + ' _'.repeat(correctAnswer.length - 2) + ' ' + correctAnswer.slice(-1) : correctAnswer[0]; break;
-        case 3: hint = correctAnswer.split('').map(char => vowels.includes(char.toLowerCase()) ? char : '_').join(' '); break;
-        default: hint = `Answer: ${correctAnswer}`; break;
-    }
-    hintArea.textContent = hint;
+function handleGameModeComplete(result) {
+    sessionResults.push({
+        word_sense_id: reviewWords[currentWordIndex].id,
+        wrongAttempts: result.wrongAttempts,
+    });
+    currentWordIndex++;
+    loadWord(currentWordIndex);
 }
 
 function updateProgress() {
@@ -167,7 +117,7 @@ function updateProgress() {
 
 async function showCompletionScreen() {
     await saveSessionProgress();
-    document.getElementById('practice-main').innerHTML = `<div style="text-align: center;"><h1>Congratulations!</h1><p>You have completed this review session.</p><p>Your progress has been saved.</p><a href="#/" class="btn-primary" style="text-decoration: none; margin-top: 2rem; display: inline-block;">Back to Library</a></div>`;
+    gameModeContainer.innerHTML = `<div style="text-align: center;"><h1>Congratulations!</h1><p>You have completed this review session.</p><p>Your progress has been saved.</p><a href="#/" class="btn-primary" style="text-decoration: none; margin-top: 2rem; display: inline-block;">Back to Library</a></div>`;
     progressBar.style.width = '100%';
     progressText.textContent = `${reviewWords.length}/${reviewWords.length}`;
 }
@@ -175,22 +125,32 @@ async function showCompletionScreen() {
 async function saveSessionProgress() {
     const { data: { user } } = await authService.getUser();
     if (!user || sessionResults.length === 0) return;
-
+    
     const wordSenseIds = sessionResults.map(r => r.word_sense_id);
-    const { data: currentProgressList } = await dbService.supabase
-        .from('user_progress')
-        .select('word_sense_id, mastery_level')
-        .in('word_sense_id', wordSenseIds)
-        .eq('user_id', user.id);
+    const { data: currentProgressList, error: progressError } = await dbService.getCurrentProgressForWords(user.id, wordSenseIds);
+    if (progressError && navigator.onLine) { console.error("Could not fetch current progress", progressError); }
+    const currentProgressMap = new Map(currentProgressList?.map(p => [p.word_sense_id, p.mastery_level]) || []);
 
-    const currentProgressMap = new Map(currentProgressList.map(p => [p.word_sense_id, p.mastery_level]));
-
+    let newlyLearnedCount = 0;
     const progressUpdates = sessionResults.map(result => {
         const currentMastery = currentProgressMap.get(result.word_sense_id) || 0;
-        let newMastery = result.wrongAttempts === 0 ? Math.min(currentMastery + 1, 5) : Math.max(currentMastery - 1, 0);
+        let newMastery;
+
+        if (result.wrongAttempts === 0) {
+            // Correct on first try -> increase mastery
+            newMastery = Math.min(currentMastery + 1, 5);
+            if (currentMastery === 0) {
+                newlyLearnedCount++; // Đếm từ mới học (từ Unseen -> Novice)
+            }
+        } else {
+            // Correct with hints -> decrease mastery
+            newMastery = Math.max(currentMastery - 1, 0);
+        }
+
         const reviewIntervals = [4, 8, 24, 72, 168, 336]; // in hours
         const reviewDueAt = new Date();
         reviewDueAt.setHours(reviewDueAt.getHours() + reviewIntervals[newMastery]);
+
         return {
             user_id: user.id,
             word_sense_id: result.word_sense_id,
@@ -200,9 +160,32 @@ async function saveSessionProgress() {
         };
     });
 
-    const { error } = await dbService.updateUserProgress(progressUpdates);
-    if (error) console.error("Failed to save progress:", error);
+    if (navigator.onLine) {
+        try {
+            const { error } = await dbService.updateUserProgress(progressUpdates);
+            if (error) {
+                console.error("Failed to save progress, queuing for later:", error);
+                await offlineSyncService.addToOutbox(progressUpdates);
+            } else {
+                await dbService.logDailyActivity(); // Ghi nhận hoạt động
+                await dbService.logLearningActivity(newlyLearnedCount); // Ghi nhận số từ mới học
+            }
+        } catch (e) {
+             await offlineSyncService.addToOutbox(progressUpdates);
+        }
+    } else {
+        console.log('Offline. Queuing progress updates.');
+        await offlineSyncService.addToOutbox(progressUpdates);
+    }
 }
 
-// Cần export dbService để truy cập supabase client trong saveSessionProgress
-export { dbService as reviewDbService };
+export function cleanup() {
+    if (currentActiveGameMode && currentActiveGameMode.cleanup) {
+        currentActiveGameMode.cleanup();
+    }
+    // Clear global state for review session
+    reviewWords = [];
+    currentWordIndex = 0;
+    sessionResults = [];
+    currentActiveGameMode = null;
+}
