@@ -1,146 +1,205 @@
-.vocab-library-container {
-    padding: 2rem 2.5rem;
+/*
+================================
+Vocabulary Library Styles
+================================
+*/
+
+.library-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
 }
 
-.vocab-library-header {
+.library-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 1rem;
 }
 
-.vocab-library-header h1 {
-    font-size: 1.8rem;
+.library-header h1 {
+    font-size: 2rem;
+    color: var(--color-text-primary);
 }
 
-.vocab-library-header .actions {
+/*
+================================
+Search, Sort, and Advanced
+================================
+*/
+
+.search-sort-bar {
     display: flex;
     gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+}
+
+.search-bar {
+    flex-grow: 1;
 }
 
 .search-input {
-    background-color: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-medium);
+    color: var(--color-text-primary);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
 .sort-select {
-    background-color: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-medium);
+    color: var(--color-text-primary);
 }
 
-.add-set-btn {
-    background-color: #4A4DEE; /* Một màu nhấn thương hiệu */
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
+/*
+================================
+Advanced Search Panel
+================================
+*/
+
+.advanced-search-panel {
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-large);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease-in-out;
+    overflow: hidden;
 }
 
-.add-set-btn:hover {
-    background-color: #3839B3;
+.advanced-search-panel.hidden {
+    display: none;
 }
 
-.empty-state {
-    color: var(--text-secondary);
-    grid-column: 1 / -1; /* Make it span all columns in the grid */
-    text-align: center;
+.advanced-search-panel h4 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
-.vocab-set-list {
+.advanced-search-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 
-.vocab-set-card {
-    background-color: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    position: relative;
-    border-radius: 8px;
-    padding: 1.25rem 1.5rem;
-    transition: border-color 0.2s, transform 0.2s;
-    text-decoration: none;
+.form-group {
     display: flex;
     flex-direction: column;
 }
 
+.form-group label {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.form-group input {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-medium);
+    color: var(--color-text-primary);
+}
+
+.advanced-search-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+/*
+================================
+Vocabulary Set List
+================================
+*/
+
+.vocab-set-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.vocab-set-card {
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-large);
+    padding: 1.5rem;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
 .vocab-set-card:hover {
-    border-color: #4A4DEE;
-    transform: translateY(-2px);
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .vocab-set-card-link {
     text-decoration: none;
-    flex-grow: 1;
+    color: inherit;
 }
 
 .vocab-set-card h3 {
-    font-size: 1.1rem;
-    color: var(--text-color);
-    cursor: pointer;
-    margin-bottom: 0.5rem;
-    /* Truncate long text */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text-primary);
 }
 
 .vocab-set-card p {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    cursor: pointer;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
 }
 
+.edit-set-btn,
 .delete-set-btn {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 0.5rem;
     background: none;
     border: none;
-    color: var(--text-secondary);
     cursor: pointer;
     font-size: 1.2rem;
-    padding: 4px;
-    line-height: 1;
-    border-radius: 4px;
-    transition: color 0.2s, background-color 0.2s;
-}
-
-.delete-set-btn:hover {
-    color: #ff4d4d; /* Màu đỏ cảnh báo */
-    background-color: rgba(255, 77, 77, 0.1);
+    padding: 0.5rem;
+    color: var(--color-text-secondary);
 }
 
 .edit-set-btn {
-    position: absolute;
-    top: 8px;
-    right: 38px; /* Đặt cạnh nút xóa */
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 4px;
-    line-height: 1;
-    border-radius: 4px;
-    transition: color 0.2s, background-color 0.2s;
+    right: 2.5rem;
 }
 
-.edit-set-btn:hover {
-    color: #4A4DEE; /* Màu thương hiệu */
-    background-color: rgba(74, 77, 238, 0.1);
+.delete-set-btn {
+    right: 0.5rem;
+}
+
+.edit-set-btn:hover,
+.delete-set-btn:hover {
+    color: var(--color-primary);
+}
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 4rem 2rem;
+    background-color: var(--color-background-secondary);
+    border-radius: var(--border-radius-large);
+    color: var(--color-text-secondary);
 }

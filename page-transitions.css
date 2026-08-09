@@ -1,0 +1,29 @@
+/* Base state for pages */
+#app-root > div {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+/* Exit animation */
+#app-root.page-exit > div {
+    opacity: 0;
+    transform: translateX(-20px); /* Slide out to the left */
+}
+
+/* Enter animation */
+#app-root.page-enter > div {
+    opacity: 0;
+    transform: translateX(20px); /* Start from the right */
+}
+
+#app-root.page-enter.page-enter-active > div {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Ensure content is not visible during transition if it's not the active page */
+#app-root.page-exit, #app-root.page-enter {
+    /* Prevent interaction with elements that are fading out/in */
+    pointer-events: none;
+}

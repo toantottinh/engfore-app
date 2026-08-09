@@ -1,32 +1,33 @@
 <div id="import-ai-modal" class="modal-overlay hidden">
     <div class="modal-content">
         <button class="modal-close-btn">&times;</button>
-        <h2>Import with AI</h2>
+        <h2>Nhập từ bằng AI</h2>
         <div class="modal-steps">
             <div class="step">
-                <h4>Step 1: Copy Prompt</h4>
-                <p>Click the button below to copy a prompt designed for ChatGPT.</p>
+                <h4>Bước 1: Sao chép Lời nhắc</h4>
+                <p>Nhấn nút bên dưới để sao chép lời nhắc dành cho ChatGPT (hoặc AI khác).</p>
                 <div class="prompt-box">
                     <pre id="ai-prompt-text"></pre>
-                    <button id="copy-prompt-btn">Copy</button>
+                    <button id="copy-prompt-btn">Sao chép</button>
                 </div>
             </div>
             <div class="step">
-                <h4>Step 2: Paste AI Result</h4>
-                <p>Paste the entire result from the AI into the text area below.</p>
-                <textarea id="ai-result-textarea" rows="10" placeholder="Paste text here..."></textarea>
+                <h4>Bước 2: Dán kết quả AI</h4>
+                <p>Dán toàn bộ kết quả trả về từ AI vào ô bên dưới.</p>
+                <textarea id="ai-result-textarea" rows="10" placeholder="Dán nội dung vào đây..."></textarea>
             </div>
         </div>
         <div id="preview-section" class="hidden">
-            <h4>Preview</h4>
+            <h4>Xem trước</h4>
             <div id="preview-table-container">
                 <!-- Preview table will be rendered here -->
             </div>
         </div>
         <div class="modal-actions">
-            <button id="preview-btn" class="btn-secondary">Preview</button>
-            <button id="import-btn" class="btn-primary" disabled>Import</button>
+            <button id="preview-btn" class="btn-secondary">Xem trước</button>
+            <button id="import-btn" class="btn-primary" disabled>Nhập</button>
         </div>
         <p id="import-status" class="import-status"></p>
     </div>
 </div>
+

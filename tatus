@@ -1,0 +1,137 @@
+[33mc2ed54d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mrebuild-v2[m[33m)[m chore: sync database schema from supabase
+ ...5y user_id hi\341\273\207n t\341\272\241i t\341\273\253 session JWT.sql" | 159 [32m+++++++[m
+ docs/01-PRD.md => .gitignore                                                |   0
+ .vscode/launch.json                                                         |  15 [31m-[m
+ Dashboard.js                                                                |  28 [32m++[m
+ Header.js                                                                   |  21 [32m+[m
+ PLAN.md                                                                     |  54 [31m---[m
+ docs/02-Architecture.md => README.md                                        |   0
+ Sidebar.js                                                                  |  21 [32m+[m
+ TODO.md                                                                     |  15 [31m-[m
+ VocabularyLibrary.js                                                        |  14 [32m+[m
+ add-word-modal.css                                                          |  51 [32m+++[m
+ add-word-modal.html                                                         |  43 [32m++[m
+ app.html                                                                    |  35 [32m++[m
+ auth.css                                                                    |  85 [32m++++[m
+ auth.service.js                                                             |  30 [32m++[m
+ docs/03-Database.md => css/animations.css                                   |   0
+ css/base.css                                                                |  71 [31m----[m
+ css/components.css                                                          | 394 [31m-----------------[m
+ css/dashboard.css                                                           | 815 [31m------------------------------------[m
+ css/layout.css                                                              |  41 [31m--[m
+ docs/04-Design-System.md => css/pages/auth.css                              |   0
+ docs/05-UI-Spec.md => css/pages/dashboard.css                               |   0
+ css/pages/flashcards.css                                                    | 140 [31m-------[m
+ css/pages/grammar.css                                                       |  87 [31m----[m
+ docs/07-Roadmap.md => css/pages/home.css                                    |   0
+ docs/09-Project-Cleanup.md => css/pages/learn.css                           |   0
+ docs/11-Frontend-Conventions.md => css/pages/library.css                    |   0
+ css/pages/listening.css                                                     | 211 [31m----------[m
+ css/pages/login.css                                                         | 131 [31m------[m
+ css/pages/profile.css                                                       | 143 [31m-------[m
+ css/pages/quiz.css                                                          | 222 [31m----------[m
+ css/pages/reading.css                                                       | 127 [31m------[m
+ css/pages/review.css                                                        | 151 [31m-------[m
+ css/pages/vocabulary.css                                                    | 467 [31m---------------------[m
+ css/responsive.css                                                          | 215 [31m----------[m
+ css/sidebar.css                                                             | 178 [31m--------[m
+ css/topbar.css                                                              | 135 [31m------[m
+ css/variables.css                                                           | 212 [31m----------[m
+ dashboard.css                                                               | 105 [32m+++++[m
+ database/policies.sql                                                       |   0
+ database/schema.sql                                                         |   0
+ database/seed.sql                                                           |   0
+ db.service.js                                                               | 331 [32m+++++++++++++++[m
+ docs/00-Vision.md                                                           | 176 [31m--------[m
+ docs/06-User-Flows.md                                                       |  89 [31m----[m
+ docs/08-Landing-Page.md                                                     | 349 [31m---------------[m
+ docs/10-Dashboard-Wireframe.md                                              | 165 [31m--------[m
+ docs/database.md                                                            |   0
+ docs/prompt.md                                                              |   0
+ docs/roadmap.md                                                             |   0
+ engfore/docs/09-Project-Cleanup.md                                          | 180 [31m--------[m
+ header.css                                                                  |  55 [32m+++[m
+ import-ai-modal.css                                                         | 137 [32m++++++[m
+ import-ai-modal.html                                                        |  32 [32m++[m
+ index.html                                                                  | 364 [32m++[m[31m--------------[m
+ index.js                                                                    |  89 [32m++++[m
+ js/app.js                                                                   |   0
+ js/config.js                                                                |   0
+ js/main.js                                                                  | 200 [31m---------[m
+ js/pages/auth.js                                                            |  83 [31m----[m
+ js/pages/dashboard.js                                                       |   0
+ js/pages/flashcards.js                                                      |  95 [31m-----[m
+ js/pages/learn.js                                                           |   0
+ js/pages/library.js                                                         |   0
+ js/pages/listening.js                                                       |  67 [31m---[m
+ js/pages/quiz.js                                                            | 113 [31m-----[m
+ js/pages/review.js                                                          |  76 [31m----[m
+ js/pages/schema.sql                                                         | 162 [31m-------[m
+ js/pages/vocabulary.js                                                      | 425 [31m-------------------[m
+ js/router.js                                                                |   0
+ js/services/authService.js                                                  |   0
+ js/services/learningService.js                                              |   0
+ js/services/supabase.js                                                     |   0
+ js/services/vocabularyService.js                                            |   0
+ js/utils/helpers.js                                                         |   0
+ js/utils/storage.js                                                         |   0
+ js/utils/validation.js                                                      |   0
+ js/vocabulary.js                                                            | 237 [31m-----------[m
+ landing.css                                                                 | 125 [32m++++++[m
+ library.css                                                                 |  27 [32m++[m
+ login.html                                                                  |  29 [32m++[m
+ login.js                                                                    |  28 [32m++[m
+ main.js                                                                     | 108 [32m+++++[m
+ manifest.json                                                               |  21 [32m+[m
+ page-login.js                                                               |  25 [32m++[m
+ page-register.js                                                            |  29 [32m++[m
+ pages/auth/forgot-password.html                                             |   0
+ pages/auth/login.html                                                       |   0
+ pages/auth/register.html                                                    |   0
+ pages/dashboard.html                                                        |   0
+ pages/flashcards.html                                                       | 102 [31m-----[m
+ pages/forgot-password.html                                                  |  39 [31m--[m
+ pages/grammar.html                                                          | 156 [31m-------[m
+ pages/learn.html                                                            |   0
+ pages/library.html                                                          |   0
+ pages/listening.html                                                        | 105 [31m-----[m
+ pages/login.html                                                            |  46 [31m--[m
+ pages/profile.html                                                          | 119 [31m------[m
+ pages/quiz.html                                                             |  93 [31m----[m
+ pages/reading.html                                                          | 102 [31m-----[m
+ pages/register.html                                                         |  47 [31m---[m
+ pages/review.html                                                           |  91 [31m----[m
+ pages/settings.html                                                         |   0
+ pages/vocabulary.html                                                       | 301 [31m-------------[m
+ practice-engine.js                                                          |  31 [32m++[m
+ practice-session.css                                                        |  49 [32m+++[m
+ practice-session.html                                                       |  13 [32m+[m
+ practice-session.js                                                         | 201 [32m+++++++++[m
+ practice.css                                                                | 180 [32m++++++++[m
+ practice.html                                                               |  34 [32m++[m
+ practice.js                                                                 | 292 [32m+++++++++++++[m
+ profile.css                                                                 | 124 [32m++++++[m
+ profile.html                                                                |  38 [32m++[m
+ profile.js                                                                  | 202 [32m+++++++++[m
+ register.html                                                               |  42 [32m++[m
+ review.js                                                                   | 208 [32m+++++++++[m
+ router.js                                                                   |  54 [32m+++[m
+ sidebar.css                                                                 |  35 [32m++[m
+ signup.html                                                                 |  30 [32m++[m
+ signup.js                                                                   |  33 [32m++[m
+ style.css                                                                   |  65 [32m+++[m
+ supabase-client.js                                                          |  10 [32m+[m
+ supabase/.gitignore                                                         |   8 [32m+[m
+ supabase/config.toml                                                        | 414 [32m++++++++++++++++++[m
+ supabase/migrations/20260806221424_remote_schema.sql                        |   0
+ supabase/migrations/20260806223855_remote_schema.sql                        |  23 [32m+[m
+ sw.js                                                                       |  75 [32m++++[m
+ template.html                                                               |   5 [32m+[m
+ tts.service.js                                                              |  35 [32m++[m
+ vocabulary-detail.css                                                       | 150 [32m+++++++[m
+ vocabulary-detail.html                                                      |  15 [32m+[m
+ vocabulary-detail.js                                                        | 366 [32m++++++++++++++++[m
+ vocabulary-library.css                                                      | 146 [32m+++++++[m
+ vocabulary-library.html                                                     |  18 [32m+[m
+ vocabulary-library.js                                                       | 219 [32m++++++++++[m
+ 135 files changed, 4775 insertions(+), 7774 deletions(-)

@@ -1,3 +1,22 @@
+.profile-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background-color: var(--bg-color);
+    padding: 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-card p {
+    font-size: 1.8rem;
+    font-weight: bold;
+    margin-top: 0.5rem;
+}
 .profile-container {
     max-width: 600px;
     margin: 4rem auto;
@@ -121,4 +140,171 @@ input:checked + .slider:before { transform: translateX(22px); }
     position: relative;
     max-width: 350px;
     margin: 0 auto;
+}
+
+.theme-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.theme-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.theme-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+.shortcuts-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.shortcuts-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.shortcuts-list {
+    list-style: none;
+    padding: 0;
+}
+
+.shortcuts-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.shortcuts-list li:hover {
+    background-color: var(--bg-color);
+}
+
+.shortcut-key {
+    background-color: var(--border-color);
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    font-family: monospace;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.shortcut-key.recording {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.goal-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.goal-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.goal-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+#daily-goal-input {
+    width: 80px;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.goal-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.goal-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.goal-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+#daily-goal-input {
+    width: 80px;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.goal-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.goal-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.goal-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+#daily-goal-input {
+    width: 80px;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.goal-section {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 2rem;
+}
+
+.goal-section h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.goal-setting {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-color);
+    padding: 1rem;
+    border-radius: 6px;
+}
+
+#daily-goal-input {
+    width: 80px;
+    padding: 0.5rem;
+    text-align: center;
 }

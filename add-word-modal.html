@@ -1,43 +1,58 @@
-<div id="add-word-modal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <button class="modal-close-btn">&times;</button>
-        <h2>Add New Word</h2>
-        <form id="add-word-form">
-            <div class="form-grid">
-                <div class="form-group span-2">
-                    <label for="word-input">Word</label>
-                    <input type="text" id="word-input" required>
-                </div>
-                <div class="form-group">
-                    <label for="ipa-input">IPA</label>
-                    <input type="text" id="ipa-input">
-                </div>
-                <div class="form-group">
-                    <label for="word-type-select">Word Type</label>
-                    <select id="word-type-select" required>
-                        <option value="noun">noun</option>
-                        <option value="verb">verb</option>
-                        <option value="adjective">adjective</option>
-                        <option value="adverb">adverb</option>
-                        <option value="preposition">preposition</option>
-                        <option value="conjunction">conjunction</option>
-                        <option value="pronoun">pronoun</option>
-                        <option value="other">other</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="cefr-select">CEFR Level</label>
-                    <select id="cefr-select">
-                        <option value="">(None)</option>
-                        <option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option>
-                        <option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option>
-                    </select>
-                </div>
-                <div class="form-group span-3"><label for="meaning-input">Meaning (Vietnamese)</label><input type="text" id="meaning-input" required></div>
-                <div class="form-group span-3"><label for="example-input">Example (English)</label><textarea id="example-input" rows="2"></textarea></div>
-                <div class="form-group span-3"><label for="description-input">Description (English)</label><textarea id="description-input" rows="2"></textarea></div>
+        <div id="add-word-modal" class="modal-overlay hidden">
+            <div class="modal-content">
+                <button class="modal-close-btn">&times;</button>
+                <h2 id="add-word-title">Thêm từ mới</h2>
+                <form id="add-word-form" novalidate>
+                    <div class="form-grid">
+                        <div class="form-group span-2">
+                            <label for="word-input">Từ tiếng Anh *</label>
+                            <input type="text" id="word-input" required>
+                            <span class="field-error" id="word-input-error"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="ipa-input">IPA</label>
+                            <input type="text" id="ipa-input" placeholder="vd: /ˈeksəmpl/">
+                        </div>
+                        <div class="form-group">
+                            <label for="word-type-select">Loại từ</label>
+                            <select id="word-type-select" required>
+                                <option value="noun">Danh từ (noun)</option>
+                                <option value="verb">Động từ (verb)</option>
+                                <option value="adjective">Tính từ (adjective)</option>
+                                <option value="adverb">Trạng từ (adverb)</option>
+                                <option value="preposition">Giới từ (preposition)</option>
+                                <option value="conjunction">Liên từ (conjunction)</option>
+                                <option value="pronoun">Đại từ (pronoun)</option>
+                                <option value="other">Khác (other)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cefr-select">Cấp độ CEFR</label>
+                            <select id="cefr-select">
+                                <option value="">(Không có)</option>
+                                <option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option>
+                                <option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-3">
+                            <label for="meaning-input">Nghĩa tiếng Việt *</label>
+                            <input type="text" id="meaning-input" required>
+                            <span class="field-error" id="meaning-input-error"></span>
+                        </div>
+                        <div class="form-group span-3">
+                            <label for="example-input">Ví dụ (tiếng Anh)</label>
+                            <textarea id="example-input" rows="2" placeholder="Câu ví dụ sử dụng từ..."></textarea>
+                        </div>
+                        <div class="form-group span-3">
+                            <label for="description-input">Ghi chú / Mô tả</label>
+                            <textarea id="description-input" rows="2" placeholder="Ghi chú thêm về từ này (nếu cần)..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary modal-cancel-btn">Hủy</button>
+                        <button type="submit" class="btn-primary" id="add-word-submit-btn">Thêm từ</button>
+                    </div>
+                </form>
             </div>
-            <div class="modal-actions"><button type="submit" class="btn-primary">Save Word</button></div>
-        </form>
-    </div>
-</div>
+        </div>
+

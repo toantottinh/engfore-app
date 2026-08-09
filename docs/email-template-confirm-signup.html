@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!--
+  MẪU EMAIL XÁC THỰC ĐĂNG KÝ — EngFore
+  ============================================================
+  Cách dùng:
+  1. Mở Supabase Dashboard → project yyfllitihktyrvjssyek
+  2. Vào: Authentication → Email Templates → "Confirm signup"
+  3. Dán nội dung bên dưới vào cả tab "Subject" và "HTML content".
+  4. NHẤN "Save".
+
+  CHÚ Ý QUAN TRỌNG:
+  - Phải GIỮ NGUYÊN thẻ {{ .ConfirmationURL }} — đây là nơi Supabase
+    chèn link xác thực duy nhất. Nếu thiếu, email sẽ trống hoặc không có nút.
+  - Link này được tạo từ emailRedirectTo mà frontend gửi lên
+    (hiện đang là {origin}/auth/callback).
+-->
+<html lang="vi">
+  <body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Inter,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e4e4e7;">
+            <!-- Header -->
+            <tr>
+              <td style="padding:24px 32px;background-color:#4f46e5;color:#ffffff;text-align:center;">
+                <p style="margin:0;font-size:22px;font-weight:700;">EngFore</p>
+                <p style="margin:4px 0 0 0;font-size:13px;opacity:0.9;">Học từ vựng tiếng Anh hiệu quả</p>
+              </td>
+            </tr>
+            <!-- Body -->
+            <tr>
+              <td style="padding:32px;">
+                <h2 style="margin:0 0 16px 0;font-size:20px;color:#18181b;">Xác nhận email của bạn</h2>
+                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:#3f3f46;">Xin chào!</p>
+                <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:#3f3f46;">
+                  Cảm ơn bạn đã đăng ký tài khoản EngFore.
+                </p>
+                <p style="margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#3f3f46;">
+                  Vui lòng nhấn vào nút bên dưới để xác nhận email và kích hoạt tài khoản:
+                </p>
+                <!-- Nút xác nhận: KHÔNG được xóa {{ .ConfirmationURL }} -->
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+                  <tr>
+                    <td style="border-radius:8px;background-color:#4f46e5;">
+                      <a href="{{ .ConfirmationURL }}"
+                         style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
+                        Xác nhận email
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 12px 0;font-size:13px;line-height:1.6;color:#71717a;">
+                  Hoặc sao chép và dán đường dẫn sau vào trình duyệt:
+                </p>
+                <p style="margin:0 0 24px 0;font-size:12px;line-height:1.5;color:#71717a;word-break:break-all;">
+                  {{ .ConfirmationURL }}
+                </p>
+                <p style="margin:0 0 24px 0;font-size:13px;line-height:1.6;color:#71717a;">
+                  Nếu bạn không đăng ký tài khoản EngFore, bạn có thể bỏ qua email này.
+                </p>
+                <p style="margin:0 0 4px 0;font-size:13px;color:#a1a1aa;">— Đội ngũ EngFore —</p>
+              </td>
+            </tr>
+            <!-- Footer -->
+            <tr>
+              <td style="padding:16px 32px;background-color:#fafafa;border-top:1px solid #e4e4e7;text-align:center;">
+                <p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 EngFore. Bảo lưu mọi quyền.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+</content>

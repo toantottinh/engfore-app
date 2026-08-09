@@ -1,12 +1,15 @@
 import { authService } from './auth.service.js';
 import { dbService } from './db.service.js';
 import { supabase, VAPID_PUBLIC_KEY } from './supabase-client.js';
+import { shortcutService } from './shortcut.service.js';
+import { themeService } from './theme.service.js';
 
 let currentUser = null;
 let profileForm, emailDisplay, usernameInput, avatarPreview, avatarUpload, statusMessage;
 let newAvatarFile = null;
-let notificationsToggle;
+let notificationsToggle, themeToggle, dailyGoalInput;
 
+let cleanupFunctions = []; // For event listener cleanup
 export async function renderProfilePage(rootElement) {
     // 1. Tải CSS
     if (!document.querySelector('link[href="/profile.css"]')) {
@@ -31,10 +34,19 @@ export async function renderProfilePage(rootElement) {
 
     if (currentUser) {
         await loadProfileData();
+        await loadProfileStats();
         await renderMasteryChart();
         await setupNotificationToggle();
+        renderShortcutsSettings();
+        setupThemeToggle();
+        // setupEventListeners will add listeners, so we need to capture them for cleanup
         setupEventListeners();
     }
+}
+
+export function cleanup() {
+    cleanupFunctions.forEach(func => func());
+    cleanupFunctions = [];
 }
 
 function cacheDOMElements() {
@@ -45,6 +57,8 @@ function cacheDOMElements() {
     avatarUpload = document.getElementById('avatar-upload');
     statusMessage = document.getElementById('profile-status');
     notificationsToggle = document.getElementById('notifications-toggle');
+    themeToggle = document.getElementById('theme-toggle');
+    dailyGoalInput = document.getElementById('daily-goal-input');
 }
 
 async function loadProfileData() {
@@ -61,6 +75,28 @@ async function loadProfileData() {
         if (profile.avatar_url) {
             const { data } = supabase.storage.from('avatars').getPublicUrl(profile.avatar_url);
             avatarPreview.src = data.publicUrl;
+        }
+        // Cập nhật giá trị input của mục tiêu
+        dailyGoalInput.value = profile.daily_goal || 20;
+    }
+}
+
+async function loadProfileStats() {
+    const streakStatEl = document.getElementById('streak-stat');
+    if (!streakStatEl) return;
+
+    // Lấy chuỗi ngày học
+    const { data: streak, error } = await dbService.getLearningStreak(currentUser.id);
+    if (!error) {
+        streakStatEl.textContent = `${streak || 0} days 🔥`;
+    }
+
+    // Lấy tiến độ mục tiêu và cập nhật UI
+    const goalStatEl = document.getElementById('goal-stat');
+    if (goalStatEl) {
+        const { data: goalProgress, error: goalError } = await dbService.getDailyGoalProgress(currentUser.id);
+        if (!goalError && goalProgress) {
+            goalStatEl.textContent = `${goalProgress.words_learned || 0} / ${goalProgress.daily_goal}`;
         }
     }
 }
@@ -79,6 +115,19 @@ function setupEventListeners() {
     });
 
     profileForm.addEventListener('submit', handleProfileUpdate);
+    cleanupFunctions.push(() => profileForm.removeEventListener('submit', handleProfileUpdate));
+
+    // Thêm listener cho input mục tiêu
+    if (dailyGoalInput) {
+        const handleGoalChange = () => {
+            // Tạo một sự kiện submit giả để dùng chung logic cập nhật
+            const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+            profileForm.dispatchEvent(submitEvent);
+        };
+        dailyGoalInput.addEventListener('change', handleGoalChange);
+        cleanupFunctions.push(() => dailyGoalInput.removeEventListener('change', handleGoalChange));
+    }
+
 }
 
 async function handleProfileUpdate(event) {
@@ -97,6 +146,7 @@ async function handleProfileUpdate(event) {
 
     const updates = {
         username: usernameInput.value.trim(),
+        daily_goal: parseInt(dailyGoalInput.value, 10) || 20,
     };
     if (avatarUrl) {
         updates.avatar_url = avatarUrl;
@@ -119,13 +169,15 @@ async function setupNotificationToggle() {
 
     notificationsToggle.checked = !!existingSubscription;
 
-    notificationsToggle.addEventListener('change', async (event) => {
+    const handleNotificationToggle = async (event) => {
         if (event.target.checked) {
             await subscribeUserToPush();
         } else {
             await unsubscribeUserFromPush();
         }
-    });
+    };
+    notificationsToggle.addEventListener('change', handleNotificationToggle);
+    cleanupFunctions.push(() => notificationsToggle.removeEventListener('change', handleNotificationToggle));
 }
 
 async function subscribeUserToPush() {
@@ -151,6 +203,70 @@ async function unsubscribeUserFromPush() {
         console.log('User is unsubscribed.');
         // TODO: Add a dbService method to remove the subscription from the database
     }
+}
+
+function setupThemeToggle() {
+    if (!themeToggle) return;
+    themeToggle.checked = themeService.getCurrentTheme() === 'dark'; // Set initial state
+    const handleThemeChange = () => {
+        themeService.toggleTheme();
+    };
+    themeToggle.addEventListener('change', handleThemeChange);
+    cleanupFunctions.push(() => themeToggle.removeEventListener('change', handleThemeChange));
+}
+
+function renderShortcutsSettings() {
+    const list = document.getElementById('shortcuts-list');
+    if (!list) return;
+
+    const shortcuts = shortcutService.getShortcuts();
+    const actionLabels = {
+        submitAnswer: 'Submit Answer',
+        flipCard: 'Flip Card',
+        playAudio: 'Play Audio',
+    };
+
+    list.innerHTML = Object.entries(shortcuts).map(([action, key]) => `
+        <li>
+            <span>${actionLabels[action] || action}</span>
+            <kbd class="shortcut-key" data-action="${action}">${key}</kbd>
+        </li>
+    `).join('');
+
+    const handleShortcutListClick = (event) => {
+        const target = event.target;
+        if (target.classList.contains('shortcut-key')) {
+            handleShortcutChange(target);
+        }
+    };
+    list.addEventListener('click', handleShortcutListClick);
+    cleanupFunctions.push(() => list.removeEventListener('click', handleShortcutListClick));
+}
+
+function handleShortcutChange(keyElement) {
+    const action = keyElement.dataset.action;
+    const originalText = keyElement.textContent;
+    keyElement.textContent = 'Press a key...';
+    keyElement.classList.add('recording');
+
+    const keydownListener = (event) => {
+        event.preventDefault();
+        const newKey = event.code;
+        
+        // Kiểm tra nếu phím đã được sử dụng
+        const shortcuts = shortcutService.getShortcuts();
+        if (Object.values(shortcuts).includes(newKey)) {
+            alert(`Key "${newKey}" is already in use.`);
+            keyElement.textContent = originalText;
+        } else {
+            shortcutService.setShortcut(action, newKey);
+            keyElement.textContent = newKey;
+        }
+        keyElement.classList.remove('recording');
+        document.removeEventListener('keydown', keydownListener, { once: true });
+    };
+
+    document.addEventListener('keydown', keydownListener, { once: true });
 }
 
 async function renderMasteryChart() {

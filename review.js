@@ -31,7 +31,7 @@ export async function renderReviewSession(rootElement) {
     // 2. Tải HTML (tái sử dụng từ practice)
     const response = await fetch('/practice-session.html');
     if (!response.ok) {
-        rootElement.innerHTML = `<p style="color: red; padding: 2rem;">Error loading review session.</p>`;
+        rootElement.innerHTML = `<p style="color: red; padding: 2rem;">Không thể tải phiên ôn tập.</p>`;
         return;
     }
     const html = await response.text();
@@ -42,16 +42,16 @@ export async function renderReviewSession(rootElement) {
     const { data, error } = await dbService.getDueReviewWords(user.id);
 
     if (error) {
-        rootElement.innerHTML = `<p style="color: red; padding: 2rem;">Error fetching review words.</p>`;
+        rootElement.innerHTML = `<p style="color: red; padding: 2rem;">Lỗi khi tải danh sách từ ôn tập.</p>`;
         return;
     }
 
     if (data.length === 0) {
         rootElement.innerHTML = `
             <div style="text-align: center; padding: 4rem;">
-                <h1>All Caught Up!</h1>
-                <p>You have no words to review right now. Great job!</p>
-                <a href="#/" class="btn-primary" style="text-decoration: none; margin-top: 2rem; display: inline-block;">Back to Library</a>
+                <h1>Đã hoàn thành hết!</h1>
+                <p>Hiện tại bạn không có từ nào cần ôn tập. Làm tốt lắm!</p>
+                <a href="#/" class="btn-primary" style="text-decoration: none; margin-top: 2rem; display: inline-block;">Quay lại Thư viện</a>
             </div>`;
         return;
     }
@@ -117,7 +117,7 @@ function updateProgress() {
 
 async function showCompletionScreen() {
     await saveSessionProgress();
-    gameModeContainer.innerHTML = `<div style="text-align: center;"><h1>Congratulations!</h1><p>You have completed this review session.</p><p>Your progress has been saved.</p><a href="#/" class="btn-primary" style="text-decoration: none; margin-top: 2rem; display: inline-block;">Back to Library</a></div>`;
+    gameModeContainer.innerHTML = `<div style="text-align: center;"><h1>Chúc mừng!</h1><p>Bạn đã hoàn thành phiên ôn tập này.</p><p>Tiến trình của bạn đã được lưu.</p><a href="#/" class="btn-primary" style="text-decoration: none; margin-top: 2rem; display: inline-block;">Quay lại Thư viện</a></div>`;
     progressBar.style.width = '100%';
     progressText.textContent = `${reviewWords.length}/${reviewWords.length}`;
 }

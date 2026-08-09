@@ -1,5 +1,17 @@
 <div class="profile-container">
     <h1>My Profile</h1>
+
+    <div class="profile-stats-grid">
+        <div class="stat-card">
+            <h3>Learning Streak</h3>
+            <p id="streak-stat">0 days 🔥</p>
+        </div>
+        <div class="stat-card">
+            <h3>Today's Goal</h3>
+            <p id="goal-stat">0 / 20</p>
+        </div>
+    </div>
+
     <form id="profile-form">
         <div class="avatar-section">
             <img id="avatar-preview" src="https://via.placeholder.com/100" alt="User Avatar" class="avatar-img">
@@ -21,6 +33,14 @@
         <p id="profile-status" class="status-message"></p>
     </form>
 
+    <div class="goal-section">
+        <h2>Daily Goal</h2>
+        <div class="goal-setting">
+            <p>Set how many new words you want to learn each day.</p>
+            <input type="number" id="daily-goal-input" min="1" max="100">
+        </div>
+    </div>
+
     <div class="notification-section">
         <h2>Notifications</h2>
         <div class="notification-setting">
@@ -29,6 +49,20 @@
         </div>
     </div>
 
+    <div class="theme-section">
+        <h2>Theme</h2>
+        <div class="theme-setting">
+            <p>Dark Mode</p>
+            <label class="switch"><input type="checkbox" id="theme-toggle"><span class="slider round"></span></label>
+        </div>
+    </div>
+
+    <div class="shortcuts-section">
+        <h2>Keyboard Shortcuts</h2>
+        <ul id="shortcuts-list" class="shortcuts-list">
+            <!-- Phím tắt sẽ được render ở đây -->
+        </ul>
+    </div>
     <div class="stats-section">
         <h2>Learning Progress</h2>
         <div class="chart-container">

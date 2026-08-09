@@ -3,12 +3,14 @@ import { dbService } from './db.service.js';
 
 // Biến để lưu trữ element DOM, tránh query nhiều lần
 let vocabSetListContainer;
+let rootElement;
 
 /**
  * Tải và render component Vocabulary Library vào một element gốc.
- * @param {HTMLElement} rootElement - Element để render component vào.
+ * @param {HTMLElement} element - Element để render component vào.
  */
-export async function renderVocabularyLibrary(rootElement) {
+export async function renderVocabularyLibrary(element) {
+    rootElement = element;
     // 1. Tải CSS
     if (!document.querySelector('link[href="/vocabulary-library.css"]')) {
         const link = document.createElement('link');
@@ -37,138 +39,164 @@ export async function renderVocabularyLibrary(rootElement) {
 /**
  * Gắn các event listener cho component Vocabulary Library.
  */
-async function setupEventListeners() {
-    const addSetBtn = document.querySelector('.add-set-btn'); // Nút thêm mới
-    vocabSetListContainer = document.querySelector('.vocab-set-list');
-    if (!addSetBtn) return;
+function setupEventListeners() {
+    const addSetBtn = rootElement.querySelector('.add-set-btn');
+    vocabSetListContainer = rootElement.querySelector('.vocab-set-list');
+    
+    if (!addSetBtn || !vocabSetListContainer) return;
 
-    addSetBtn.addEventListener('click', async () => {
-        const setName = prompt("Enter the name for your new vocabulary set:");
+    addSetBtn.addEventListener('click', handleCreateSet);
 
-        if (setName && setName.trim() !== '') {
-            // Lấy thông tin người dùng hiện tại
-            const { data: { user } } = await authService.getUser();
-            if (!user) {
-                alert('Error: You must be logged in to create a set.');
-                return;
-            }
+    // Sử dụng event delegation cho các hành động trên card
+    vocabSetListContainer.addEventListener('click', handleCardActions);
 
-            const { data, error } = await dbService.createVocabularySet(setName.trim(), user.id);
+    // Lắng nghe các thay đổi trên thanh tìm kiếm và sắp xếp
+    const searchInput = rootElement.querySelector('.search-input');
+    const sortSelect = rootElement.getElementById('sort-sets-select');
 
-            if (error) {
-                console.error('Error creating set:', error.message);
-                alert(`Failed to create set: ${error.message}`);
-            } else {
-                console.log('Set created successfully:', data);
-                // Render lại danh sách để hiển thị bộ từ mới
-                await renderSetList();
-            }
-        } else if (setName !== null) { // User clicked OK but input was empty
-            alert('Set name cannot be empty.');
-        }
-        // Nếu setName là null (user nhấn Cancel), không làm gì cả.
+    searchInput.addEventListener('input', debounce(renderSetList, 300));
+    sortSelect.addEventListener('change', renderSetList);
+
+    // --- Advanced Search Listeners ---
+    const advancedSearchToggle = rootElement.getElementById('advanced-search-toggle');
+    const advancedSearchPanel = rootElement.getElementById('advanced-search-panel');
+    
+    advancedSearchToggle.addEventListener('click', () => {
+        advancedSearchPanel.classList.toggle('hidden');
     });
 
-    // Xử lý tìm kiếm
-    const searchInput = document.querySelector('.search-input');
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(async (event) => {
-            const searchTerm = event.target.value.trim();
-            await renderSetList(searchTerm);
-        }, 300));
-    }
+    const applyAdvancedSearchBtn = rootElement.getElementById('apply-advanced-search-btn');
+    applyAdvancedSearchBtn.addEventListener('click', renderSetList);
 
-    // Xử lý sắp xếp
-    const sortSelect = document.getElementById('sort-sets-select');
-    if (sortSelect) {
-        sortSelect.addEventListener('change', async () => {
-            const searchTerm = document.querySelector('.search-input').value.trim();
-            await renderSetList(searchTerm);
-        });
-    }
-
-    // Sử dụng event delegation để xử lý sự kiện click trên các nút xóa
-    vocabSetListContainer.addEventListener('click', async (event) => {
-        const target = event.target;
-
-        // Xử lý nút xóa
-        if (target.closest('.delete-set-btn')) {
-            const deleteButton = target.closest('.delete-set-btn');
-            const setId = deleteButton.dataset.setId;
-            const setName = deleteButton.dataset.setName;
-
-            const isConfirmed = confirm(`Are you sure you want to delete the set "${setName}"?\nThis action cannot be undone.`);
-
-            if (isConfirmed) {
-                const { error } = await dbService.deleteVocabularySet(setId);
-                if (error) {
-                    console.error('Error deleting set:', error.message);
-                    alert(`Failed to delete set: ${error.message}`);
-                } else {
-                    await renderSetList(); // Tải lại danh sách
-                }
-            }
-        }
-
-        // Xử lý nút sửa
-        if (target.closest('.edit-set-btn')) {
-            const editButton = target.closest('.edit-set-btn');
-            const setId = editButton.dataset.setId;
-            const currentName = editButton.dataset.setName;
-
-            const newName = prompt("Enter the new name for the set:", currentName);
-
-            if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
-                const { error } = await dbService.updateVocabularySetName(setId, newName.trim());
-                if (error) {
-                    console.error('Error renaming set:', error.message);
-                    alert(`Failed to rename set: ${error.message}`);
-                } else {
-                    await renderSetList(); // Tải lại danh sách để hiển thị tên mới
-                }
-            } else if (newName !== null && newName.trim() === '') {
-                alert('Set name cannot be empty.');
-            }
-        }
+    const clearAdvancedSearchBtn = rootElement.getElementById('clear-advanced-search-btn');
+    clearAdvancedSearchBtn.addEventListener('click', () => {
+        rootElement.getElementById('contains-word-input').value = '';
+        rootElement.getElementById('created-after-date').value = '';
+        rootElement.getElementById('created-before-date').value = '';
+        renderSetList();
     });
 }
 
 /**
- * Lấy dữ liệu và render danh sách các bộ từ vựng.
- * @param {string} [searchTerm=''] - Từ khóa tìm kiếm (tùy chọn).
+ * Xử lý việc tạo bộ từ mới.
  */
-async function renderSetList(searchTerm = '') {
+async function handleCreateSet() {
+    const setName = prompt("Nhập tên cho bộ từ vựng mới của bạn:");
+
+    if (setName && setName.trim() !== '') {
+        const { data: { user } } = await authService.getUser();
+        if (!user) {
+            alert('Lỗi: Bạn phải đăng nhập để tạo bộ từ.');
+            return;
+        }
+
+        const { error } = await dbService.createVocabularySet(setName.trim(), user.id);
+
+        if (error) {
+            console.error('Lỗi khi tạo bộ từ:', error.message);
+            alert(`Không thể tạo bộ từ: ${error.message}`);
+        } else {
+            await renderSetList(); // Render lại để hiển thị bộ từ mới
+        }
+    } else if (setName !== null) {
+        alert('Tên bộ từ không được để trống.');
+    }
+}
+
+/**
+ * Xử lý các hành động trên card (sửa, xóa) bằng event delegation.
+ * @param {Event} event 
+ */
+async function handleCardActions(event) {
+    const target = event.target;
+    const deleteButton = target.closest('.delete-set-btn');
+    const editButton = target.closest('.edit-set-btn');
+
+    if (deleteButton) {
+        handleDeleteSet(deleteButton);
+    } else if (editButton) {
+        handleEditSet(editButton);
+    }
+}
+
+/**
+ * Xử lý xóa một bộ từ.
+ * @param {HTMLElement} button 
+ */
+async function handleDeleteSet(button) {
+    const setId = button.dataset.setId;
+    const setName = button.dataset.setName;
+
+    if (confirm(`Bạn có chắc chắn muốn xóa bộ từ "${setName}" không?
+Hành động này không thể hoàn tác.`)) {
+        const { error } = await dbService.deleteVocabularySet(setId);
+        if (error) {
+            alert(`Không thể xóa bộ từ: ${error.message}`);
+        } else {
+            await renderSetList();
+        }
+    }
+}
+
+/**
+ * Xử lý sửa tên một bộ từ.
+ * @param {HTMLElement} button 
+ */
+async function handleEditSet(button) {
+    const setId = button.dataset.setId;
+    const currentName = button.dataset.setName;
+    const newName = prompt("Nhập tên mới cho bộ từ:", currentName);
+
+    if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
+        const { error } = await dbService.updateVocabularySetName(setId, newName.trim());
+        if (error) {
+            alert(`Không thể đổi tên bộ từ: ${error.message}`);
+        } else {
+            await renderSetList();
+        }
+    } else if (newName !== null && newName.trim() === '') {
+        alert('Tên bộ từ không được để trống.');
+    }
+}
+
+/**
+ * Lấy dữ liệu và render danh sách các bộ từ vựng.
+ */
+async function renderSetList() {
     if (!vocabSetListContainer) return;
+    vocabSetListContainer.innerHTML = `<p class="empty-state">Đang tải các bộ từ của bạn...</p>`;
 
     const { data: { user } } = await authService.getUser();
-    if (!user) return;
-
-    // Lấy giá trị sắp xếp từ dropdown
-    const sortValue = document.getElementById('sort-sets-select').value;
-    const [sortBy, sortOrder] = sortValue.split('-');
-    const sortOptions = {
-        sortBy: sortBy,
-        ascending: sortOrder === 'asc'
-    };
-
-    let sets, error;
-
-    if (searchTerm) {
-        ({ data: sets, error } = await dbService.searchVocabularySets(user.id, searchTerm, sortOptions));
-    } else {
-        ({ data: sets, error } = await dbService.getVocabularySets(user.id, sortOptions));
-    }
-
-    if (error) {
-        vocabSetListContainer.innerHTML = `<p class="empty-state" style="color: red;">Error loading vocabulary sets.</p>`;
+    if (!user) {
+        vocabSetListContainer.innerHTML = `<p class="empty-state">Vui lòng đăng nhập để xem các bộ từ của bạn.</p>`;
         return;
     }
 
-    if (sets.length === 0) {
-        if (searchTerm) {
-            vocabSetListContainer.innerHTML = `<p class="empty-state">No sets found for "${escapeHTML(searchTerm)}".</p>`;
+    // Thu thập tất cả các tiêu chí lọc và sắp xếp
+    const sortValue = rootElement.getElementById('sort-sets-select').value;
+    const [sortBy, sortOrder] = sortValue.split('-');
+    
+    const filters = {
+        nameQuery: rootElement.querySelector('.search-input').value.trim(),
+        containsWord: rootElement.getElementById('contains-word-input').value.trim(),
+        createdAfter: rootElement.getElementById('created-after-date').value || null,
+        createdBefore: rootElement.getElementById('created-before-date').value || null,
+        sortBy: sortBy,
+        sortOrderAsc: sortOrder === 'asc'
+    };
+
+    const { data: sets, error } = await dbService.advancedSearchVocabularySets(user.id, filters);
+
+    if (error) {
+        vocabSetListContainer.innerHTML = `<p class="empty-state" style="color: red;">Lỗi khi tải danh sách bộ từ: ${error.message}</p>`;
+        return;
+    }
+
+    if (!sets || sets.length === 0) {
+        if (Object.values(filters).some(val => val)) {
+            vocabSetListContainer.innerHTML = `<p class="empty-state">Không tìm thấy bộ từ nào phù hợp với điều kiện của bạn.</p>`;
         } else {
-            vocabSetListContainer.innerHTML = `<p class="empty-state">You don't have any vocabulary sets yet. Click "+ New Set" to create one.</p>`;
+            vocabSetListContainer.innerHTML = `<p class="empty-state">Bạn chưa có bộ từ vựng nào. Nhấn "+ Bộ từ mới" để tạo bộ đầu tiên.</p>`;
         }
         return;
     }
@@ -183,18 +211,26 @@ async function renderSetList(searchTerm = '') {
  */
 function createSetCardHTML(set) {
     const createdAt = new Date(set.created_at).toLocaleDateString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
+        day: '2-digit', month: 'short', year: 'numeric'
     });
+    const mastery = set.mastery_level ? `${Math.round(set.mastery_level * 100)}%` : 'N/A';
 
     return `
         <div class="vocab-set-card" data-set-id="${set.id}">
-            <button class="edit-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Rename set">✏️</button>
-            <button class="delete-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Delete set">&times;</button>
+            <div class="card-actions">
+                <button class="btn-icon edit-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Đổi tên bộ từ">✏️</button>
+                <button class="btn-icon delete-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Xóa bộ từ">🗑️</button>
+            </div>
             <a href="#/set/${set.id}" class="vocab-set-card-link">
-                <h3>${escapeHTML(set.name)}</h3>
-                <p>Created on: ${createdAt}</p>
+                <h3 class="card-title">${escapeHTML(set.name)}</h3>
+                <div class="card-meta">
+                    <span>${set.word_count || 0} từ</span>
+                    <span>•</span>
+                    <span>Tạo: ${createdAt}</span>
+                </div>
+                <div class="card-footer">
+                    <span>Độ thành thạo: ${mastery}</span>
+                </div>
             </a>
         </div>
     `;

@@ -4,25 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng ký - EngFore</title>
-    <!-- Chúng ta sẽ thêm CSS sau -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/auth.css">
 </head>
 <body>
-    <div id="auth-container">
-        <h1>Tạo tài khoản EngFore</h1>
-        <p>Play but Learn</p>
-        
-        <form id="signup-form">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required>
-            
-            <label for="password">Mật khẩu</label>
-            <input type="password" id="password" name="password" required>
-            
-            <button type="submit">Đăng ký</button>
-        </form>
-        <p id="message" style="color: green;"></p>
-        <p id="error-message" style="color: red;"></p>
-        <p>Đã có tài khoản? <a href="/login.html">Đăng nhập</a></p>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1 class="auth-title">Tạo tài khoản</h1>
+            <p class="auth-subtitle">Bắt đầu hành trình chinh phục từ vựng của bạn</p>
+
+            <form id="signup-form" class="auth-form">
+                <div class="form-group">
+                    <label for="username">Tên người dùng</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mật khẩu (tối thiểu 6 ký tự)</label>
+                    <input type="password" id="password" name="password" required minlength="6">
+                </div>
+                <p id="message" class="message"></p>
+                <p id="error-message" class="error-message"></p>
+                <button type="submit" class="auth-button">Đăng ký</button>
+            </form>
+            <p class="auth-link">Đã có tài khoản? <a href="/login.html">Đăng nhập</a></p>
+        </div>
     </div>
 
     <script type="module" src="/signup.js"></script>

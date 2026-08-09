@@ -1,15 +1,68 @@
-<div class="vocab-detail-container">
-    <header class="vocab-detail-header">
-        <a href="#/" class="back-link">&larr; Back to Library</a>
-        <h1 id="set-name-heading"></h1>
-        <div class="actions">
-            <button class="practice-btn btn-primary">Practice</button>
-            <button class="import-ai-btn">Import AI</button>
-            <button class="add-word-btn">+ Add Word</button>
+        <div class="vocab-detail-container">
+            <header class="vocab-detail-header">
+                <div class="detail-header-top">
+                    <a href="#/" class="back-link">&larr; Quay lại Thư viện</a>
+                    <div class="actions">
+                        <button class="practice-btn btn-primary" id="practice-all-btn" title="Luyện tập toàn bộ từ trong bộ">▶ Học</button>
+                        <button class="action-btn" id="flashcard-btn" title="Ôn tập bằng thẻ ghi nhớ">🃏 Thẻ ghi nhớ</button>
+                        <button class="action-btn" id="typing-btn" title="Gõ từ tiếng Anh theo nghĩa">⌨ Gõ từ</button>
+                        <button class="action-btn" id="edit-set-btn" title="Chỉnh sửa bộ từ">✏️ Chỉnh sửa</button>
+                        <button class="action-btn danger" id="delete-set-btn" title="Xóa bộ từ">🗑️ Xóa</button>
+                    </div>
+                </div>
+                <h1 id="set-name-heading" aria-live="polite"></h1>
+                <p id="set-description" class="set-description"></p>
+                <div class="set-meta">
+                    <span id="set-word-count">0 từ</span>
+                    <span>&bull;</span>
+                    <span id="set-created-date"></span>
+                </div>
+            </header>
+
+            <div class="word-toolbar">
+                <input type="search" id="word-search-input" class="search-input" placeholder="Tìm từ tiếng Anh, nghĩa tiếng Việt hoặc IPA...">
+                <select id="word-filter-select" class="sort-select" aria-label="Lọc theo trạng thái học">
+                    <option value="all">Tất cả</option>
+                    <option value="unseen">Chưa học</option>
+                    <option value="learning">Đang học</option>
+                    <option value="mastered">Đã thuộc</option>
+                </select>
+                <select id="word-sort-select" class="sort-select" aria-label="Sắp xếp">
+                    <option value="abc-asc">A → Z</option>
+                    <option value="abc-desc">Z → A</option>
+                    <option value="created-desc">Mới nhất</option>
+                    <option value="created-asc">Cũ nhất</option>
+                    <option value="mastery-desc">Độ thành thạo</option>
+                </select>
+            </div>
+
+            <div class="word-list-actions">
+                <button class="add-word-btn">+ Thêm từ</button>
+                <button class="import-ai-btn">🤖 Nhập bằng AI</button>
+                <button class="stats-btn">📊 Thống kê</button>
+            </div>
+
+            <div class="word-table-container">
+                <table class="word-table">
+                    <thead>
+                        <tr>
+                            <th>STT</th>
+                            <th>Từ tiếng Anh</th>
+                            <th>IPA</th>
+                            <th>Loại từ</th>
+                            <th>Nghĩa tiếng Việt</th>
+                            <th>Ví dụ</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="word-list">
+                        <!-- Danh sách các từ được render ở đây -->
+                        <tr class="empty-row"><td colspan="8">
+                            <p class="empty-state">Đang tải danh sách từ...</p>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </header>
-    <div class="word-list">
-        <!-- Danh sách các từ sẽ được render ở đây -->
-        <p class="empty-state">This set is empty. Add your first word or use Import AI.</p>
-    </div>
-</div>
+

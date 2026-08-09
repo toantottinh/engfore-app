@@ -204,6 +204,20 @@ export const dbService = {
     },
 
     /**
+     * Lấy tiến trình học hiện tại cho một danh sách các từ.
+     * @param {string} userId - ID của người dùng.
+     * @param {string[]} wordSenseIds - Mảng các ID của word_sense.
+     * @returns {Promise<{ data: any[], error: Error | null }>}
+     */
+    getCurrentProgressForWords: async (userId, wordSenseIds) => {
+        const { data, error } = await supabase
+            .from('user_progress')
+            .select('word_sense_id, mastery_level')
+            .in('word_sense_id', wordSenseIds)
+            .eq('user_id', userId);
+        return { data, error };
+    },
+    /**
      * Lấy số lượng từ cần ôn tập cho người dùng.
      * @param {string} userId - ID của người dùng.
      * @returns {Promise<{ count: number, error: Error | null }>}
@@ -326,6 +340,220 @@ export const dbService = {
         const { error } = await supabase
             .from('push_subscriptions') // Bảng này cần được tạo
             .upsert({ endpoint: subscription.endpoint, subscription_details: subscription, user_id: userId }, { onConflict: 'endpoint' });
+        return { error };
+    },
+
+    /**
+     * Lấy thống kê chi tiết cho một bộ từ vựng.
+     * @param {string} setId - ID của bộ từ vựng.
+     * @param {string} userId - ID của người dùng.
+     * @returns {Promise<{ data: any[], error: Error | null }>}
+     */
+    getSetStatistics: async (setId, userId) => {
+        const { data, error } = await supabase
+            .rpc('get_set_statistics', { p_set_id: setId, p_user_id: userId });
+        return { data, error };
+    },
+
+    /**
+     * Ghi lại hoạt động của người dùng trong ngày hiện tại.
+     * @returns {Promise<{ error: Error | null }>}
+     */
+    logDailyActivity: async () => {
+        const { error } = await supabase.rpc('log_daily_activity');
+        return { error };
+    },
+
+    /**
+     * Lấy chuỗi ngày học hiện tại của người dùng.
+     * @param {string} userId - ID của người dùng.
+     * @returns {Promise<{ data: number, error: Error | null }>}
+     */
+    getLearningStreak: async (userId) => {
+        const { data, error } = await supabase
+            .rpc('get_learning_streak', { p_user_id: userId });
+        return { data, error };
+    },
+
+    /**
+     * Ghi lại số lượng từ mới học trong ngày.
+     * @param {number} wordCount - Số lượng từ mới học.
+     * @returns {Promise<{ error: Error | null }>}
+     */
+    logLearningActivity: async (wordCount) => {
+        if (wordCount <= 0) return { error: null };
+        const { error } = await supabase.rpc('log_learning_activity', { p_words_learned: wordCount });
+        return { error };
+    },
+
+    /**
+     * Lấy tiến độ mục tiêu trong ngày của người dùng.
+     * @param {string} userId - ID của người dùng.
+     * @returns {Promise<{ data: {words_learned: number, daily_goal: number}, error: Error | null }>}
+     */
+    getDailyGoalProgress: async (userId) => {
+        const { data, error } = await supabase
+            .rpc('get_daily_goal_progress', { p_user_id: userId })
+            .single(); // Lấy một bản ghi duy nhất
+
+        return { data, error };
+    },
+
+    /**
+     * Tìm kiếm nâng cao cho các bộ từ vựng.
+     * @param {string} userId - ID của người dùng.
+     * @param {object} filters - Đối tượng chứa các bộ lọc.
+     * @returns {Promise<{ data: any[], error: Error | null }>}
+     */
+    advancedSearchVocabularySets: async (userId, filters) => {
+        const { data, error } = await supabase.rpc('advanced_search_sets', {
+            p_user_id: userId,
+            p_name_query: filters.nameQuery || null,
+            p_contains_word: filters.containsWord || null,
+            p_created_after: filters.createdAfter || null,
+            p_created_before: filters.createdBefore || null,
+            p_sort_by: filters.sortBy || 'created_at',
+            p_sort_order_asc: filters.sortOrderAsc || false
+        });
+
+        return { data, error };
+    },
+
+    /**
+     * Cập nhật riêng bảng `word_senses` (loại từ, nghĩa, ví dụ, mô tả).
+     * Bảng này có chính sách RLS cho phép UPDATE nên thao tác này luôn khả thi.
+     * @param {string} senseId - ID của word_sense cần cập nhật.
+     * @param {object} updates - Các trường cần cập nhật.
+     * @returns {Promise<{ error: Error | null }>}
+     */
+    updateWordSenseDetails: async (senseId, updates) => {
+        const senseUpdates = {
+            word_type: updates.word_type,
+            meaning: updates.meaning,
+            description: updates.description,
+            example: updates.example,
+        };
+        const { error } = await supabase
+            .from('word_senses')
+            .update(senseUpdates)
+            .eq('id', senseId);
+        return { error };
+    },
+
+    /**
+     * Lấy danh sách từ trong một bộ từ vựng kèm theo tiến trình học (mastery level)
+     * của người dùng hiện tại.
+     * @param {string} setId - ID của bộ từ vựng.
+     * @param {string} userId - ID của người dùng để lấy tiến trình học.
+     * @returns {Promise<{ data: Array, error: Error | null }>}
+     */
+    getWordsInSetWithProgress: async (setId, userId) => {
+        // Lấy danh sách từ trong set
+        const { data, error } = await supabase
+            .from('set_words')
+            .select(`
+                word_senses (
+                    id,
+                    word_type,
+                    meaning,
+                    description,
+                    example,
+                    words (
+                        word,
+                        ipa,
+                        cefr_level
+                    )
+                )
+            `)
+            .eq('set_id', setId);
+
+        if (error) return { data, error };
+
+        // Lấy tiến trình học của user cho các từ trong set
+        const senseIds = data.map(item => item.word_senses.id);
+        let progressMap = {};
+        if (userId && senseIds.length > 0) {
+            const { data: progress, error: progressError } = await supabase
+                .from('user_progress')
+                .select('word_sense_id, mastery_level')
+                .in('word_sense_id', senseIds)
+                .eq('user_id', userId);
+            if (!progressError) {
+                progressMap = progress.reduce((acc, p) => {
+                    acc[p.word_sense_id] = p.mastery_level;
+                    return acc;
+                }, {});
+            }
+        }
+
+        // Gắn mastery_level vào mỗi từ
+        const merged = data.map(item => {
+            const sense = item.word_senses;
+            return {
+                ...sense,
+                reference: sense.words.word,
+                created_at: null,
+                set_word_sense_id: item.word_sense_id || sense.id,
+                mastery_level: progressMap[sense.id] !== undefined ? progressMap[sense.id] : 0,
+            };
+        });
+
+        return { data: merged, error: null };
+    },
+
+    /**
+     * Cập nhật thông tin của một bộ từ vựng (tên, mô tả).
+     * @param {string} setId - ID của bộ từ vựng.
+     * @param {object} updates - Đối tượng chứa các trường cần cập nhật (name, description).
+     * @returns {Promise<{ data: any, error: Error | null }>}
+     */
+    updateVocabularySetMeta: async (setId, updates) => {
+        const { data, error } = await supabase
+            .from('vocabulary_sets')
+            .update(updates)
+            .eq('id', setId)
+            .select();
+        return { data, error };
+    },
+
+    /**
+     * Cập nhật trạng thái tiến trình học của một từ (mastery level).
+     * Có thể dùng để đặt lại trạng thái "chưa học".
+     * @param {string} wordSenseId - ID của word_sense.
+     * @param {string} userId - ID của người dùng.
+     * @param {object} update - Đối tượng cập nhật (vd: { mastery_level: 0, review_due_at: now() }).
+     * @returns {Promise<{ error: Error | null }>}
+     */
+    upsertWordProgress: async (wordSenseId, userId, update = {}) => {
+        const now = new Date().toISOString();
+        const payload = {
+            user_id: userId,
+            word_sense_id: wordSenseId,
+            mastery_level: 0,
+            review_due_at: now,
+            ...update
+        };
+        const { error } = await supabase
+            .from('user_progress')
+            .upsert(payload);
+        return { error };
+    },
+
+    /**
+     * Xóa một từ khỏi bộ từ vựng.
+     * Ghi chú: Bảng `word_senses` chỉ cho phép SELECT/INSERT qua RLS (dữ liệu dùng chung),
+     * nên từ chỉ được gỡ khỏi quan hệ `set_words` (giữ nguyên dữ liệu gốc của từ).
+     * @param {string} setId - ID của bộ từ vựng.
+     * @param {string} wordSenseId - ID của word_sense cần gỡ.
+     * @returns {Promise<{ error: Error | null }>}
+     */
+    deleteWordComplete: async (setId, wordSenseId) => {
+        // Xóa quan hệ trong set_words (đã có RLS cho phép thao tác trong set của user)
+        const { error } = await supabase
+            .from('set_words')
+            .delete()
+            .eq('set_id', setId)
+            .eq('word_sense_id', wordSenseId);
         return { error };
     }
 };

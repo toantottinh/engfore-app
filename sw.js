@@ -1,4 +1,4 @@
-const CACHE_NAME = 'engfore-cache-v1';
+const CACHE_NAME = 'engfore-cache-v3';
 const APP_SHELL_URLS = [
     '/app.html',
     '/dashboard.css',
@@ -6,11 +6,32 @@ const APP_SHELL_URLS = [
     '/router.js',
     '/db.service.js',
     '/auth.service.js',
+    '/auth-errors.js',
     '/supabase-client.js',
+    '/shortcut.service.js',
+    '/theme.service.js',
+    '/audio.service.js',
+    '/page-transitions.css',
+    // Vocabulary Library
     '/vocabulary-library.js',
     '/vocabulary-library.html',
     '/vocabulary-library.css',
-    '/practice.css', // CSS được tái sử dụng bởi cả practice và review
+    // Vocabulary Detail (Feature 2)
+    '/vocabulary-detail.js',
+    '/vocabulary-detail.html',
+    '/vocabulary-detail.css',
+    '/add-word-modal.html',
+    '/add-word-modal.css',
+    '/import-ai-modal.html',
+    '/import-ai-modal.css',
+    '/set-stats-modal.html',
+    '/set-stats-modal.css',
+    // Practice
+    '/practice-session.css',
+    '/practice-session.html',
+    '/practice-engine.js',
+    '/gamemodes/typing/index.js',
+    '/gamemodes/flashcard/index.js',
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 ];
 
@@ -44,6 +65,7 @@ self.addEventListener('activate', (event) => {
 
 // The fetch event is fired for every network request.
 self.addEventListener('fetch', (event) => {
+    if (event.request.method !== 'GET') return;
     event.respondWith(
         caches.match(event.request).then((response) => {
             return response || fetch(event.request); // Cache first, then network
@@ -58,9 +80,9 @@ self.addEventListener('push', (event) => {
 
     const title = data.title || 'EngFore';
     const options = {
-        body: data.body || 'You have words to review!',
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-192x192.png'
+        body: data.body || 'Bạn có từ vựng cần ôn tập!',
+        icon: '/assets/icons/icon-192x192.png',
+        badge: '/assets/icons/icon-192x192.png'
     };
 
     event.waitUntil(self.registration.showNotification(title, options));

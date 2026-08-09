@@ -1,5 +1,6 @@
 const routes = [];
 let appRoot = null;
+let currentComponentCleanup = null; // To store the cleanup function of the currently rendered component
 
 /**
  * Tìm route phù hợp với path và trích xuất params.
@@ -39,7 +40,18 @@ export async function navigate() {
     const match = matchRoute(path);
 
     if (match) {
-        await match.route.component(appRoot, match.params);
+        // Call cleanup for the previous component if it exists
+        if (currentComponentCleanup) {
+            currentComponentCleanup();
+            currentComponentCleanup = null;
+        }
+
+        // The component is a function that returns a promise (dynamic import)
+        const module = await match.route.component(); // Import the module
+        const componentRenderer = module.default;
+        // The actual render function is the default export of the module
+        await componentRenderer(appRoot, match.params);
+        currentComponentCleanup = module.cleanup; // Store cleanup function if available
     } else {
         appRoot.innerHTML = `<h1>404 - Page Not Found</h1>`;
     }

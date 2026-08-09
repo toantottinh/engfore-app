@@ -49,3 +49,44 @@
 .form-group textarea {
     resize: vertical;
 }
+
+.field-error {
+    color: #ff4d4d;
+    font-size: 0.8rem;
+    margin-top: 0.3rem;
+    min-height: 0.9em;
+}
+
+.btn-secondary {
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+.btn-secondary:hover {
+    background-color: var(--border-color);
+}
+
+.btn-primary {
+    background-color: #4A4DEE;
+    color: white;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+.btn-primary:hover {
+    background-color: #3d40d6;
+}
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

@@ -1,18 +1,51 @@
-<div class="vocab-library-container">
-    <header class="vocab-library-header">
-        <h1>Vocabulary Library</h1>
-        <div class="actions">
-            <input type="search" placeholder="Search sets..." class="search-input">
-            <select id="sort-sets-select" class="sort-select">
-                <option value="created_at-desc">Sort: Newest</option>
-                <option value="created_at-asc">Sort: Oldest</option>
-                <option value="name-asc">Sort: Name (A-Z)</option>
-            </select>
-            <button class="add-set-btn">+ New Set</button>
+<div class="library-container">
+    <div class="library-header">
+        <h1>Thư viện bộ từ</h1>
+        <div class="header-actions">
+            <button class="btn btn-primary add-set-btn">+ Bộ từ mới</button>
         </div>
-    </header>
+    </div>
+
+    <div class="search-sort-bar">
+        <div class="search-bar">
+            <input type="search" id="search-input" class="search-input" placeholder="Tìm kiếm bộ từ của bạn...">
+        </div>
+        <div class="sort-bar">
+            <select id="sort-sets-select" class="sort-select">
+                <option value="created_at-desc">Sắp xếp: Mới nhất</option>
+                <option value="created_at-asc">Sắp xếp: Cũ nhất</option>
+                <option value="name-asc">Sắp xếp: Tên (A-Z)</option>
+                <option value="name-desc">Sắp xếp: Tên (Z-A)</option>
+            </select>
+        </div>
+        <button id="advanced-search-toggle" class="btn btn-secondary">Tìm nâng cao</button>
+    </div>
+
+    <!-- Advanced Search Panel -->
+    <div id="advanced-search-panel" class="advanced-search-panel hidden">
+        <h4>Tìm kiếm nâng cao</h4>
+        <div class="advanced-search-grid">
+            <div class="form-group">
+                <label for="contains-word-input">Chứa từ</label>
+                <input type="text" id="contains-word-input" placeholder="vd: 'serendipity'">
+            </div>
+            <div class="form-group">
+                <label for="created-after-date">Tạo sau ngày</label>
+                <input type="date" id="created-after-date">
+            </div>
+            <div class="form-group">
+                <label for="created-before-date">Tạo trước ngày</label>
+                <input type="date" id="created-before-date">
+            </div>
+        </div>
+        <div class="advanced-search-actions">
+            <button id="apply-advanced-search-btn" class="btn btn-primary">Áp dụng</button>
+            <button id="clear-advanced-search-btn" class="btn btn-secondary">Xóa bộ lọc</button>
+        </div>
+    </div>
+
     <div class="vocab-set-list">
-        <!-- Các bộ từ vựng sẽ được render ở đây -->
-        <p class="empty-state">You don't have any vocabulary sets yet. Click "+ New Set" to create one.</p>
+        <!-- Vocabulary set cards will be dynamically inserted here -->
+        <p class="empty-state">Đang tải các bộ từ của bạn...</p>
     </div>
 </div>
