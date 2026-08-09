@@ -56,12 +56,16 @@ CREATE POLICY "Users can manage words in their own sets." ON vocabulary_set_word
     );
 
 -- Create user_progress table
+-- KHỚP VỚI SCHEMA PRODUCTION THỰC TẾ (audit 2026-08-09 qua PostgREST):
+--   user_id, word_sense_id, mastery_level, review_due_at, last_reviewed_at
+-- KHÔNG được chạy lại toàn bộ file này lên production (production đã có schema chuẩn).
 CREATE TABLE user_progress (
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-    sense_id UUID REFERENCES word_senses(id) ON DELETE CASCADE NOT NULL,
+    word_sense_id UUID REFERENCES word_senses(id) ON DELETE CASCADE NOT NULL,
     mastery_level INTEGER DEFAULT 0 NOT NULL,
-    next_review_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    PRIMARY KEY (user_id, sense_id)
+    review_due_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    last_reviewed_at TIMESTAMPTZ,
+    PRIMARY KEY (user_id, word_sense_id)
 );
 -- RLS for user_progress
 ALTER TABLE user_progress ENABLE ROW LEVEL SECURITY;
@@ -71,4 +75,4 @@ CREATE POLICY "Users can manage their own progress." ON user_progress FOR ALL US
 CREATE INDEX ON vocabulary_sets (user_id);
 CREATE INDEX ON word_senses (word_id);
 CREATE INDEX ON vocabulary_set_words (sense_id);
-CREATE INDEX ON user_progress (user_id, next_review_at);
+CREATE INDEX ON user_progress (user_id, review_due_at);

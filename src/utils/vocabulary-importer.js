@@ -1,0 +1,314 @@
+/**
+ * Vocabulary Importer / Parser (KHÔNG tích hợp AI API).
+ * Chấp nhận:
+ *  1) Danh sách từ đơn (mỗi dòng 1 từ):
+ *       apple
+ *       lion
+ *       fan
+ *  2) Format pipe 7 cột (có hoặc không header):
+ *       Word | IPA | Type | Meaning | Example | Description | CEFR
+ *       apple | /ˈæp.əl/ | noun | quả táo | She ate an apple. | A round fruit. | A1
+ *
+ * Xử lý khoảng trắng thừa, bỏ dòng trống, tự nhận diện header,
+ * chuẩn hóa word_type & cefr. KHÔNG sửa nội dung người dùng nhập.
+ */
+
+import { normalizeCefr as normalizeCefrLevel } from './cefr.js';
+
+const PIPE_DELIMITER = '|';
+
+// Header mặc định của format pipe (không phân biệt hoa/thường, bỏ khoảng trắng).
+const HEADER_ALIASES = {
+  word: 'word',
+  'từ': 'word',
+  tu: 'word',
+  ipa: 'ipa',
+  type: 'word_type',
+  'loại': 'word_type',
+  loai: 'word_type',
+  'loại từ': 'word_type',
+  'loai tu': 'word_type',
+  meaning: 'meaning',
+  'nghĩa': 'meaning',
+  nghia: 'meaning',
+  example: 'example',
+  'ví dụ': 'example',
+  'vi du': 'example',
+  description: 'description',
+  'mô tả': 'description',
+  'mo ta': 'description',
+  'ghi chú': 'description',
+  'ghi chu': 'description',
+  cefr: 'cefr',
+  'cấp độ': 'cefr',
+  'cap do': 'cefr',
+  'cấp độ cefr': 'cefr',
+  'cap do cefr': 'cefr',
+  level: 'cefr',
+};
+
+// Enum word_type của production DB — đã được mở rộng (XEM migration
+// 20260810200000_add_word_types.sql) lên 12 giá trị:
+//   noun, verb, adjective, adverb, preposition, conjunction, pronoun, other,
+//   determiner, interjection, phrasal_verb, verb_phrase
+// Dùng đúng set này để tránh lỗi PostgreSQL 22P02 khi gọi import_words_to_set.
+const VALID_WORD_TYPES = new Set([
+  'noun',
+  'verb',
+  'adjective',
+  'adverb',
+  'preposition',
+  'conjunction',
+  'pronoun',
+  'other',
+  'determiner',
+  'interjection',
+  'phrasal_verb',
+  'verb_phrase',
+]);
+
+// Bảng chuẩn hóa các biến thể do người dùng nhập về giá trị enum word_type hợp lệ.
+// Không còn map "phrasal verb"/"verb phrase" về "verb" — giữ nguyên loại từ gốc.
+// Nếu không khớp bất kỳ alias nào, fallback về 'other' (không làm hỏng INSERT)
+// và báo warning để người dùng tự xem lại.
+const WORD_TYPE_ALIASES = {
+  // Phrasal verb
+  'phrasal verb': 'phrasal_verb',
+  'phrasal_verb': 'phrasal_verb',
+  'phrasal-verb': 'phrasal_verb',
+  'phrasalverb': 'phrasal_verb',
+  'phrasal verbs': 'phrasal_verb',
+
+  // Verb phrase
+  'verb phrase': 'verb_phrase',
+  'verb_phrase': 'verb_phrase',
+  'verb-phrase': 'verb_phrase',
+  'verbphrase': 'verb_phrase',
+  'verb phrases': 'verb_phrase',
+
+  // Determiner
+  determiner: 'determiner',
+  'xác định từ': 'determiner',
+
+  // Interjection
+  interjection: 'interjection',
+  interj: 'interjection',
+  'interj.': 'interjection',
+  'thán từ': 'interjection',
+
+  // Các viết tắt / biến thể thông dụng
+  'v.': 'verb',
+  'n.': 'noun',
+  'noun phrase': 'noun',
+  'adj.': 'adjective',
+  'adv.': 'adverb',
+  'prep.': 'preposition',
+  'conj.': 'conjunction',
+  'pron.': 'pronoun',
+};
+
+function normalizeHeaderCell(cell) {
+  return String(cell || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\-\s]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Xác định xem dòng có phải header không.
+ * Một dòng là header khi >= 2 cột và (gần như) mọi cột đều khớp alias header.
+ */
+function isHeaderRow(cells) {
+  if (cells.length < 2) return false;
+  let matched = 0;
+  for (const cell of cells) {
+    const key = normalizeHeaderCell(cell);
+    if (HEADER_ALIASES[key]) matched += 1;
+  }
+  // Header hợp lệ khi >= 4/7 cột khớp alias (đủ đặc trưng).
+  return matched >= 4 && matched / cells.length >= 0.5;
+}
+
+/**
+ * Chia một dòng thành các cột theo delimiter pipe.
+ * Giữ nguyên nguồn dữ liệu, chỉ trim từng ô.
+ */
+function splitPipeLine(line) {
+  return line.split(PIPE_DELIMITER).map((cell) => cell.trim());
+}
+
+/**
+ * Chuẩn hóa trường word_type về enum hợp lệ (production DB dùng PostgreSQL ENUM).
+ * - Nếu là giá trị hợp lệ: giữ nguyên.
+ * - Nếu khớp alias (vd "phrasal verb" → "verb"): quy về giá trị enum gần nhất
+ *   (identifier để người dùng tự xem lại; KHÔNG làm hỏng INSERT).
+ * - Không khớp gì: fallback về 'other' và đánh dấu cảnh báo.
+ * @returns {{ value: string, changed: boolean }}
+ */
+function normalizeWordType(value) {
+  const raw = String(value || '').trim();
+  const v = raw.toLowerCase();
+  if (VALID_WORD_TYPES.has(v)) return { value: v, changed: false };
+  if (WORD_TYPE_ALIASES[v]) return { value: WORD_TYPE_ALIASES[v], changed: true };
+  if (v) return { value: 'other', changed: true };
+  return { value: '', changed: false };
+}
+
+/**
+ * Chuẩn hóa cefr về chữ hoa và chỉ chấp nhận A1–C2.
+ * Nếu không hợp lệ hoặc bỏ trống => trả về null (UNKNOWN).
+ * KHÔNG tự đoán level. KHÔNG ghi đè giá trị người dùng đã nhập hợp lệ.
+ */
+function normalizeCefr(value) {
+  return normalizeCefrLevel(value); // trả về string A1–C2 hoặc null
+}
+
+/**
+ * Parse văn bản nhập vào thành mảng từ đã chuẩn hóa.
+ *
+ * @param {string} text - Văn bản người dùng dán.
+ * @returns {{ rows: Array<{ word, ipa, word_type, meaning, example, description, cefr, _warnings: string[] }>,
+ *            warnings: string[], hadHeader: boolean, format: 'single'|'pipe' }}
+ */
+export function parseVocabularyText(text) {
+  const rawLines = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const warnings = [];
+  const rows = [];
+  let hadHeader = false;
+  let format = 'single';
+
+  if (rawLines.length === 0) {
+    return { rows, warnings, hadHeader, format };
+  }
+
+  // Xác định xem toàn bộ input có phải format pipe (dòng nào cũng có '|') hay không.
+  const nonPipeCount = rawLines.filter((l) => !l.includes(PIPE_DELIMITER)).length;
+  const isPipeInput = nonPipeCount === 0;
+
+  if (isPipeInput) {
+    format = 'pipe';
+
+    const lines = [...rawLines];
+
+    // Nhận diện và bỏ header nếu có.
+    const firstCells = splitPipeLine(lines[0]);
+    if (isHeaderRow(firstCells)) {
+      hadHeader = true;
+      lines.shift();
+    }
+
+    lines.forEach((line, idx) => {
+      const cells = splitPipeLine(line);
+      if (cells.length === 0) return;
+
+      if (cells.length < 2) {
+        // Dòng lẻ có 1 cột trong input pipe -> cảnh báo, bỏ qua để không hỏng dữ liệu.
+        warnings.push(`Dòng ${idx + 1} chỉ có 1 cột, đã bỏ qua.`);
+        return;
+      }
+
+const wt = normalizeWordType(cells[2]);
+      const row = {
+        word: cells[0] || '',
+        ipa: cells[1] || '',
+        word_type: wt.value,
+        meaning: cells[3] || '',
+        example: cells[4] || '',
+        description: cells[5] || '',
+        cefr: normalizeCefr(cells[6]),
+        _warnings: [],
+      };
+      if (wt.changed) {
+        row._warnings.push(
+          `Loại từ "${cells[2]}" không hợp lệ, đã chuyển thành "${wt.value}".`
+        );
+        warnings.push(`Dòng "${cells[0] || '?'}": loại từ "${cells[2]}" → "${wt.value}".`);
+      }
+      rows.push(row);
+    });
+  } else {
+    // Format danh sách từ đơn: mỗi dòng là 1 từ.
+    format = 'single';
+    rawLines.forEach((line) => {
+      rows.push({
+        word: line,
+        ipa: '',
+        word_type: '',
+        meaning: '',
+        example: '',
+        description: '',
+        cefr: '',
+        _warnings: [],
+      });
+    });
+  }
+
+  // Gắn cảnh báo cho từng dòng thiếu trường bắt buộc.
+  rows.forEach((row) => {
+    if (!row.word.trim()) {
+      row._warnings.push('Thiếu từ');
+    }
+    if (format === 'pipe' && !row.meaning.trim()) {
+      row._warnings.push('Thiếu nghĩa');
+    }
+  });
+
+  return { rows, warnings, hadHeader, format };
+}
+
+/**
+ * Chuẩn bị dữ liệu để gửi lên importWordsToSet.
+ * Loại bỏ trường nội bộ `_warnings`, chỉ giữ 7 trường của schema.
+ * @param {Array} rows - Các dòng đã parse/chỉnh sửa.
+ */
+export function toImportPayload(rows) {
+  return (rows || []).map((r) => {
+    // Đảm bảo word_type luôn là giá trị enum hợp lệ (ngay cả khi người dùng
+    // chỉnh sửa ô preview thành giá trị không hợp lệ) — tránh lỗi 22P02 enum.
+    const wt = normalizeWordType(r.word_type);
+    return {
+      word: (r.word || '').trim(),
+      ipa: (r.ipa || '').trim(),
+      word_type: wt.value,
+      meaning: (r.meaning || '').trim(),
+      example: (r.example || '').trim(),
+      description: (r.description || '').trim(),
+      // Chuẩn hóa CEFR nghiêm ngặt: chỉ A1–C2 được giữ, còn lại null (Chưa xác định).
+      cefr: normalizeCefr(r.cefr),
+    };
+  });
+}
+
+/**
+ * Lọc các dòng bị trùng với từ đã có trong set (không phân biệt hoa/thường).
+ * @param {Array} rows - Các dòng cần import.
+ * @param {Array<string>} existingWords - Danh sách từ đã có trong set.
+ * @returns {{ rows: Array, duplicates: Array }}
+ */
+export function dedupeRows(rows, existingWords) {
+  const existing = new Set((existingWords || []).map((w) => String(w || '').toLowerCase()));
+  const seen = new Set();
+  const duplicates = [];
+  const kept = [];
+
+  (rows || []).forEach((row) => {
+    const key = String(row.word || '').trim().toLowerCase();
+    if (!key) {
+      duplicates.push({ ...row, _reason: 'Thiếu từ' });
+      return;
+    }
+    if (existing.has(key) || seen.has(key)) {
+      duplicates.push({ ...row, _reason: 'Đã tồn tại trong bộ từ' });
+      return;
+    }
+    seen.add(key);
+    kept.push(row);
+  });
+
+  return { rows: kept, duplicates };
+}

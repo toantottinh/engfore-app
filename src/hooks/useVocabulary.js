@@ -8,6 +8,8 @@ import {
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
 
+const LOAD_SETS_ERROR_MESSAGE = 'Không thể tải danh sách bộ từ. Vui lòng thử lại.';
+
 /**
  * Hook quản lý bộ từ vựng (danh sách, tạo, sửa, xóa).
  */
@@ -26,9 +28,12 @@ export function useVocabulary() {
     }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await getVocabularySets(user.id);
+const { data, error: err } = await getVocabularySets(user.id);
     if (err) {
-      setError(err.message || 'Không thể tải danh sách bộ từ.');
+      if (import.meta.env.DEV) {
+        console.error('[useVocabulary] load sets error:', err);
+      }
+      setError(LOAD_SETS_ERROR_MESSAGE);
       setSets([]);
     } else {
       setSets(data || []);

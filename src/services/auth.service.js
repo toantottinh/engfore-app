@@ -55,6 +55,22 @@ export const authService = {
   },
 
   /**
+   * Đăng nhập / đăng ký bằng Google OAuth.
+   * Nếu email Google đã có tài khoản → đăng nhập vào tài khoản đó.
+   * Nếu email mới → Supabase tự tạo tài khoản mới.
+   * Redirect về /auth/callback (origin động) để hoạt động cả localhost lẫn Vercel.
+   */
+  async signInWithGoogle() {
+    return supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${getRedirectBase()}/auth/callback`,
+        // Truyền query param để AuthCallback biết đây là OAuth (không bắt buộc).
+      },
+    });
+  },
+
+  /**
    * Lấy thông tin user hiện tại.
    */
   async getUser() {
@@ -117,7 +133,10 @@ export const authService = {
     }
     if (existing) return { data: existing, error: null };
     const username =
-      user.user_metadata?.username || user.email?.split('@')[0] || 'người dùng';
+      user.user_metadata?.username ||
+      user.user_metadata?.full_name ||
+      user.email?.split('@')[0] ||
+      'người dùng';
     const { data, error } = await supabase
       .from('users')
       .insert([{ id: user.id, username }])

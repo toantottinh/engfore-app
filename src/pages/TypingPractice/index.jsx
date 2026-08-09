@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useLearning } from '../../hooks/useLearning.js';
 import { getVocabularySet } from '../../services/vocabulary.service.js';
@@ -22,6 +22,7 @@ export default function TypingPractice() {
   const [answered, setAnswered] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [stats, setStats] = useState({ correct: 0, incorrect: 0 });
+  const inputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -52,7 +53,8 @@ export default function TypingPractice() {
 
   const current = queue[currentIndex];
 
-  const handleSubmit = async (e) => {
+  // CHỈ khi người dùng thực sự submit đáp án (bấm "Kiểm tra" hoặc Enter).
+  const handleSubmitAnswer = async (e) => {
     e.preventDefault();
     if (!current || answered) return;
 
@@ -74,12 +76,31 @@ export default function TypingPractice() {
     }));
   };
 
-  const handleNext = () => {
+  // Enter trong ô nhập: nếu CHƯA trả lời → gửi qua form handleSubmitAnswer;
+  // nếu ĐÃ trả lời → chuyển sang từ tiếp theo (không gọi lại checkAnswer).
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter' && answered) {
+      e.preventDefault();
+      handleNextWord();
+    }
+  };
+
+  // CHỈ chuyển sang từ kế tiếp + reset trạng thái câu hỏi.
+  // KHÔNG gọi checkAnswer() ở đây.
+  const handleNextWord = () => {
     setInput('');
     setFeedback(null);
     setAnswered(false);
     setCurrentIndex((i) => i + 1);
   };
+
+  // Mỗi khi sang câu mới: bảo đảm focus vào ô nhập (vì autoFocus chỉ chạy 1 lần
+  // khi mount, không tự chạy lại khi currentIndex đổi).
+  useEffect(() => {
+    if (currentIndex >= queue.length) return;
+    inputRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
 
   const restart = () => {
     setInput('');
@@ -191,18 +212,22 @@ export default function TypingPractice() {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <form onSubmit={handleSubmitAnswer} className="mt-8 space-y-4">
+            {/* key={currentIndex} đảm bảo input được remount mỗi khi sang từ mới,
+                nên ô nhập luôn trống và sẵn sàng gõ (KHÔNG dính giá trị cũ). */}
             <input
+              key={currentIndex}
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              disabled={answered}
+              onKeyDown={handleInputKeyDown}
+              readOnly={answered}
               placeholder="Nhập từ tiếng Anh..."
-              autoFocus
               autoComplete="off"
               autoCapitalize="off"
               spellCheck="false"
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-center text-xl text-zinc-900 placeholder:text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-zinc-50"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-center text-xl text-zinc-900 placeholder:text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 read-only:bg-zinc-50"
             />
 
             {/* Phản hồi */}
@@ -225,7 +250,7 @@ export default function TypingPractice() {
                 Kiểm tra
               </Button>
             ) : (
-              <Button type="button" size="lg" className="w-full" onClick={handleNext}>
+              <Button type="button" size="lg" className="w-full" onClick={handleNextWord}>
                 {currentIndex + 1 >= queue.length ? 'Kết thúc' : 'Từ tiếp theo'}
               </Button>
             )}

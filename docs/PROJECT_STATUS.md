@@ -100,10 +100,19 @@ RPC đã dùng: `advanced_search_sets`, `import_words_to_set`.
 - Schema `database/schema.sql` (cũ) khác với schema production thực tế (dùng `db.service.js`). React migration dùng schema production đang hoạt động.
 - Nếu production DB thiếu cột/bảng, cần tạo migration — hiện chưa cần vì legacy đang hoạt động.
 
+## Production Deployment (Vercel)
+
+- ✅ `vercel.json` — SPA rewrite (mọi route → `index.html`), refresh/URL con hoạt động.
+- ✅ Console debug log bọc `if (import.meta.env.DEV)` — không lộ chi tiết trong production.
+- ✅ Raw error message thay bằng thông báo thân thiện (không leak internal Supabase/DB).
+- ✅ Dynamic import dư ở VocabularyDetail đã bỏ (static import) — build không warning.
+- ✅ `npm run build` PASS (110 modules, không warning).
+- 📄 Hướng dẫn chi tiết: `docs/PRODUCTION_DEPLOYMENT.md` (Vercel, env, Supabase URL config, Google OAuth, checklist test).
+
 ## Bước tiếp theo
 
 1. Legacy cleanup (xóa HTML/CSS/JS cũ sau khi React ổn định).
-2. Thêm SRS Review.
+2. Thêm ESLint (phase code quality).
 3. Dashboard nâng cao.
 4. Import từ bằng AI.
 </content>

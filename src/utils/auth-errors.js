@@ -50,6 +50,38 @@ export function getAuthErrorMessage(error) {
   const code = (error.code || '').toLowerCase();
   const status = error.status;
 
+  // Lỗi PostgreSQL / PostgREST (Lỗi INSERT/RLS/NOT NULL/unique từ RPC).
+  // Ưu tiên nhận diện code PostgreSQL (23505 duplicate, 23502 not-null, 42501 rls).
+  if (code === '23505' || message.includes('duplicate key value')) {
+    return 'Từ này đã tồn tại. Vui lòng kiểm tra danh sách nhập.';
+  }
+  if (code === '23502' || message.includes('null value in column')) {
+    return 'Có từ thiếu dữ liệu bắt buộc (ví dụ: nghĩa). Vui lòng kiểm tra dòng đã nhập.';
+  }
+  if (
+    code === '42501' ||
+    message.includes('row-level security') ||
+    message.includes('new row violates') ||
+    (message.includes('permission') && message.includes('denied'))
+  ) {
+    return 'Bạn không có quyền thực hiện thao tác này vào bộ từ. Vui lòng kiểm tra quyền truy cập.';
+  }
+if (
+    message.includes('could not find the function') ||
+    message.includes('function') ||
+    message.includes('does not exist')
+  ) {
+    return 'Không tìm thấy hàm import dữ liệu trên máy chủ.';
+  }
+
+  // Lỗi tùy chỉnh từ RPC import_words_to_set (SECURITY DEFINER) — bảo mật.
+  if (message.includes('cần đăng nhập')) {
+    return 'Bạn cần đăng nhập để nhập từ.';
+  }
+  if (message.includes('không có quyền nhập từ')) {
+    return 'Bạn không có quyền nhập từ vào bộ từ này.';
+  }
+
   // 1. Ưu tiên: Lỗi rate limit (quá nhiều yêu cầu)
   if (
     status === 429 ||
@@ -78,6 +110,12 @@ export function getAuthErrorMessage(error) {
   }
 
   // 4. Các trường hợp tra cứu lỏng lẻo khác
+
+  // 4a. Lỗi enum word_type không hợp lệ (PostgreSQL 22P02) khi import từ vựng.
+  if (code === '22p02' || message.includes('invalid input value for enum')) {
+    return 'Loại từ không hợp lệ. Vui lòng chọn một loại từ trong danh sách (noun, verb, adjective...).';
+  }
+
   if (message.includes('invalid login credentials')) {
     return 'Email hoặc mật khẩu không chính xác.';
   }
@@ -106,6 +144,17 @@ const CALLBACK_ERROR_MAP = {
   'Invalid token': 'Liên kết xác thực không hợp lệ. Vui lòng gửi lại email xác thực.',
   email_not_confirmed: 'Email của bạn chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.',
   'Email not confirmed': 'Email của bạn chưa được xác thực. Vui lòng kiểm tra email để xác nhận tài khoản.',
+  // Google OAuth / Provider lỗi
+  provider_disabled: 'Đăng nhập bằng Google hiện chưa được bật. Vui lòng thử lại sau.',
+  'Provider is disabled': 'Đăng nhập bằng Google hiện chưa được bật. Vui lòng thử lại sau.',
+  oauth_failed: 'Đăng nhập bằng Google thất bại. Vui lòng thử lại.',
+  'Failed to fetch from google': 'Đăng nhập bằng Google thất bại. Vui lòng thử lại.',
+  crypto_not_subtle: 'Trình duyệt của bạn không hỗ trợ mã hoá cần thiết cho đăng nhập. Vui lòng dùng trình duyệt khác.',
+  'Invalid Credentials': 'Email hoặc mật khẩu không chính xác.',
+  'Sign in with Google was cancelled': 'Bạn đã huỷ đăng nhập bằng Google.',
+  'User cancelled': 'Bạn đã huỷ đăng nhập bằng Google.',
+  'Flow State Not Found': 'Phiên đăng nhập Google đã hết hạn. Vui lòng thử lại.',
+  'flow_state_not_found': 'Phiên đăng nhập Google đã hết hạn. Vui lòng thử lại.',
 };
 
 /**

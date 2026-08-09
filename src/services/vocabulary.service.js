@@ -74,7 +74,35 @@ export async function importWordsToSet(setId, words) {
     p_set_id: setId,
     p_words_data: words,
   });
-  return { data, error };
+// Log đầy đủ lỗi thật (message, code, details, hint) dưới dạng CHUỖI
+  // để console không gập thành "Object" — chỉ log khi DEV, tránh lộ thông tin
+  // nội bộ database/Supabase trong production.
+  if (error) {
+    if (import.meta.env.DEV) {
+      const errInfo = {
+        status: error?.status ?? null,
+        code: error?.code ?? null,
+        message: error?.message ?? null,
+        details: error?.details ?? null,
+        hint: error?.hint ?? null,
+        error_code: error?.error_code ?? null,
+        setId,
+        wordsCount: (words || []).length,
+        firstWord: words?.[0]?.word ?? null,
+      };
+      console.error('[importWordsToSet] RPC error:', JSON.stringify(errInfo, null, 2));
+    }
+    return { data: null, error };
+  }
+
+  // RPC trả về mảng [{ imported, errored }]. Chuẩn hoá về mảng các từ đã nhập
+  // (giữ khả năng tương thích với RPC cũ trả mảng object) để UI dùng `data.length`.
+  let importedWords = data;
+  if (Array.isArray(data) && data.length === 1 && typeof data[0] === 'object' && data[0] !== null && 'imported' in data[0]) {
+    const { imported, errored } = data[0];
+    return { data: Array.from({ length: imported ?? 0 }), error: null, meta: { imported, errored } };
+  }
+  return { data: Array.isArray(importedWords) ? importedWords : [], error: null };
 }
 
 /** Lấy danh sách từ trong set kèm tiến trình học (mastery_level). */
@@ -180,6 +208,53 @@ export async function deleteWordFromSet(setId, wordSenseId) {
     .eq('set_id', setId)
     .eq('word_sense_id', wordSenseId);
   return { error };
+}
+
+/**
+ * Lấy thống kê số từ theo cấp độ CEFR cho toàn bộ từ của user.
+ * Duyệt tất cả word_senses trong các set của user, lấy cefr_level từ bảng words,
+ * đếm theo từng cấp A1–C2 và "Chưa xác định".
+ * @param {string} userId
+ * @returns {Promise<{ data: { [level:string]: number, total:number }, error }>}
+ */
+export async function getCefrStats(userId) {
+  if (!userId) return { data: null, error: null };
+
+  const { data, error } = await supabase
+    .from('set_words')
+    .select(
+      `set_id,
+       word_senses (
+         words (
+           cefr_level
+         )
+       )`
+    )
+    .in(
+      'set_id',
+      (
+        await supabase
+          .from('vocabulary_sets')
+          .select('id')
+          .eq('user_id', userId)
+      ).data?.map((r) => r.id) || []
+    );
+
+  if (error) return { data: null, error };
+
+  const counts = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, UNKNOWN: 0, total: 0 };
+  (data || []).forEach((item) => {
+    const level = item.word_senses?.words?.cefr_level;
+    counts.total += 1;
+    const key = String(level || '').trim().toUpperCase();
+    if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(key)) {
+      counts[key] += 1;
+    } else {
+      counts.UNKNOWN += 1;
+    }
+  });
+
+  return { data: counts, error: null };
 }
 
 /** Tìm kiếm nâng cao bộ từ (dùng RPC advanced_search_sets). */

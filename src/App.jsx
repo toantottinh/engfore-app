@@ -11,7 +11,9 @@ import Register from './pages/Register/index.jsx';
 import App from './pages/App/index.jsx';
 import Vocabulary from './pages/Vocabulary/index.jsx';
 import VocabularyDetail from './pages/VocabularyDetail/index.jsx';
+import Import from './pages/Import/index.jsx';
 import Practice from './pages/Practice/index.jsx';
+import Review from './pages/Review/index.jsx';
 import TypingPractice from './pages/TypingPractice/index.jsx';
 import FlashcardPractice from './pages/FlashcardPractice/index.jsx';
 import Profile from './pages/Profile/index.jsx';
@@ -35,7 +37,9 @@ export default function AppRoutes() {
           <Route path="/app" element={<App />} />
           <Route path="/vocabulary" element={<Vocabulary />} />
           <Route path="/vocabulary/:setId" element={<VocabularyDetail />} />
+          <Route path="/import" element={<Import />} />
           <Route path="/practice" element={<Practice />} />
+          <Route path="/review" element={<Review />} />
           <Route path="/practice/typing/:setId" element={<TypingPractice />} />
           <Route path="/practice/flashcard/:setId" element={<FlashcardPractice />} />
           <Route path="/profile" element={<Profile />} />

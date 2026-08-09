@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useLearning } from '../../hooks/useLearning.js';
 import { getVocabularySet } from '../../services/vocabulary.service.js';
@@ -49,21 +49,37 @@ export default function FlashcardPractice() {
     if (!rated) setFlipped((f) => !f);
   };
 
-  const rate = async (recall) => {
+const rate = async (recall) => {
     if (!current) return;
-    await recordProgress(current.id, { recall });
+    // recall >= 2 ("Nhớ"/"Rất dễ") -> correct; recall < 2 ("Chưa nhớ"/"Khó") -> incorrect.
+    // Logic mastery/interval được xử lý tập trung trong learning.service.js.
+    const correct = recall >= 2;
+    await recordProgress(current.id, { correct });
     setStats((s) => ({
-      remembered: s.remembered + (recall >= 2 ? 1 : 0),
+      remembered: s.remembered + (correct ? 1 : 0),
       total: s.total + 1,
     }));
     setRated(true);
   };
 
-  const next = () => {
+  const next = useCallback(() => {
     setFlipped(false);
     setRated(false);
     setCurrentIndex((i) => i + 1);
-  };
+  }, []);
+
+  // Nhấn Enter khi đã đánh giá xong → chuyển sang thẻ tiếp theo cho tiện.
+  useEffect(() => {
+    if (!rated) return;
+    const onKey = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        next();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [rated, next]);
 
   const restart = () => {
     setFlipped(false);

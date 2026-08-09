@@ -8,6 +8,7 @@ import {
   deleteWordFromSet,
 } from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
+import { normalizeCefr, cefrLabel, cefrBadgeClass } from '../../utils/cefr.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
@@ -24,11 +25,14 @@ const WORD_TYPES = {
   preposition: 'Giới từ',
   conjunction: 'Liên từ',
   pronoun: 'Đại từ',
+  determiner: 'Định từ',
   interjection: 'Thán từ',
+  phrasal_verb: 'Cụm động từ',
+  verb_phrase: 'Verb phrase (Cụm động từ ngữ)',
   other: 'Khác',
 };
 
-const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']; // null = Chưa xác định
 
 function masteryStatus(level) {
   const l = level ?? 0;
@@ -50,8 +54,9 @@ const [set, setSet] = useState(null);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const [search, setSearch] = useState('');
+const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [cefrFilter, setCefrFilter] = useState('all');
   const [sort, setSort] = useState('abc-asc');
 
   const [wordModalOpen, setWordModalOpen] = useState(false);
@@ -60,23 +65,26 @@ const [set, setSet] = useState(null);
   const [editingWord, setEditingWord] = useState(null);
   const [deletingWord, setDeletingWord] = useState(null);
   const [formError, setFormError] = useState('');
-  const [wordForm, setWordForm] = useState({
+const [wordForm, setWordForm] = useState({
     word: '',
     ipa: '',
     word_type: 'noun',
     meaning: '',
     example: '',
     description: '',
-    cefr_level: 'A1',
+    cefr_level: '',
   });
 
-  const loadSet = useCallback(async () => {
+const loadSet = useCallback(async () => {
     setSetLoading(true);
     setError('');
     const { data, error: err } = await getVocabularySet(setId);
     setSetLoading(false);
     if (err || !data) {
-      setError(err?.message || 'Không tìm thấy bộ từ vựng.');
+      if (import.meta.env.DEV) {
+        console.error('[VocabularyDetail] load set error:', err);
+      }
+      setError('Không tìm thấy bộ từ vựng hoặc đã xảy ra lỗi. Vui lòng thử lại.');
       return;
     }
     setSet(data);
@@ -88,7 +96,10 @@ const [set, setSet] = useState(null);
     const { data, error: err } = await getWordsInSet(setId);
     setLoading(false);
     if (err) {
-      setError(err.message || 'Không thể tải danh sách từ.');
+      if (import.meta.env.DEV) {
+        console.error('[VocabularyDetail] load words error:', err);
+      }
+      setError('Không thể tải danh sách từ. Vui lòng thử lại.');
       return;
     }
     setWords(data || []);
@@ -107,12 +118,18 @@ const [set, setSet] = useState(null);
         w.word.toLowerCase().includes(q) ||
         w.meaning.toLowerCase().includes(q) ||
         w.ipa.toLowerCase().includes(q);
-      const matchFilter =
+const matchFilter =
         filter === 'all' ||
         (filter === 'unseen' && (w.mastery_level ?? 0) === 0) ||
         (filter === 'learning' && (w.mastery_level ?? 0) >= 1 && (w.mastery_level ?? 0) < 5) ||
         (filter === 'mastered' && (w.mastery_level ?? 0) === 5);
-      return matchSearch && matchFilter;
+      // Lọc theo CEFR: 'all' = hiện hết; 'unknown' = chưa xác định; còn lại là level cụ thể.
+      const wordCefr = normalizeCefr(w.cefr_level);
+      const matchCefr =
+        cefrFilter === 'all' ||
+        (cefrFilter === 'unknown' && !wordCefr) ||
+        (cefrFilter !== 'unknown' && wordCefr === cefrFilter);
+      return matchSearch && matchFilter && matchCefr;
     })
     .sort((a, b) => {
       const [key, dir] = sort.split('-');
@@ -138,9 +155,9 @@ const [set, setSet] = useState(null);
       ipa: '',
       word_type: 'noun',
       meaning: '',
-      example: '',
+example: '',
       description: '',
-      cefr_level: 'A1',
+      cefr_level: '',
     });
     setWordModalOpen(true);
   };
@@ -154,8 +171,8 @@ const [set, setSet] = useState(null);
       word_type: w.word_type || 'noun',
       meaning: w.meaning || '',
       example: w.example || '',
-      description: w.description || '',
-      cefr_level: w.cefr_level || 'A1',
+description: w.description || '',
+      cefr_level: w.cefr_level || '',
     });
     setWordModalOpen(true);
   };
@@ -177,7 +194,7 @@ const [set, setSet] = useState(null);
       setFormError('Vui lòng nhập nghĩa tiếng Việt.');
       return;
     }
-    setActionLoading(true);
+setActionLoading(true);
     if (editingWord) {
       const { error: err } = await updateWord(editingWord.word_id, editingWord.id, wordForm);
       setActionLoading(false);
@@ -186,7 +203,20 @@ const [set, setSet] = useState(null);
         return;
       }
     } else {
-      const { error: err } = await importWordsToSet(setId, [wordForm]);
+      // RPC import_words_to_set đọc field `cefr` (kiểu enum A1–C2), không phải `cefr_level`.
+      // Chuẩn hóa qua normalizeCefr: trống/không hợp lệ -> null để tránh lỗi 22P02 enum.
+      const payload = [
+        {
+          word: wordForm.word,
+          ipa: wordForm.ipa,
+          word_type: wordForm.word_type,
+          meaning: wordForm.meaning,
+          example: wordForm.example,
+          description: wordForm.description,
+          cefr: normalizeCefr(wordForm.cefr_level),
+        },
+      ];
+      const { error: err } = await importWordsToSet(setId, payload);
       setActionLoading(false);
       if (err) {
         setFormError(getAuthErrorMessage(err));
@@ -211,9 +241,10 @@ const [set, setSet] = useState(null);
     loadWords();
   };
 
-  const handleDeleteSet = async () => {
+const handleDeleteSet = async () => {
     setActionLoading(true);
-    const { deleteVocabularySet } = await import('../../services/vocabulary.service.js');
+    // deleteVocabularySet đã được static import ở đầu file — dùng trực tiếp
+    // (loại dynamic import dư, tránh warning chunk khi build).
     const { error: err } = await deleteVocabularySet(setId);
     setActionLoading(false);
     if (err) {
@@ -299,10 +330,25 @@ if (setLoadingState && !set) {
             className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             aria-label="Lọc theo trạng thái"
           >
-            <option value="all">Tất cả</option>
+<option value="all">Tất cả</option>
             <option value="unseen">Chưa học</option>
             <option value="learning">Đang học</option>
             <option value="mastered">Đã thuộc</option>
+          </select>
+          <select
+            value={cefrFilter}
+            onChange={(e) => setCefrFilter(e.target.value)}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="Lọc theo cấp độ CEFR"
+          >
+            <option value="all">Cấp độ: Tất cả</option>
+            <option value="A1">A1</option>
+            <option value="A2">A2</option>
+            <option value="B1">B1</option>
+            <option value="B2">B2</option>
+            <option value="C1">C1</option>
+            <option value="C2">C2</option>
+            <option value="unknown">Chưa xác định</option>
           </select>
           <select
             value={sort}
@@ -353,7 +399,8 @@ if (setLoadingState && !set) {
                 <th className="px-4 py-3 font-medium">STT</th>
                 <th className="px-4 py-3 font-medium">Từ</th>
                 <th className="px-4 py-3 font-medium">IPA</th>
-                <th className="px-4 py-3 font-medium">Loại từ</th>
+<th className="px-4 py-3 font-medium">Loại từ</th>
+                <th className="px-4 py-3 font-medium">Cấp độ</th>
                 <th className="px-4 py-3 font-medium">Nghĩa</th>
                 <th className="px-4 py-3 font-medium">Ví dụ</th>
                 <th className="px-4 py-3 font-medium">Trạng thái</th>
@@ -370,8 +417,13 @@ if (setLoadingState && !set) {
                     <td className="px-4 py-3 text-zinc-600">
                       {w.ipa ? `/${w.ipa}/` : '—'}
                     </td>
-                    <td className="px-4 py-3 text-zinc-600">
+<td className="px-4 py-3 text-zinc-600">
                       {WORD_TYPES[w.word_type] || w.word_type || '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cefrBadgeClass(w.cefr_level)}`}>
+                        {cefrLabel(w.cefr_level)}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-zinc-700">{w.meaning}</td>
                     <td className="px-4 py-3 max-w-[200px] truncate text-zinc-600">
@@ -503,6 +555,7 @@ if (setLoadingState && !set) {
               onChange={(e) => setWordForm({ ...wordForm, cefr_level: e.target.value })}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
+<option value="">Chưa xác định</option>
               {CEFR_LEVELS.map((l) => (
                 <option key={l} value={l}>
                   {l}

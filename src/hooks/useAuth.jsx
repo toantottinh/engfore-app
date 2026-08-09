@@ -22,8 +22,8 @@ export function AuthProvider({ children }) {
         if (!mounted) return;
         setSession(data.session);
         setUser(data.session?.user ?? null);
-      } catch (err) {
-        if (mounted) {
+} catch (err) {
+        if (mounted && import.meta.env.DEV) {
           console.error('Lỗi khi tải session:', err);
         }
       } finally {
@@ -56,8 +56,8 @@ export function AuthProvider({ children }) {
         .then(({ data }) => {
           if (mounted && data) setProfile(data);
         })
-        .catch((err) => {
-          if (mounted) console.error('Lỗi khi đồng bộ profile:', err);
+.catch((err) => {
+          if (mounted && import.meta.env.DEV) console.error('Lỗi khi đồng bộ profile:', err);
         });
     } else {
       setProfile(null);

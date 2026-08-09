@@ -2,12 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
+import { getCefrStats } from '../../services/vocabulary.service.js';
+import { cefrBadgeClass } from '../../utils/cefr.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
+
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'UNKNOWN'];
 
 export default function App() {
   const { user, profile } = useAuth();
   const { sets, loading } = useVocabulary();
+  const [cefrStats, setCefrStats] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    if (user?.id) {
+      getCefrStats(user.id).then(({ data }) => {
+        if (mounted) setCefrStats(data);
+      });
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
 
   const totalWords = sets.reduce((sum, s) => sum + (s.word_count || 0), 0);
   const firstName = profile?.username || user?.email?.split('@')[0] || 'bạn';
@@ -29,13 +46,38 @@ export default function App() {
           <p className="text-sm text-zinc-500">Từ vựng</p>
           <p className="mt-1 text-3xl font-bold text-zinc-900">{totalWords}</p>
         </div>
-        <div className="rounded-xl border border-indigo-600 bg-indigo-600 p-5 text-white">
+<div className="rounded-xl border border-indigo-600 bg-indigo-600 p-5 text-white">
           <p className="text-sm text-indigo-100">Mẹo học</p>
           <p className="mt-1 text-sm font-medium leading-relaxed">
             Luyện tập 10 phút mỗi ngày sẽ giúp bạn nhớ từ lâu hơn.
           </p>
         </div>
       </div>
+
+      {/* Thống kê theo cấp độ CEFR */}
+      {cefrStats && cefrStats.total > 0 && (
+        <div className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-900">Phân bố cấp độ CEFR</h2>
+            <span className="text-sm text-zinc-500">{cefrStats.total} từ</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {CEFR_ORDER.map((level) => {
+              const count = cefrStats[level] ?? 0;
+              const pct = cefrStats.total ? Math.round((count / cefrStats.total) * 100) : 0;
+              return (
+                <div key={level} className="flex items-center gap-2 rounded-lg border border-zinc-100 px-3 py-2">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cefrBadgeClass(level === 'UNKNOWN' ? null : level)}`}>
+                    {level === 'UNKNOWN' ? 'Chưa xác định' : level}
+                  </span>
+                  <span className="text-sm font-semibold text-zinc-900">{count}</span>
+                  <span className="text-xs text-zinc-400">({pct}%)</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-zinc-900">Bắt đầu học</h2>

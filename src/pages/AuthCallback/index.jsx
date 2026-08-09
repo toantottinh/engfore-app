@@ -46,11 +46,15 @@ export default function AuthCallback() {
         }
 
         // Trường hợp PKCE: có mã code -> đổi code lấy session
-        const code = params.get('code');
+        // ⇐ Cả email confirmation VÀ Google OAuth đều redirect về đây với `code`
+        //   (Supabase dùng PKCE cho OAuth). Nên giải thuật này dùng chung cho cả hai.
+const code = params.get('code');
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
-            console.error('[AuthCallback] exchangeCodeForSession error:', exchangeError);
+            if (import.meta.env.DEV) {
+              console.error('[AuthCallback] exchangeCodeForSession error:', exchangeError);
+            }
             if (!cancelled) {
               setStatus('error');
               setMessage(getCallbackErrorMessage(exchangeError.error_code, exchangeError.message));
@@ -58,16 +62,24 @@ export default function AuthCallback() {
             return;
           }
         }
-        // Trường hợp hash token: detectSessionInUrl đã xử lý, session cập nhật qua
-        // onAuthStateChange trong AuthProvider. Ta chỉ cần đợi user.
+// Xác định provider (email vs Google) dựa trên session thật.
+        // Quan trọng: sau exchangeCodeForSession, state `user` trong closure này
+        // vẫn còn null (async), nên ta lấy session chủ động để phân biệt.
+        let provider = user?.app_metadata?.provider;
+        if (!provider) {
+          const { data: sessData } = await supabase.auth.getSession();
+          provider = sessData?.session?.user?.app_metadata?.provider;
+        }
+        const isOAuth = provider && provider !== 'email';
 
-        // Nếu có session (user) -> thành công
+        // Nếu có session (user) -> thành công.
+        // KHÔNG tạo session giả — session thật do Supabase exchange tạo ra.
         if (!cancelled) {
           setStatus('success');
-          setMessage('Xác thực email thành công!');
+          setMessage(isOAuth ? 'Đăng nhập bằng Google thành công!' : 'Xác thực email thành công!');
         }
-      } catch (e) {
-        console.error('[AuthCallback] unexpected error:', e);
+} catch (e) {
+        if (import.meta.env.DEV) console.error('[AuthCallback] unexpected error:', e);
         if (!cancelled) {
           setStatus('error');
           setMessage('Đã xảy ra lỗi. Vui lòng thử lại.');

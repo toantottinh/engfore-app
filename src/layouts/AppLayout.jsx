@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { authService } from '../services/auth.service.js';
+import { getDueReviewWordsCount } from '../services/learning.service.js';
 
 const navItems = [
-  { to: '/app', label: 'Tổng quan', icon: '📊', end: true },
+{ to: '/app', label: 'Tổng quan', icon: '📊', end: true },
   { to: '/vocabulary', label: 'Từ vựng', icon: '📚' },
+  { to: '/import', label: 'Nhập từ', icon: '📥' },
   { to: '/practice', label: 'Luyện tập', icon: '✏️' },
+  { to: '/review', label: 'Ôn tập', icon: '🔄' },
   { to: '/profile', label: 'Hồ sơ', icon: '👤' },
 ];
 
@@ -18,12 +21,29 @@ export default function AppLayout() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [dueCount, setDueCount] = useState(0);
 
-const handleLogout = async () => {
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setDueCount(0);
+      return;
+    }
+    getDueReviewWordsCount(user.id).then(({ count }) => {
+      if (active) setDueCount(count ?? 0);
+    });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const handleLogout = async () => {
+    // Đăng xuất qua authService (Supabase auth.signOut) — clear session đúng cách.
+    // KHÔNG dùng window.location (full-page) vì sẽ bị Vite serve file legacy
+    // login.html/login.js ở root, thay vì route React /login.
     await authService.signOut();
-    // Dùng window.location.replace để xoá lịch sử trang trước đó,
-    // tránh trạng thái login cũ trong history/cache.
-    window.location.replace('/login');
+    // Điều hướng client-side bằng React Router — luôn về route React /login.
+    navigate('/login', { replace: true });
   };
 
   const displayName = profile?.username || user?.email?.split('@')[0] || 'Người dùng';
@@ -53,7 +73,12 @@ const handleLogout = async () => {
             }
           >
             <span aria-hidden="true">{item.icon}</span>
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.to === '/review' && dueCount > 0 && (
+              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+                {dueCount > 99 ? '99+' : dueCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
