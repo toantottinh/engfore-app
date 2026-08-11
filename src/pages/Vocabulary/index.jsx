@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
 import Button from '../../components/ui/Button.jsx';
@@ -6,27 +6,33 @@ import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
-import EmptyState from '../../components/ui/EmptyState.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 
 export default function Vocabulary() {
   const { sets, loading, error, createSet, updateSet, removeSet, mutationLoading } =
     useVocabulary();
 
-  const [search, setSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // State cho các form
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [editingSet, setEditingSet] = useState(null);
   const [deletingSet, setDeletingSet] = useState(null);
 
-  const filteredSets = sets.filter((s) =>
-    s.name.toLowerCase().includes(search.trim().toLowerCase())
-  );
+  const filteredSets = useMemo(() => {
+    if (!searchTerm.trim()) return sets;
+    const lowercasedFilter = searchTerm.trim().toLowerCase();
+    return sets.filter(
+      (set) =>
+        set.name.toLowerCase().includes(lowercasedFilter) ||
+        (set.description || '').toLowerCase().includes(lowercasedFilter)
+    );
+  }, [sets, searchTerm]);
 
   const openCreate = () => {
     setFormError('');
@@ -92,38 +98,109 @@ export default function Vocabulary() {
     setDeleteOpen(false);
   };
 
-  const formatDate = (iso) => {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('vi-VN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return '';
-    }
+  // Component con cho card bộ từ
+  const SetCard = ({ set }) => {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (menuRef.current && !menuRef.current.contains(event.target)) {
+          setMenuOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+      <div className="flex flex-col rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg">
+        <div className="flex items-start justify-between">
+          <h3 className="flex-1 pr-2 font-semibold text-text-primary">{set.name}</h3>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Tùy chọn"
+              className="rounded-full p-1.5 text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+            >
+              <i className="bx bx-dots-vertical-rounded text-lg"></i>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full z-10 mt-1 w-40 origin-top-right rounded-md border border-border-color bg-surface-default py-1 shadow-lg">
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openEdit(set);
+                  }}
+                  className="block w-full px-4 py-2 text-left text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                >
+                  Chỉnh sửa
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openDelete(set);
+                  }}
+                  className="block w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-surface-hover hover:text-red-300"
+                >
+                  Xóa
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 flex-grow">
+          <p className="text-sm text-text-secondary">{set.word_count || 0} từ</p>
+          <p className="mt-1 text-xs text-text-secondary/70">
+            Cập nhật {new Date(set.updated_at || set.created_at).toLocaleDateString('vi-VN')}
+          </p>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <Link
+            to={`/practice/flashcard/${set.id}`}
+            className="flex-1 rounded-lg bg-brand-primary px-3 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-brand-primary/80"
+          >
+            Bắt đầu học
+          </Link>
+        </div>
+      </div>
+    );
   };
 
+  // Component con cho các trạng thái đặc biệt
+  const EmptyState = ({ icon, title, description, action }) => (
+    <div className="col-span-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-color bg-surface-sidebar/50 py-20 text-center">
+      <span className="text-5xl" aria-hidden="true">{icon}</span>
+      <h3 className="mt-4 text-lg font-semibold text-text-primary">{title}</h3>
+      <p className="mt-1 max-w-xs text-sm text-text-secondary">{description}</p>
+      {action && <div className="mt-6">{action}</div>}
+    </div>
+  );
+
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Từ vựng</h1>
-          <p className="mt-1 text-sm text-zinc-500">Quản lý các bộ từ vựng của bạn.</p>
+          <h1 className="text-2xl font-bold text-text-primary">Bộ từ</h1>
+          <p className="mt-1 text-text-secondary">Quản lý các bộ từ vựng của bạn.</p>
         </div>
-        <Button onClick={openCreate} size="md">
-          <span aria-hidden="true">+</span> Tạo bộ từ
+        <Button onClick={openCreate}>
+          <i className="bx bx-plus text-lg"></i>
+          <span>Tạo bộ từ</span>
         </Button>
       </div>
 
-      <div className="mb-6">
+      <div className="relative">
+        <i className="bx bx-search absolute left-3 top-1/2 -translate-y-1/2 text-lg text-text-secondary"></i>
         <Input
           type="search"
           placeholder="Tìm kiếm bộ từ..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           aria-label="Tìm kiếm bộ từ"
+          className="!pl-10"
         />
       </div>
 
@@ -131,87 +208,29 @@ export default function Vocabulary() {
 
       {loading ? (
         <Spinner />
-      ) : filteredSets.length === 0 ? (
-        search ? (
-          <EmptyState
-            title="Không tìm thấy bộ từ"
-            description="Không có bộ từ nào khớp với từ khóa tìm kiếm của bạn."
-          />
-        ) : (
-          <EmptyState
-            title="Bạn chưa có bộ từ vựng nào"
-            description="Hãy tạo bộ từ đầu tiên để bắt đầu học từ vựng."
-            action={
-              <Button onClick={openCreate}>
-                <span aria-hidden="true">+</span> Tạo bộ từ đầu tiên
-              </Button>
-            }
-          />
-        )
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredSets.map((set) => (
-            <div
-              key={set.id}
-              className="flex flex-col rounded-xl border border-zinc-200 bg-white p-5 transition-shadow hover:shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <Link
-                  to={`/vocabulary/${set.id}`}
-                  className="min-w-0 flex-1 text-lg font-semibold text-zinc-900 hover:text-indigo-600"
-                >
-                  {set.name}
-                </Link>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => openEdit(set)}
-                    className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-                    title="Chỉnh sửa"
-                    aria-label={`Chỉnh sửa ${set.name}`}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => openDelete(set)}
-                    className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600"
-                    title="Xóa"
-                    aria-label={`Xóa ${set.name}`}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {set.description && (
-                <p className="mt-1 line-clamp-2 text-sm text-zinc-500">{set.description}</p>
-              )}
-
-              <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3 text-xs text-zinc-500">
-                <span>{set.word_count || 0} từ</span>
-                <span>Tạo: {formatDate(set.created_at)}</span>
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <Link
-                  to={`/vocabulary/${set.id}`}
-                  className="flex-1 rounded-lg border border-zinc-300 px-3 py-1.5 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-                >
-                  Mở
-                </Link>
-                <Link
-                  to={`/practice/typing/${set.id}`}
-                  className="flex-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-center text-sm font-medium text-white hover:bg-indigo-700"
-                >
-                  Học
-                </Link>
-              </div>
-            </div>
-          ))}
+          {filteredSets.length > 0 ? (
+            filteredSets.map((set) => <SetCard key={set.id} set={set} />)
+          ) : searchTerm ? (
+            <EmptyState
+              icon="🔍"
+              title="Không tìm thấy bộ từ"
+              description="Không có bộ từ nào khớp với từ khóa tìm kiếm của bạn."
+            />
+          ) : (
+            <EmptyState
+              icon="📚"
+              title="Chưa có bộ từ nào"
+              description="Tạo bộ từ đầu tiên để bắt đầu học."
+              action={
+                <Button onClick={openCreate}>
+                  <i className="bx bx-plus text-lg"></i>
+                  <span>Tạo bộ từ</span>
+                </Button>
+              }
+            />
+          )}
         </div>
       )}
 
@@ -222,7 +241,7 @@ export default function Vocabulary() {
         title="Tạo bộ từ mới"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
               Hủy
             </Button>
             <Button type="submit" form="set-form" loading={mutationLoading}>
@@ -234,7 +253,7 @@ export default function Vocabulary() {
         <form id="set-form" onSubmit={handleCreate} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
           <Input
-            label="Tên bộ từ *"
+            label="Tên bộ từ"
             name="name"
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
@@ -259,7 +278,7 @@ export default function Vocabulary() {
         title="Chỉnh sửa bộ từ"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setEditOpen(false)}>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
               Hủy
             </Button>
             <Button type="submit" form="edit-set-form" loading={mutationLoading}>
@@ -271,7 +290,7 @@ export default function Vocabulary() {
         <form id="edit-set-form" onSubmit={handleEdit} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
           <Input
-            label="Tên bộ từ *"
+            label="Tên bộ từ"
             name="name"
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
@@ -296,7 +315,7 @@ export default function Vocabulary() {
         title="Xóa bộ từ"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
+            <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
               Hủy
             </Button>
             <Button variant="danger" onClick={handleDelete} loading={mutationLoading}>
@@ -305,7 +324,7 @@ export default function Vocabulary() {
           </>
         }
       >
-        <p className="text-sm text-zinc-700">
+        <p className="text-sm text-text-secondary">
           Bạn có chắc muốn xóa bộ từ{' '}
           <span className="font-semibold">"{deletingSet?.name}"</span>? Hành động này không thể
           hoàn tác.
