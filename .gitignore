@@ -24,3 +24,4 @@ Thumbs.db
 # Supabase local
 supabase/.temp/
 supabase/.branches/
+staging_backup.sql
