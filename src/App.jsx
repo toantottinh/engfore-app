@@ -1,6 +1,8 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import PublicLayout from './layouts/PublicLayout.jsx';
+import VocabularyLayout from './VocabularyLayout.jsx';
+import LearnLayout from './LearnLayout.jsx';
 import AppLayout from './layouts/AppLayout.jsx';
 import ProtectedRoute, { PublicOnlyRoute } from './components/ProtectedRoute.jsx';
 
@@ -35,13 +37,21 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/app" element={<App />} />
-          <Route path="/vocabulary" element={<Vocabulary />} />
-          <Route path="/vocabulary/:setId" element={<VocabularyDetail />} />
-          <Route path="/import" element={<Import />} />
-          <Route path="/practice" element={<Practice />} />
-          <Route path="/review" element={<Review />} />
+
+          {/* Khu vực "Từ vựng" với sub-navigation */}
+          <Route path="/vocabulary" element={<VocabularyLayout />}>
+            <Route index element={<Vocabulary />} />
+            <Route path="import" element={<Import />} />
+            <Route path="practice" element={<Practice />} />
+          </Route>
+          <Route path="/vocabulary/:setId" element={<VocabularyDetail />} /> {/* Chi tiết bộ từ vẫn giữ nguyên */}
           <Route path="/practice/typing/:setId" element={<TypingPractice />} />
           <Route path="/practice/flashcard/:setId" element={<FlashcardPractice />} />
+
+          {/* Khu vực "Học" với sub-navigation */}
+          <Route path="/learn" element={<LearnLayout />}>
+            <Route index element={<Review />} />
+          </Route>
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

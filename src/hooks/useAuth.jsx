@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { authService } from '../services/auth.service.js';
+import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext(null);
 
@@ -12,6 +13,7 @@ export function AuthProvider({ children, initialUser, initialSession }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -76,11 +78,17 @@ export function AuthProvider({ children, initialUser, initialSession }) {
     };
   }, [user]);
 
+  const signOut = useCallback(async () => {
+    await authService.signOut();
+    navigate('/login', { replace: true });
+  }, [navigate]);
+
   const value = {
     user,
     session,
     profile,
     loading,
+    signOut,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -103,4 +111,3 @@ export function useLogout() {
     await authService.signOut();
   }, []);
 }
-
