@@ -277,3 +277,30 @@ export async function searchVocabularySets(userId, filters = {}) {
   return { data, error };
 }
 
+/**
+ * Thêm một từ mới vào bộ từ.
+ * Tái sử dụng RPC `import_words_to_set` với một từ duy nhất.
+ * @param {string} setId - ID của bộ từ.
+ * @param {object} wordData - Dữ liệu của từ cần thêm.
+ * @returns {Promise<{ data: any, error: any }>}
+ */
+export async function addWordToSet(setId, wordData) {
+  // Chuẩn hóa dữ liệu để phù hợp với RPC import_words_to_set
+  const payload = [{
+    word: wordData.word || '',
+    ipa: wordData.ipa || null,
+    word_type: wordData.word_type || 'other',
+    meaning: wordData.meaning || '',
+    description: wordData.description || null,
+    example: wordData.example || null,
+    cefr: wordData.cefr_level || null,
+  }];
+
+  const { data, error, meta } = await importWordsToSet(setId, payload);
+
+  // RPC trả về meta { imported, errored }. Nếu imported > 0, coi là thành công.
+  if (error || (meta && meta.imported === 0)) {
+    return { data: null, error: error || new Error('Không thể thêm từ. Có thể từ đã tồn tại hoặc thiếu thông tin.') };
+  }
+  return { data: data?.[0] || null, error: null }; // Trả về từ đầu tiên nếu có
+}

@@ -52,7 +52,7 @@ const HEADER_ALIASES = {
 //   noun, verb, adjective, adverb, preposition, conjunction, pronoun, other,
 //   determiner, interjection, phrasal_verb, verb_phrase
 // Dùng đúng set này để tránh lỗi PostgreSQL 22P02 khi gọi import_words_to_set.
-const VALID_WORD_TYPES = new Set([
+export const VALID_WORD_TYPES = new Set([
   'noun',
   'verb',
   'adjective',

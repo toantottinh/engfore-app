@@ -18,6 +18,7 @@ import Practice from './pages/Practice/index.jsx';
 import Review from './pages/Review/index.jsx';
 import TypingPractice from './pages/TypingPractice/index.jsx';
 import FlashcardPractice from './pages/FlashcardPractice/index.jsx';
+import LearningSession from './pages/LearningSession/index.jsx';
 import Profile from './pages/Profile/index.jsx';
 
 export default function AppRoutes() {
@@ -44,7 +45,8 @@ export default function AppRoutes() {
             <Route path="import" element={<Import />} />
             <Route path="practice" element={<Practice />} />
           </Route>
-          <Route path="/vocabulary/:setId" element={<VocabularyDetail />} /> {/* Chi tiết bộ từ vẫn giữ nguyên */}
+          <Route path="/vocabulary/:setId" element={<VocabularyDetail />} />
+          <Route path="/learn/session/:setId" element={<LearningSession />} />
           <Route path="/practice/typing/:setId" element={<TypingPractice />} />
           <Route path="/practice/flashcard/:setId" element={<FlashcardPractice />} />
 

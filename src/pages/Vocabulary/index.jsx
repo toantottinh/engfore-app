@@ -159,8 +159,14 @@ export default function Vocabulary() {
 
         <div className="mt-5 flex gap-3">
           <Link
+            to={`/vocabulary/${set.id}`}
+            className="flex-1 rounded-lg border border-border-color bg-surface-default px-3 py-2 text-center text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+          >
+            Xem bộ từ
+          </Link>
+          <Link
             to={`/practice/flashcard/${set.id}`}
-            className="flex-1 rounded-lg bg-brand-primary px-3 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-brand-primary/80"
+            className="flex-1 rounded-lg border border-border-color bg-surface-default px-3 py-2 text-center text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
           >
             Bắt đầu học
           </Link>

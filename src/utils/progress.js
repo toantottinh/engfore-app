@@ -12,15 +12,20 @@ export function masteryFraction(level) {
   return `${l}/5`;
 }
 
-export function formatReviewDue(reviewDueIso, masteryLevel) {
-  if (Number(masteryLevel) === 5) return 'Đã thuộc';
+export function formatReviewDue(reviewDueIso) {
   if (!reviewDueIso) return 'Chưa có lịch';
   const due = Date.parse(reviewDueIso);
   if (Number.isNaN(due)) return '—';
   const diff = due - Date.now();
-  if (diff <= 0) return 'Đã đến hạn ôn';
-  const hours = Math.ceil(diff / (1000 * 60 * 60));
-  if (hours < 24) return `Còn ${hours} giờ`;
-  const days = Math.ceil(hours / 24);
-  return `Còn ${days} ngày`;
+
+  if (diff <= 60 * 1000) return 'Ôn lại ngay bây giờ';
+
+  const minutes = Math.round(diff / (1000 * 60));
+  if (minutes < 60) return `Ôn lại sau ${minutes} phút`;
+
+  const hours = Math.round(diff / (1000 * 60 * 60));
+  if (hours < 48) return `Ôn lại sau ${hours} giờ`;
+
+  const days = Math.round(diff / (1000 * 60 * 60 * 24));
+  return `Ôn lại sau ${days} ngày`;
 }
