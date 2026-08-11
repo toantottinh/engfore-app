@@ -1,16 +1,20 @@
  import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import {
   getDueReviewWords,
   getDueReviewWordsCount,
   recordLearningResult,
 } from '../../services/learning.service.js';
+import { getSrsDashboardStats } from '../../services/learning.service.js';
+import { masteryFraction, formatReviewDue, masteryLabel } from '../../utils/progress.js';
+import { RATING } from '../../services/srs.service.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
+import { ttsService } from '../../../tts.service.js';
 
 const MAX_DUE = 50;
 
@@ -23,6 +27,7 @@ const MAX_DUE = 50;
  */
 export default function Review() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [phase, setPhase] = useState('loading'); // loading | intro | session | complete | error
   const [mode, setMode] = useState('typing'); // typing | flashcard
@@ -81,11 +86,8 @@ const current = queue[currentIndex];
     setSaveError('');
     // Lưu tuần tự từng kết quả qua single source of truth.
     for (const r of results) {
-      const { error: err } = await recordLearningResult({
-        userId: user.id,
-        wordSenseId: r.word_sense_id,
-        correct: r.correct,
-      });
+      const payload = r.rating !== undefined ? { rating: r.rating } : { correct: !!r.correct };
+      const { error: err } = await recordLearningResult({ userId: user.id, wordSenseId: r.word_sense_id, ...payload });
       if (err) {
         setSaving(false);
         setSaveError(getAuthErrorMessage(err) || 'Không thể lưu tiến trình ôn tập.');
@@ -94,6 +96,21 @@ const current = queue[currentIndex];
     }
     setSaving(false);
     setPhase('complete');
+    // After all save operations succeeded, try to pre-fetch updated SRS stats
+    try {
+      const { data: statsData, error: statsError } = await getSrsDashboardStats(user.id);
+      if (statsError) {
+        console.warn('[Review] getSrsDashboardStats failed after save:', statsError);
+        // Navigate anyway; Dashboard will fetch on mount
+        navigate('/app', { state: { reviewCompleted: true } });
+      } else {
+        // Navigate and pass pre-fetched stats so Dashboard can render immediately
+        navigate('/app', { state: { reviewCompleted: true, srsStats: statsData } });
+      }
+    } catch (e) {
+      console.warn('[Review] getSrsDashboardStats threw after save:', e);
+      navigate('/app', { state: { reviewCompleted: true } });
+    }
   };
 
   // ---- Tự động lưu kết quả khi duyệt hết toàn bộ từ ----
@@ -105,9 +122,16 @@ const current = queue[currentIndex];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, isDone, results.length, saving]);
 
-// ---- Ghi nhận kết quả cho từ hiện tại (gọi từ từng chế độ) ----
-  const recordResult = async (wordSenseId, correct) => {
-    setResults((prev) => [...prev, { word_sense_id: wordSenseId, correct: !!correct }]);
+  const isCorrectResult = (result) =>
+    typeof result.rating === 'number'
+      ? Number(result.rating) >= RATING.HARD
+      : !!result.correct;
+
+  // Ghi nhận kết quả cho từ hiện tại (gọi từ từng chế độ)
+  const recordResult = async (wordSenseId, ratingOrBool) => {
+    const rating = typeof ratingOrBool === 'number' ? ratingOrBool : undefined;
+    const correct = typeof ratingOrBool === 'number' ? Number(ratingOrBool) >= RATING.HARD : !!ratingOrBool;
+    setResults((prev) => [...prev, { word_sense_id: wordSenseId, rating, correct }]);
   };
 
   const nextWord = () => {
@@ -115,7 +139,7 @@ const current = queue[currentIndex];
   };
 
   // Kết quả thống kê cho màn hoàn thành
-  const correctCount = results.filter((r) => r.correct).length;
+  const correctCount = results.filter(isCorrectResult).length;
 
   // ---------------- RENDER ----------------
   if (phase === 'loading') {
@@ -304,6 +328,7 @@ const current = queue[currentIndex];
       </div>
 
       {current ? (
+        // Render component based on user-selected mode
         mode === 'typing' ? (
           <TypingCard key={current.id} word={current} onResult={recordResult} onNext={nextWord} />
         ) : (
@@ -320,18 +345,88 @@ const current = queue[currentIndex];
  * Thẻ gõ từ: hiện nghĩa tiếng Việt, người dùng nhập từ tiếng Anh.
  * Mỗi từ 1 lần thử -> correct nếu đúng, incorrect nếu sai.
  */
-function TypingCard({ word, onResult, onNext }) {
+export function TypingCard({ word, onResult, onNext }) {
   const [input, setInput] = useState('');
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(60);
+  const timerRef = React.useRef(null);
+  const startRef = React.useRef(Date.now());
 
-const handleSubmit = (e) => {
+  useEffect(() => {
+    if (!answered) return;
+    const onKey = (e) => {
+      if (e.key !== 'Enter') return;
+      const active = document.activeElement;
+      if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) && !active.disabled) return;
+      if (active && active.isContentEditable) return;
+      e.preventDefault();
+      onNext();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [answered, onNext]);
+
+  useEffect(() => {
+    // start timer when component mounts or when new word arrives
+    setSecondsLeft(60);
+    startRef.current = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timerRef.current);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [word.id]);
+
+  useEffect(() => {
+    if (secondsLeft === 0 && !answered) {
+      // timeout -> Again
+      setAnswered(true);
+      setIsCorrect(false);
+      onResult(word.id, RATING.AGAIN);
+      try {
+        ttsService.speak(word.word);
+      } catch (e) {
+        // ignore
+      }
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft]);
+
+  const mapElapsedToRating = (elapsedSec) => {
+    // Boundaries: <15 -> EASY, <30 -> GOOD, <45 -> HARD, otherwise AGAIN (up to 60s)
+    if (elapsedSec < 15) return RATING.EASY;
+    if (elapsedSec < 30) return RATING.GOOD;
+    if (elapsedSec < 45) return RATING.HARD;
+    return RATING.AGAIN;
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (answered) return;
     const correct = input.trim().toLowerCase() === (word.word || '').toLowerCase();
     setIsCorrect(correct);
     setAnswered(true);
-    onResult(word.id, correct);
+    const elapsed = Math.floor((Date.now() - startRef.current) / 1000);
+    const elapsedSec = Math.min(60, Math.max(0, elapsed));
+    const rating = correct ? mapElapsedToRating(elapsedSec) : RATING.AGAIN;
+    onResult(word.id, rating);
+    try {
+      ttsService.speak(word.word);
+    } catch (e) {
+      // ignore
+    }
+    if (timerRef.current) clearInterval(timerRef.current);
   };
 
   const handleNext = () => {
@@ -364,15 +459,45 @@ const handleSubmit = (e) => {
           className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-3 text-center text-xl text-zinc-900 placeholder:text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-zinc-50"
         />
 
-        {answered && (
-          <div
-            className={`rounded-lg px-4 py-3 text-center text-sm font-medium ${
-              isCorrect ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-            }`}
-          >
-            {isCorrect ? 'Chính xác!' : `Chưa chính xác. Đáp án đúng: ${word.word}`}
+        <div className="flex items-center justify-between">
+          {answered && (
+          <div>
+            <div
+              className={`rounded-lg px-4 py-3 text-center text-sm font-medium ${
+                isCorrect ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}
+            >
+              {isCorrect ? 'Chính xác!' : `Chưa chính xác. Đáp án đúng: ${word.word}`}
+            </div>
+            <div className="mt-4 space-y-2 text-sm text-zinc-600">
+              {word.ipa && <div>IPA: <strong className="text-zinc-800">/{word.ipa}/</strong></div>}
+              {word.word_type && <div>Loại từ: <strong className="text-zinc-800">{wordTypeLabel(word.word_type)}</strong></div>}
+              {word.example && <div>Ví dụ: <em>"{word.example}"</em></div>}
+              {word.description && <div>Ghi chú: {word.description}</div>}
+              {word.cefr_level && <div>CEFR: <strong>{word.cefr_level}</strong></div>}
+              <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(word.mastery_level)}</strong></div>
+              <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(word.review_due_at, word.mastery_level)}</strong></div>
+            </div>
           </div>
-        )}
+          )}
+          <div className="ml-4 text-sm text-zinc-500">
+            {!answered ? (
+              <div>Thời gian: <strong>{secondsLeft}s</strong></div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    ttsService.speak(word.word);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                className="rounded-lg border px-3 py-1 text-sm"
+              >🔊 Phát lại</button>
+            )}
+          </div>
+        </div>
 
         {!answered ? (
           <Button type="submit" size="lg" className="w-full">
@@ -394,7 +519,7 @@ const handleSubmit = (e) => {
  * recall < 2 ("Chưa nhớ"/"Khó") -> incorrect.
  * Logic mastery/interval do learning.service.js xử lý tập trung.
  */
-function FlashcardCard({ word, onResult, onNext }) {
+export function FlashcardCard({ word, onResult, onNext }) {
   const [flipped, setFlipped] = useState(false);
   const [rated, setRated] = useState(false);
 
@@ -403,10 +528,25 @@ function FlashcardCard({ word, onResult, onNext }) {
   };
 
   const rate = (recall) => {
-    const correct = recall >= 2;
-    onResult(word.id, correct);
+    const rating = recall === 0 ? RATING.AGAIN : recall === 1 ? RATING.HARD : recall === 2 ? RATING.GOOD : RATING.EASY;
+    onResult(word.id, rating);
     setRated(true);
+    try { ttsService.speak(word.word); } catch (e) { /* ignore */ }
   };
+
+  useEffect(() => {
+    if (!rated) return;
+    const onKey = (e) => {
+      if (e.key !== 'Enter') return;
+      const active = document.activeElement;
+      if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) && !active.disabled) return;
+      if (active && active.isContentEditable) return;
+      e.preventDefault();
+      onNext();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [rated, onNext]);
 
   return (
     <div>
@@ -437,7 +577,7 @@ function FlashcardCard({ word, onResult, onNext }) {
         )}
       </button>
 
-      {flipped && !rated && (
+            {flipped && !rated && (
         <div className="mt-4">
           <p className="mb-2 text-center text-sm text-zinc-500">Bạn nhớ từ này thế nào?</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -469,11 +609,24 @@ function FlashcardCard({ word, onResult, onNext }) {
         </div>
       )}
 
-      {rated && (
-        <div className="mt-4">
-          <Button size="lg" className="w-full" onClick={onNext}>
-            Từ tiếp theo
-          </Button>
+            {rated && (
+        <div>
+          <div className="mt-4 space-y-2 text-sm text-zinc-600">
+            <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(word.mastery_level)}</strong></div>
+            <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(word.review_due_at, word.mastery_level)}</strong></div>
+          </div>
+          <div className="mt-4">
+            <Button size="lg" className="w-full" onClick={onNext}>
+              Từ tiếp theo
+            </Button>
+          </div>
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => { try { ttsService.speak(word.word); } catch (e) {} }}
+              className="text-sm text-zinc-600"
+            >🔊 Phát lại</button>
+          </div>
         </div>
       )}
     </div>
@@ -510,4 +663,3 @@ function shuffle(array) {
   }
   return arr;
 }
-

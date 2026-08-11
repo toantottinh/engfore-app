@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
 import { getCefrStats } from '../../services/vocabulary.service.js';
+import { getSrsDashboardStats } from '../../services/learning.service.js';
 import { cefrBadgeClass } from '../../utils/cefr.js';
+import { formatReviewDue } from '../../utils/progress.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 
@@ -25,6 +27,61 @@ export default function App() {
       mounted = false;
     };
   }, [user?.id]);
+
+  // SRS dashboard stats
+  const [srsLoading, setSrsLoading] = useState(false);
+  const [srsError, setSrsError] = useState(null);
+  const [srsStats, setSrsStats] = useState(null);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user?.id) return;
+    async function load() {
+      setSrsLoading(true);
+      setSrsError(null);
+
+      // If Review forwarded pre-fetched stats, use them immediately and skip fetching
+      if (location?.state && location.state.srsStats) {
+        if (!mounted) return;
+        setSrsStats(location.state.srsStats);
+        setSrsLoading(false);
+        // Clear navigation state to avoid reusing it
+        try {
+          navigate(location.pathname, { replace: true, state: {} });
+        } catch (e) {
+          // ignore
+        }
+        return;
+      }
+
+      const { data, error } = await getSrsDashboardStats(user.id);
+      if (!mounted) return;
+      setSrsLoading(false);
+      if (error) {
+        setSrsError(error);
+        setSrsStats(null);
+      } else {
+        setSrsStats(data);
+      }
+
+      // If navigated here with reviewCompleted flag (but no pre-fetched stats), clear it to avoid repeated refetches
+      if (location?.state && location.state.reviewCompleted) {
+        try {
+          navigate(location.pathname, { replace: true, state: {} });
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+    // Re-run when user changes or when reviewCompleted flag toggles
+  }, [user?.id, location?.state?.reviewCompleted]);
 
   const totalWords = sets.reduce((sum, s) => sum + (s.word_count || 0), 0);
   const firstName = profile?.username || user?.email?.split('@')[0] || 'bạn';
@@ -52,6 +109,87 @@ export default function App() {
             Luyện tập 10 phút mỗi ngày sẽ giúp bạn nhớ từ lâu hơn.
           </p>
         </div>
+      </div>
+
+      {/* SRS Panel */}
+      <div className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-zinc-900">Ôn tập (SRS)</h2>
+          <Link
+            to="/review"
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            Xem chi tiết
+          </Link>
+        </div>
+
+        {srsLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Spinner />
+          </div>
+        ) : srsError ? (
+          <div className="text-sm text-red-600">Không thể tải số liệu ôn tập.</div>
+        ) : srsStats ? (
+          <div>
+            <div className="mb-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-zinc-100 px-4 py-3">
+                <p className="text-xs text-zinc-500">Đến hạn</p>
+                <p className="mt-1 text-2xl font-bold text-zinc-900">{srsStats.due}</p>
+              </div>
+              <div className="rounded-lg border border-zinc-100 px-4 py-3">
+                <p className="text-xs text-zinc-500">Mới</p>
+                <p className="mt-1 text-2xl font-bold text-zinc-900">{srsStats.new}</p>
+              </div>
+              <div className="rounded-lg border border-zinc-100 px-4 py-3">
+                <p className="text-xs text-zinc-500">Đang học</p>
+                <p className="mt-1 text-2xl font-bold text-zinc-900">{srsStats.learning}</p>
+              </div>
+            </div>
+
+            <div className="mb-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-zinc-100 px-4 py-3">
+                <p className="text-xs text-zinc-500">Relearning</p>
+                <p className="mt-1 text-2xl font-bold text-zinc-900">{srsStats.relearning}</p>
+              </div>
+              <div className="rounded-lg border border-zinc-100 px-4 py-3">
+                <p className="text-xs text-zinc-500">Review</p>
+                <p className="mt-1 text-2xl font-bold text-zinc-900">{srsStats.review}</p>
+              </div>
+              <div className="flex items-center justify-center">
+                <Link
+                  to="/review"
+                  className={`inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700`}
+                >
+                  {srsStats.due > 0 ? `Bắt đầu ôn tập · ${srsStats.due}` : 'Bắt đầu ôn tập'}
+                </Link>
+              </div>
+            </div>
+
+            {/* If no due cards, show success + next due info */}
+            {srsStats.due === 0 ? (
+              <div className="rounded-lg border border-zinc-50 bg-green-50 px-4 py-3">
+                <p className="text-sm text-green-700">Bạn đã hoàn thành ôn tập hôm nay 🎉</p>
+                {srsStats.nextDueAt ? (
+                  <p className="mt-2 text-sm text-zinc-700">Thẻ tiếp theo: {formatReviewDue(srsStats.nextDueAt, 0)}</p>
+                ) : (
+                  <p className="mt-2 text-sm text-zinc-500">Không có thẻ tiếp theo đang lên lịch.</p>
+                )}
+              </div>
+            ) : (
+              // Show next due card summary when there are due cards or in general
+              srsStats.nextDueAt && (
+                <div className="mt-4 rounded-lg border border-zinc-100 px-4 py-3">
+                  <p className="text-xs text-zinc-500">Thẻ tiếp theo (tương lai)</p>
+                  <p className="mt-1 text-sm text-zinc-700">{srsStats.nextState || '—'}</p>
+                  <p className="mt-1 text-sm text-zinc-700">{srsStats.nextIntervalHours ? `Interval: ${srsStats.nextIntervalHours} giờ` : ''}</p>
+                  <p className="mt-1 text-sm text-zinc-500">{srsStats.nextDueAt ? new Date(srsStats.nextDueAt).toLocaleString() : ''}</p>
+                </div>
+              )
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-zinc-500">Không có dữ liệu ôn tập.</div>
+        )}
       </div>
 
       {/* Thống kê theo cấp độ CEFR */}

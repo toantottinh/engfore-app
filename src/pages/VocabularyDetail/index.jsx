@@ -9,6 +9,7 @@ import {
 } from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import { normalizeCefr, cefrLabel, cefrBadgeClass } from '../../utils/cefr.js';
+import { masteryLabel, masteryFraction, formatReviewDue } from '../../utils/progress.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
@@ -430,9 +431,15 @@ if (setLoadingState && !set) {
                       {w.example ? `"${w.example}"` : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>
-                        {status.label}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.cls}`}>
+                          {status.label}
+                        </span>
+                        <div className="text-xs text-zinc-500">
+                          <span className="mr-2">Thành thạo: <strong className="text-zinc-700">{masteryFraction(w.mastery_level)}</strong></span>
+                        </div>
+                        <div className="text-xs text-zinc-500">Ôn lại: <strong className="text-zinc-700">{formatReviewDue(w.review_due_at, w.mastery_level)}</strong></div>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">

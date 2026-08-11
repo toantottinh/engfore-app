@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { authService } from '../services/auth.service.js';
 
 const AuthContext = createContext(null);
@@ -7,7 +7,7 @@ const AuthContext = createContext(null);
  * Provider quản lý trạng thái xác thực toàn cục.
  * Duy trì session khi refresh và lắng nghe thay đổi auth.
  */
-export function AuthProvider({ children }) {
+export function AuthProvider({ children, initialUser, initialSession }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,12 +17,21 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     const loadSession = async () => {
+      // Test seam: if an initial session/user is provided, use it synchronously
+      if (initialSession !== undefined || initialUser !== undefined) {
+        if (!mounted) return;
+        setSession(initialSession ?? null);
+        setUser(initialSession?.user ?? initialUser ?? null);
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data } = await authService.getSession();
         if (!mounted) return;
         setSession(data.session);
         setUser(data.session?.user ?? null);
-} catch (err) {
+      } catch (err) {
         if (mounted && import.meta.env.DEV) {
           console.error('Lỗi khi tải session:', err);
         }
@@ -45,7 +54,7 @@ export function AuthProvider({ children }) {
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [initialUser, initialSession]);
 
   // Tự động tạo/đồng bộ profile khi có user
   useEffect(() => {

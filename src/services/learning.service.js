@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { computeSrsUpdate, RATING } from './srs.service.js';
 
 /**
  * Dịch vụ theo dõi tiến trình học tập (SRS / Spaced Repetition).
@@ -56,47 +57,97 @@ export function calculateNextReview(mastery) {
  * @param {{ userId: string, wordSenseId: string, correct: boolean }} params
  * @returns {Promise<{ progress: object | null, error: object | null }>}
  */
-export async function recordLearningResult({ userId, wordSenseId, correct }) {
-  if (!userId || !wordSenseId || typeof correct !== 'boolean') {
-    return { progress: null, error: { message: 'Thiếu userId, wordSenseId hoặc correct.' } };
+export async function recordLearningResult({ userId, wordSenseId, correct, rating }) {
+  // Accept either legacy { correct: boolean } or new { rating }
+  if (!userId || !wordSenseId || (typeof correct === 'undefined' && typeof rating === 'undefined')) {
+    return { progress: null, error: { message: 'Thiếu userId, wordSenseId hoặc result.' } };
   }
 
-  // 1. Lấy progress hiện tại
-  const { data: existing, error: fetchError } = await supabase
-    .from('user_progress')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('word_sense_id', wordSenseId)
-    .maybeSingle();
-
-  if (fetchError && fetchError.code !== 'PGRST116') {
-    return { progress: null, error: fetchError };
+  // Map legacy boolean to rating if needed
+  let r = rating;
+  if (typeof r === 'undefined') {
+    r = correct ? RATING.GOOD : RATING.AGAIN;
   }
 
-  // 2. Tính mastery mới
-  const currentMastery = existing?.mastery_level ?? 0;
-  const nextMastery = correct
-    ? Math.min(currentMastery + 1, MASTERY_MAX)
-    : Math.max(currentMastery - 1, MASTERY_MIN);
+  // First, compute SRS update payload using srs.service (if DB has columns)
+  try {
+    const { progress: srsProgress, error: srsErr } = await computeSrsUpdate({ userId, wordSenseId, rating: r });
+    if (srsErr) throw srsErr;
 
-  // 3–4. Tính review_due_at + last_reviewed_at
-  const nowIso = new Date().toISOString();
-  const payload = {
-    user_id: userId,
-    word_sense_id: wordSenseId,
-    mastery_level: nextMastery,
-    review_due_at: calculateNextReview(nextMastery),
-    last_reviewed_at: nowIso,
-  };
+    // Also preserve/update mastery_level using legacy rule (correct -> +1, incorrect -> -1)
+    // Fetch existing mastery to apply change
+    const { data: existing, error: fetchError } = await supabase
+      .from('user_progress')
+      .select('mastery_level, review_count')
+      .eq('user_id', userId)
+      .eq('word_sense_id', wordSenseId)
+      .maybeSingle();
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      return { progress: null, error: fetchError };
+    }
+    const currentMastery = existing?.mastery_level ?? 0;
+    const currentReviewCount = existing?.review_count ?? 0;
+    // Determine mastery change: rating >= HARD (2) => correct (HARD counts as remembered)
+    const isCorrect = Number(r) >= RATING.HARD;
+    const nextMastery = isCorrect ? Math.min(currentMastery + 1, MASTERY_MAX) : Math.max(currentMastery - 1, MASTERY_MIN);
 
-  // 5. Upsert
-  const { error } = await supabase.from('user_progress').upsert(payload);
-  if (error) return { progress: null, error };
+    const upsertPayload = {
+      ...srsProgress,
+      mastery_level: nextMastery,
+      review_count: Number(currentReviewCount) + 1,
+    };
 
-  return {
-    progress: { ...payload },
-    error: null,
-  };
+    // Upsert into user_progress (this requires migration to have the new columns).
+    const { error: upsertErr } = await supabase.from('user_progress').upsert(upsertPayload);
+    if (upsertErr) {
+      // Fallback: if DB doesn't have new columns, revert to original simple behavior
+      throw upsertErr;
+    }
+
+    return { progress: upsertPayload, error: null };
+  } catch (err) {
+    // Fallback path: preserve legacy behavior if SRS fields not available or error occurs
+    try {
+      // 1. Lấy progress hiện tại
+      const { data: existing, error: fetchError } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('word_sense_id', wordSenseId)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        return { progress: null, error: fetchError };
+      }
+
+      // 2. Tính mastery mới (legacy)
+      const currentMastery = existing?.mastery_level ?? 0;
+      const currentReviewCount = existing?.review_count ?? 0;
+      const isCorrect = Number(r) >= RATING.HARD;
+      const nextMastery = isCorrect
+        ? Math.min(currentMastery + 1, MASTERY_MAX)
+        : Math.max(currentMastery - 1, MASTERY_MIN);
+
+      // 3–4. Tính review_due_at + last_reviewed_at
+      const nowIso = new Date().toISOString();
+      const payload = {
+        user_id: userId,
+        word_sense_id: wordSenseId,
+        mastery_level: nextMastery,
+        review_due_at: calculateNextReview(nextMastery),
+        last_reviewed_at: nowIso,
+        review_count: Number(currentReviewCount) + 1,
+      };
+
+      // 5. Upsert (legacy)
+      const { error } = await supabase.from('user_progress').upsert(payload);
+      if (error) return { progress: null, error };
+
+      return { progress: { ...payload }, error: null };
+    } catch (fallbackErr) {
+      return { progress: null, error: fallbackErr };
+    }
+  }
 }
 
 /**
@@ -111,8 +162,15 @@ export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
     .select(
       `word_sense_id,
        mastery_level,
+       review_count,
        review_due_at,
        last_reviewed_at,
+       repetitions,
+       interval_hours,
+       ease_factor,
+       lapses,
+       state,
+       learning_step,
        word_senses (
          id,
          word_type,
@@ -146,6 +204,7 @@ export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
       description: sense.description || '',
       example: sense.example || '',
       mastery_level: item.mastery_level ?? 0,
+      review_count: item.review_count ?? 0,
       review_due_at: item.review_due_at,
       last_reviewed_at: item.last_reviewed_at,
     };
@@ -166,4 +225,73 @@ export async function getDueReviewWordsCount(userId) {
     .eq('user_id', userId)
     .lte('review_due_at', new Date().toISOString());
   return { count: count ?? 0, error };
+}
+
+/**
+ * Dashboard SRS stats: counts by state + due + next due item (future smallest review_due_at).
+ * Returns only minimal columns and uses count-head queries to avoid fetching rows.
+ */
+export async function getSrsDashboardStats(userId) {
+  if (!userId) return { data: null, error: { message: 'Missing userId' } };
+  try {
+    const nowIso = new Date().toISOString();
+    // Count queries (head: true -> returns count without rows)
+    const [dueRes, newRes, learningRes, relearnRes, reviewRes, nextRes] = await Promise.all([
+      supabase
+        .from('user_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .lte('review_due_at', nowIso),
+      supabase
+        .from('user_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('state', 'new'),
+      supabase
+        .from('user_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('state', 'learning'),
+      supabase
+        .from('user_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('state', 'relearning'),
+      supabase
+        .from('user_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('state', 'review'),
+      // next due in future (smallest review_due_at > now)
+      supabase
+        .from('user_progress')
+        .select('review_due_at, state, interval_hours')
+        .eq('user_id', userId)
+        .gt('review_due_at', nowIso)
+        .order('review_due_at', { ascending: true })
+        .limit(1),
+    ]);
+
+    if (dueRes.error || newRes.error || learningRes.error || relearnRes.error || reviewRes.error || nextRes.error) {
+      const firstErr = dueRes.error || newRes.error || learningRes.error || relearnRes.error || reviewRes.error || nextRes.error;
+      return { data: null, error: firstErr };
+    }
+
+    const nextItem = (nextRes.data && nextRes.data.length > 0) ? nextRes.data[0] : null;
+
+    const stats = {
+      due: dueRes.count ?? 0,
+      new: newRes.count ?? 0,
+      learning: learningRes.count ?? 0,
+      relearning: relearnRes.count ?? 0,
+      review: reviewRes.count ?? 0,
+      nextDueAt: nextItem ? nextItem.review_due_at : null,
+      nextState: nextItem ? nextItem.state : null,
+      nextIntervalHours: nextItem ? nextItem.interval_hours : null,
+    };
+
+    return { data: stats, error: null };
+  } catch (err) {
+    return { data: null, error: err };
+  }
 }

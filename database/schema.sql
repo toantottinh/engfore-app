@@ -63,6 +63,7 @@ CREATE TABLE user_progress (
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     word_sense_id UUID REFERENCES word_senses(id) ON DELETE CASCADE NOT NULL,
     mastery_level INTEGER DEFAULT 0 NOT NULL,
+    review_count INTEGER DEFAULT 0 NOT NULL,
     review_due_at TIMESTAMPTZ DEFAULT now() NOT NULL,
     last_reviewed_at TIMESTAMPTZ,
     PRIMARY KEY (user_id, word_sense_id)

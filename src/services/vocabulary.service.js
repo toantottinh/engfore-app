@@ -137,7 +137,7 @@ export async function getWordsInSet(setId) {
   if (userId && senseIds.length > 0) {
     const { data: progress, error: progressError } = await supabase
       .from('user_progress')
-      .select('word_sense_id, mastery_level, review_due_at, last_reviewed_at')
+      .select('word_sense_id, mastery_level, review_due_at, last_reviewed_at, repetitions, interval_hours, ease_factor, lapses, state, learning_step')
       .in('word_sense_id', senseIds)
       .eq('user_id', userId);
     if (!progressError) {
@@ -166,6 +166,12 @@ export async function getWordsInSet(setId) {
       mastery_level: progress?.mastery_level ?? 0,
       review_due_at: progress?.review_due_at ?? null,
       last_reviewed_at: progress?.last_reviewed_at ?? null,
+      repetitions: progress?.repetitions ?? 0,
+      interval_hours: progress?.interval_hours ?? 0,
+      ease_factor: progress?.ease_factor ?? 2.5,
+      lapses: progress?.lapses ?? 0,
+      state: progress?.state ?? 'new',
+      learning_step: progress?.learning_step ?? 0,
       _idx: idx,
     };
   });

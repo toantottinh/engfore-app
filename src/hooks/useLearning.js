@@ -28,16 +28,30 @@ export function useLearning() {
 
   /**
    * Ghi nhận kết quả trả lời của một từ.
+   * Accepts either { correct } (legacy) or { rating } with FSRS ratings.
    * @param {string} wordSenseId
-   * @param {{ correct: boolean }} result — correct=true nếu nhớ/đúng, false nếu quên/sai
+   * @param {{ correct?: boolean, rating?: number | string }} result
    */
   const recordProgress = useCallback(
-    async (wordSenseId, { correct }) => {
+    async (wordSenseId, { correct, rating } = {}) => {
       if (!user) return { progress: null, error: { message: 'Bạn cần đăng nhập.' } };
+      // If rating string provided (e.g., 'AGAIN'/'GOOD'), pass it through.
+      if (typeof rating !== 'undefined') {
+        return recordLearningResult({ userId: user.id, wordSenseId, rating });
+      }
+      // Fallback to legacy boolean
       return recordLearningResult({ userId: user.id, wordSenseId, correct: !!correct });
     },
     [user]
   );
 
-  return { loadWords, recordProgress, loading };
+  // Practice-only record: does NOT update SRS. Returns a resolved shape similar
+  // to recordLearningResult but without persisting changes to user_progress.
+  const recordPracticeAnswer = useCallback(async (wordSenseId, { correct, rating } = {}) => {
+    // For practice we do not call recordLearningResult to avoid changing SRS state.
+    // Return a neutral response so callers can continue without error.
+    return { progress: null, error: null };
+  }, []);
+
+  return { loadWords, recordProgress, recordPracticeAnswer, loading };
 }

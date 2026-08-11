@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useLearning } from '../../hooks/useLearning.js';
+import { ttsService } from '../../../tts.service.js';
+import { RATING } from '../../services/srs.service.js';
+import { masteryFraction, formatReviewDue, masteryLabel } from '../../utils/progress.js';
 import { getVocabularySet } from '../../services/vocabulary.service.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
@@ -9,7 +12,7 @@ import Alert from '../../components/ui/Alert.jsx';
 export default function TypingPractice() {
   const { setId } = useParams();
   const navigate = useNavigate();
-  const { loadWords, recordProgress } = useLearning();
+  const { loadWords, recordPracticeAnswer } = useLearning();
 
   const [set, setSet] = useState(null);
   const [words, setWords] = useState([]);
@@ -68,12 +71,21 @@ export default function TypingPractice() {
     });
     setAnswered(true);
 
-    await recordProgress(current.id, { correct: isCorrect });
+    const rating = isCorrect ? RATING.GOOD : RATING.AGAIN;
+    const res = await recordPracticeAnswer(current.id, { rating });
+    if (res && res.progress) {
+      setQueue((q) => {
+        const copy = [...q];
+        copy[currentIndex] = { ...copy[currentIndex], mastery_level: res.progress.mastery_level, review_due_at: res.progress.review_due_at };
+        return copy;
+      });
+    }
 
     setStats((s) => ({
       correct: s.correct + (isCorrect ? 1 : 0),
       incorrect: s.incorrect + (isCorrect ? 0 : 1),
     }));
+    try { ttsService.speak(current.word); } catch (e) { /* ignore */ }
   };
 
   // Enter trong ô nhập: nếu CHƯA trả lời → gửi qua form handleSubmitAnswer;
@@ -243,6 +255,25 @@ export default function TypingPractice() {
                   ? 'Chính xác!'
                   : `Chưa chính xác. Đáp án đúng: ${feedback.answer}`}
               </div>
+            )}
+
+            {/* Reveal full information after answering */}
+            {answered && current && (
+              <>
+                <div className="mt-4 space-y-2 text-sm text-zinc-600">
+                  {current.ipa && <div>IPA: <strong className="text-zinc-800">/{current.ipa}/</strong></div>}
+                  {current.word_type && <div>Loại từ: <strong className="text-zinc-800">{wordTypeLabel(current.word_type)}</strong></div>}
+                  {current.example && <div>Ví dụ: <em>"{current.example}"</em></div>}
+                  {current.description && <div>Ghi chú: {current.description}</div>}
+                  {current.cefr_level && <div>CEFR: <strong>{current.cefr_level}</strong></div>}
+                  <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(current.mastery_level)}</strong></div>
+                  <div>Thành thạo: <strong className="text-zinc-800">{masteryFraction(current.mastery_level)}</strong></div>
+                  <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(current.review_due_at, current.mastery_level)}</strong></div>
+                </div>
+                <div className="mt-2 text-center">
+                  <button type="button" onClick={() => { try { ttsService.speak(current.word); } catch (e) {} }} className="text-sm text-zinc-600">🔊 Phát lại</button>
+                </div>
+              </>
             )}
 
             {!answered ? (

@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "vitest run",
     "preview": "vite preview",
     "lint": "eslint ."
   },
@@ -18,9 +19,18 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^14.3.1",
+    "@testing-library/user-event": "^14.6.3",
     "@vitejs/plugin-react": "^4.3.1",
+    "jsdom": "^24.1.0",
     "tailwindcss": "^4.0.0",
-    "vite": "^5.4.8"
+    "vite": "^5.4.8",
+    "vitest": "^1.6.1"
+  },
+  "vitest": {
+    "test": {
+      "environment": "jsdom"
+    }
   }
 }
-

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useLearning } from '../../hooks/useLearning.js';
+import { ttsService } from '../../../tts.service.js';
+import { RATING } from '../../services/srs.service.js';
+import { masteryFraction, formatReviewDue, masteryLabel } from '../../utils/progress.js';
 import { getVocabularySet } from '../../services/vocabulary.service.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
@@ -9,7 +12,7 @@ import Alert from '../../components/ui/Alert.jsx';
 export default function FlashcardPractice() {
   const { setId } = useParams();
   const navigate = useNavigate();
-  const { loadWords, recordProgress } = useLearning();
+  const { loadWords, recordPracticeAnswer } = useLearning();
 
   const [set, setSet] = useState(null);
   const [queue, setQueue] = useState([]);
@@ -49,17 +52,28 @@ export default function FlashcardPractice() {
     if (!rated) setFlipped((f) => !f);
   };
 
-const rate = async (recall) => {
+  const rate = async (recall) => {
     if (!current) return;
-    // recall >= 2 ("Nhớ"/"Rất dễ") -> correct; recall < 2 ("Chưa nhớ"/"Khó") -> incorrect.
-    // Logic mastery/interval được xử lý tập trung trong learning.service.js.
-    const correct = recall >= 2;
-    await recordProgress(current.id, { correct });
+    const rating = recall === 0 ? RATING.AGAIN : recall === 1 ? RATING.HARD : recall === 2 ? RATING.GOOD : RATING.EASY;
+    const isCorrect = recall >= 2;
+    const res = await recordPracticeAnswer(current.id, { rating });
+    if (res && res.progress) {
+      setQueue((q) => {
+        const copy = [...q];
+        copy[currentIndex] = {
+          ...copy[currentIndex],
+          mastery_level: res.progress.mastery_level,
+          review_due_at: res.progress.review_due_at,
+        };
+        return copy;
+      });
+    }
     setStats((s) => ({
-      remembered: s.remembered + (correct ? 1 : 0),
+      remembered: s.remembered + (isCorrect ? 1 : 0),
       total: s.total + 1,
     }));
     setRated(true);
+    try { ttsService.speak(current.word); } catch (e) { /* ignore */ }
   };
 
   const next = useCallback(() => {
@@ -202,6 +216,23 @@ const rate = async (recall) => {
                 </div>
                 {current.example && (
                   <p className="mt-3 text-sm italic text-zinc-500">"{current.example}"</p>
+                )}
+                {/* After rating, show mastery and next review info */}
+                {rated && (
+                  <div className="mt-4 text-sm text-zinc-600">
+                    <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(current.mastery_level)}</strong></div>
+                    <div>Thành thạo: <strong className="text-zinc-800">{masteryFraction(current.mastery_level)}</strong></div>
+                    <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(current.review_due_at, current.mastery_level)}</strong></div>
+                  </div>
+                )}
+                {rated && (
+                  <div className="mt-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => { try { ttsService.speak(current.word); } catch (e) {} }}
+                      className="text-sm text-zinc-600"
+                    >🔊 Phát lại</button>
+                  </div>
                 )}
               </div>
             )}
