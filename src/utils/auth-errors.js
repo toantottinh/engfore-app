@@ -66,12 +66,14 @@ export function getAuthErrorMessage(error) {
   ) {
     return 'Bạn không có quyền thực hiện thao tác này vào bộ từ. Vui lòng kiểm tra quyền truy cập.';
   }
-if (
+// Lỗi RPC function không tồn tại — chỉ match riêng lỗi RPC function missing,
+  // KHÔNG match lỗi thiếu COLUMN ("column ... does not exist") vì hai loại lỗi
+  // này khác nhau hoàn toàn (PostgREST table query vs. Supabase RPC).
+  if (
     message.includes('could not find the function') ||
-    message.includes('function') ||
-    message.includes('does not exist')
+    /function .+ does not exist/.test(error.message || '')
   ) {
-    return 'Không tìm thấy hàm import dữ liệu trên máy chủ.';
+    return 'Không tìm thấy hàm xử lý trên máy chủ.';
   }
 
   // Lỗi tùy chỉnh từ RPC import_words_to_set (SECURITY DEFINER) — bảo mật.

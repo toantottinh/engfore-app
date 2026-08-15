@@ -21,7 +21,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
@@ -29,12 +29,12 @@ export default function Modal({ open, onClose, title, children, footer, size = '
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`w-full ${sizeClass} rounded-xl bg-white shadow-xl`}>
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-zinc-800">{title}</h2>
+      <div className={`w-full ${sizeClass} rounded-card bg-surface-sidebar shadow-2xl`}>
+        <div className="flex items-center justify-between border-b border-border-color px-5 py-4">
+          <h2 className="text-base font-semibold text-text-primary">{title}</h2>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+            className="rounded-md p-1 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
             aria-label="Đóng"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -44,7 +44,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-zinc-200 px-5 py-3">
+          <div className="flex justify-end gap-2 border-t border-border-color px-5 py-3">
             {footer}
           </div>
         )}

@@ -26,7 +26,11 @@ function init(wordData, onComplete) {
 
     const wordText = wordData.words?.word || wordData.reference || '';
     const meaning = wordData.meaning || '';
+    const ipa = wordData.words?.ipa || wordData.ipa || '';
+    const wordType = wordData.word_type || '';
     const example = wordData.example || '';
+    const memoryClue = wordData.memory_clue || '';
+    const cefrLevel = wordData.cefr_level || '';
 
     return `
         <div class="gamemode typing-mode">
@@ -63,17 +67,24 @@ function setup(container) {
             return;
         }
 
-        if (answer === correct) {
-            feedback.textContent = '✅ Chính xác!';
+                if (answer === correct || correct.startsWith(answer)) {
             feedback.className = 'typing-feedback success';
             input.disabled = true;
             form.querySelector('button').disabled = true;
             if (onCompleteCallback) {
-                setTimeout(() => onCompleteCallback({ wrongAttempts }), 800);
+                setTimeout(() => onCompleteCallback({ wrongAttempts: 0 }), 800);
             }
         } else {
             wrongAttempts++;
-            feedback.textContent = `❌ Chưa đúng. Thử lại! (Gợi ý: ${wrongAttempts > 1 ? currentWord.words?.ipa || '' : 'gợi ý 1 ký tự đầu: ' + correct.charAt(0)})`;
+            // Hiển thị đáp án đúng và thông tin chi tiết
+            const correctAnswer = currentWord.words?.word || currentWord.reference || '';
+            feedback.innerHTML = `<p>❌ Chưa chính xác</p><p>Đáp án đúng: <span class="font-semibold">${correctAnswer}</span></p>${ipa ? `<p>IPA: <strong>/${ipa}/</strong></p>` : ''}${wordType ? `<p>Loại từ: <strong>${wordType}</strong></p>` : ''}${meaning ? `<p>Nghĩa: <strong>${escapeHTML(meaning)}</strong></p>` : ''}${example ? `<p>Ví dụ: <em>"${escapeHTML(example)}"</em></p>` : ''}${memoryClue ? `<p>Memory Clue: ${memoryClue}</p>` : ''}${cefrLevel ? `<p>CEFR: <span class="${cefrBadgeClass(cefrLevel)}">${cefrLabel(cefrLevel)}</span></p>` : ''}`;
+/* TTS: "Từ này sẽ được xem lại trong phiên luyện tập." */
+try {
+    window.ttsService?.speak('Từ này sẽ được xem lại trong phiên luyện tập.');
+} catch (e) {
+    /* TTS lỗi - không làm gián đoạn luyện tập */
+}
             feedback.className = 'typing-feedback error';
             input.value = '';
             input.focus();
@@ -84,6 +95,22 @@ function setup(container) {
     input.focus();
 }
 
+
+function cefrBadgeClass(level) {
+    const classes = {
+        A1: 'bg-green-100 text-green-800',
+        A2: 'bg-blue-100 text-blue-800',
+        B1: 'bg-yellow-100 text-yellow-800',
+        B2: 'bg-orange-100 text-orange-800',
+        C1: 'bg-red-100 text-red-800',
+        C2: 'bg-purple-100 text-purple-800',
+    };
+    return classes[level] || 'bg-gray-100 text-gray-800';
+}
+
+function cefrLabel(level) {
+    return level || '';
+}
 export const typingGameMode = {
     init,
     setup

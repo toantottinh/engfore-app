@@ -70,9 +70,15 @@ export async function deleteVocabularySet(setId) {
 
 /** Import danh sách từ vào set (dùng RPC import_words_to_set). */
 export async function importWordsToSet(setId, words) {
+  // Storage/RPC retains the established `description` column; the application
+  // domain exposes it consistently as `memory_clue`.
+  const storageWords = (words || []).map(({ memory_clue, ...word }) => ({
+    ...word,
+    description: memory_clue ?? word.description ?? null,
+  }));
   const { data, error } = await supabase.rpc('import_words_to_set', {
     p_set_id: setId,
-    p_words_data: words,
+    p_words_data: storageWords,
   });
 // Log đầy đủ lỗi thật (message, code, details, hint) dưới dạng CHUỖI
   // để console không gập thành "Object" — chỉ log khi DEV, tránh lộ thông tin
@@ -87,8 +93,8 @@ export async function importWordsToSet(setId, words) {
         hint: error?.hint ?? null,
         error_code: error?.error_code ?? null,
         setId,
-        wordsCount: (words || []).length,
-        firstWord: words?.[0]?.word ?? null,
+        wordsCount: storageWords.length,
+        firstWord: storageWords[0]?.word ?? null,
       };
       console.error('[importWordsToSet] RPC error:', JSON.stringify(errInfo, null, 2));
     }
@@ -134,12 +140,32 @@ export async function getWordsInSet(setId) {
 
   const senseIds = (data || []).map((item) => item.word_senses?.id).filter(Boolean);
   let progressMap = {};
-  if (userId && senseIds.length > 0) {
-    const { data: progress, error: progressError } = await supabase
+    if (userId && senseIds.length > 0) {
+    // Try full SRS columns first; if they don't exist, retry with base columns only
+    const BASE_PRO = 'word_sense_id, mastery_level, review_due_at, last_reviewed_at';
+    const SRS_PRO = 'word_sense_id, mastery_level, review_due_at, last_reviewed_at, repetitions, interval_hours, ease_factor, lapses, state, learning_step, flashcard_reviews';
+
+    let { data: progress, error: progressError } = await supabase
       .from('user_progress')
-      .select('word_sense_id, mastery_level, review_due_at, last_reviewed_at, repetitions, interval_hours, ease_factor, lapses, state, learning_step')
+      .select(SRS_PRO)
       .in('word_sense_id', senseIds)
       .eq('user_id', userId);
+
+    if (progressError) {
+      // Fallback: retry with only base columns that are guaranteed to exist
+      const fallback = await supabase
+        .from('user_progress')
+        .select(BASE_PRO)
+        .in('word_sense_id', senseIds)
+        .eq('user_id', userId);
+      if (fallback.error) {
+        if (import.meta.env.DEV) console.error('[getWordsInSet] progress query error:', fallback.error.message);
+      } else {
+        progress = fallback.data;
+        progressError = null;
+      }
+    }
+
     if (!progressError) {
       progressMap = progress.reduce((acc, p) => {
         acc[p.word_sense_id] = p;
@@ -160,7 +186,7 @@ export async function getWordsInSet(setId) {
       cefr_level: word.cefr_level || '',
       word_type: sense.word_type || '',
       meaning: sense.meaning || '',
-      description: sense.description || '',
+      memory_clue: sense.description || '',
       example: sense.example || '',
       set_id: item.set_id,
       mastery_level: progress?.mastery_level ?? 0,
@@ -172,6 +198,7 @@ export async function getWordsInSet(setId) {
       lapses: progress?.lapses ?? 0,
       state: progress?.state ?? 'new',
       learning_step: progress?.learning_step ?? 0,
+      flashcard_reviews: progress?.flashcard_reviews ?? 0,
       _idx: idx,
     };
   });
@@ -187,7 +214,7 @@ export async function updateWord(wordId, senseId, updates) {
     .update({
       word_type: updates.word_type,
       meaning: updates.meaning,
-      description: updates.description || null,
+      description: updates.memory_clue || null,
       example: updates.example || null,
     })
     .eq('id', senseId);
@@ -291,7 +318,7 @@ export async function addWordToSet(setId, wordData) {
     ipa: wordData.ipa || null,
     word_type: wordData.word_type || 'other',
     meaning: wordData.meaning || '',
-    description: wordData.description || null,
+    memory_clue: wordData.memory_clue || null,
     example: wordData.example || null,
     cefr: wordData.cefr_level || null,
   }];

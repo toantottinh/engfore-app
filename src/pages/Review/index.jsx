@@ -15,6 +15,7 @@ import Alert from '../../components/ui/Alert.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import { ttsService } from '../../../tts.service.js';
+import VocabularyAnswerDetails from '../../components/VocabularyAnswerDetails.jsx';
 
 const MAX_DUE = 50;
 
@@ -473,11 +474,12 @@ export function TypingCard({ word, onResult, onNext }) {
               {word.ipa && <div>IPA: <strong className="text-zinc-800">/{word.ipa}/</strong></div>}
               {word.word_type && <div>Loại từ: <strong className="text-zinc-800">{wordTypeLabel(word.word_type)}</strong></div>}
               {word.example && <div>Ví dụ: <em>"{word.example}"</em></div>}
-              {word.description && <div>Ghi chú: {word.description}</div>}
+              {word.memory_clue && <div>Memory Clue: {word.memory_clue}</div>}
               {word.cefr_level && <div>CEFR: <strong>{word.cefr_level}</strong></div>}
               <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(word.mastery_level)}</strong></div>
               <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(word.review_due_at, word.mastery_level)}</strong></div>
             </div>
+            <VocabularyAnswerDetails word={word} />
           </div>
           )}
           <div className="ml-4 text-sm text-zinc-500">
@@ -615,6 +617,7 @@ export function FlashcardCard({ word, onResult, onNext }) {
             <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(word.mastery_level)}</strong></div>
             <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(word.review_due_at, word.mastery_level)}</strong></div>
           </div>
+          <VocabularyAnswerDetails word={word} />
           <div className="mt-4">
             <Button size="lg" className="w-full" onClick={onNext}>
               Từ tiếp theo

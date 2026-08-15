@@ -12,6 +12,7 @@ import { useVocabularyDetail } from '../../hooks/useVocabularyDetail.js';
 import { VALID_WORD_TYPES } from '../../utils/vocabulary-importer.js';
 import { cefrBadgeClass, cefrLabel } from '../../utils/cefr.js';
 import { CEFR_LEVELS } from '../../utils/cefr.js';
+import { ttsService } from '../../../tts.service.js';
 
 const WORD_TYPE_OPTIONS = [
   { value: '', label: 'Chọn loại từ' },
@@ -47,7 +48,7 @@ export default function VocabularyDetail() {
     mutationLoading,
     loadSetAndWords,
     addWord,
-    editWord,
+    updateWordInCurrentSet,
     removeWord,
   } = useVocabularyDetail(setId);
 
@@ -116,7 +117,7 @@ export default function VocabularyDetail() {
     setFormWordType(word.word_type || '');
     setFormMeaning(word.meaning);
     setFormExample(word.example || '');
-    setFormDescription(word.description || '');
+    setFormDescription(word.memory_clue || '');
     setFormCEFR(word.cefr_level || '');
     setAddEditModalOpen(true);
   };
@@ -141,13 +142,13 @@ export default function VocabularyDetail() {
       word_type: formWordType || 'other',
       meaning: formMeaning.trim(),
       example: formExample.trim() || null,
-      description: formDescription.trim() || null,
+      memory_clue: formDescription.trim() || null,
       cefr_level: formCEFR || null,
     };
 
     let result;
     if (isEditing && currentWord) {
-      result = await editWord(currentWord.word_id, currentWord.id, wordData);
+      result = await updateWordInCurrentSet(currentWord.word_id, currentWord.id, wordData);
     } else {
       result = await addWord(wordData);
     }
@@ -263,8 +264,19 @@ export default function VocabularyDetail() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={() => navigate(`/practice/typing/${setId}`)}>Luyện tập</Button> {/* TODO: Update this to a proper typing session route if needed */}
-          <Button onClick={() => navigate(`/learn/session/${setId}`)}>Học ngay</Button>
+          {/* Cùng mục đích học từ vựng -> single entry đi qua LearningSession (SRS) */}
+          <Button variant="secondary" onClick={() => navigate(`/learn/session/${setId}`)}>
+            <i className="bx bx-brain text-lg"></i>
+            <span>Học ngắt quãng</span>
+          </Button>
+          {/* "Học ngay": luyện tập nhanh flashcard/typing, KHÔNG ghi SRS */}
+          <Button
+            onClick={() => navigate(`/practice/session?setIds=${setId}`)}
+            className="inline-flex items-center gap-1.5"
+          >
+            <span>🎯 Học ngay</span>
+            <span className="hidden sm:inline">(nhanh)</span>
+          </Button>
         </div>
       </div>
 
@@ -278,6 +290,7 @@ export default function VocabularyDetail() {
               <th className="px-4 py-3 font-medium">Loại từ</th>
               <th className="px-4 py-3 font-medium">CEFR</th>
               <th className="px-4 py-3 font-medium">Ví dụ</th>
+              <th className="px-4 py-3 font-medium">Memory Clue</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
@@ -287,7 +300,12 @@ export default function VocabularyDetail() {
                 <tr key={word.id} className="hover:bg-surface-hover">
                   <td className="px-4 py-3 align-top">
                     <div className="flex items-center gap-3">
-                      <button className="text-text-secondary hover:text-brand-primary">
+                      <button
+                        type="button"
+                        onClick={() => { try { ttsService.speak(word.word); } catch (e) {} }}
+                        className="text-text-secondary hover:text-brand-primary"
+                        aria-label="Phát âm từ"
+                      >
                         <i className="bx bxs-volume-full text-lg"></i>
                       </button>
                       <div>
@@ -314,6 +332,13 @@ export default function VocabularyDetail() {
                   <td className="max-w-sm px-4 py-3 align-top text-text-secondary">
                     <p className="line-clamp-2">{word.example}</p>
                   </td>
+                  <td className="max-w-sm px-4 py-3 align-top text-text-secondary">
+                    {word.memory_clue ? (
+                      <p className="line-clamp-2">{word.memory_clue}</p>
+                    ) : (
+                      <span className="text-text-secondary/50">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 align-top text-right">
                     <div className="relative inline-block">
                       <button
@@ -336,7 +361,7 @@ export default function VocabularyDetail() {
               ))
             ) : (
               <tr>
-                <td colSpan="6">
+                <td colSpan="7">
                   {searchTerm || typeFilter !== 'all' || cefrFilter !== 'all' ? (
                     <EmptyState
                       icon="🔍"
@@ -420,8 +445,8 @@ export default function VocabularyDetail() {
             rows={2}
           />
           <Textarea
-            label="Mô tả (tiếng Anh)"
-            name="description"
+            label="Memory Clue"
+            name="memory_clue"
             value={formDescription}
             onChange={(e) => setFormDescription(e.target.value)}
             placeholder="Ví dụ: A common fruit that is typically red or green."

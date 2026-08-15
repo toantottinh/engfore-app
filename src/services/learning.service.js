@@ -1,5 +1,23 @@
 import { supabase } from './supabase.js';
 import { computeSrsUpdate, RATING } from './srs.service.js';
+import {
+  DEFAULT_DAILY_NEW_LIMIT,
+  DAILY_NEW_LIMIT_OPTIONS,
+  DAILY_NEW_LIMIT_KEY,
+  resolveDailyNewLimit,
+  getDailyDateKey,
+  selectNewWordsForToday,
+} from './quota.service.js';
+
+// Re-export the pure daily-new-limit helpers so callers import from one place.
+export {
+  DEFAULT_DAILY_NEW_LIMIT,
+  DAILY_NEW_LIMIT_OPTIONS,
+  DAILY_NEW_LIMIT_KEY,
+  resolveDailyNewLimit,
+  getDailyDateKey,
+  selectNewWordsForToday,
+};
 
 /**
  * Dịch vụ theo dõi tiến trình học tập (SRS / Spaced Repetition).
@@ -31,6 +49,9 @@ export const MASTERY_MAX = 5;
 /** Giới hạn queue review mặc định. */
 export const REVIEW_QUEUE_LIMIT = 50;
 
+/** Số lần flashcard tối thiểu trước khi chuyển sang typing. */
+export const FLASHCARD_REVIEWS_THRESHOLD = 2;
+
 /**
  * Tính thời điểm ôn tập tiếp theo dựa trên mastery_level mới.
  * Dùng chung MỘT bộ interval [4, 8, 24, 72, 168, 336] giờ (index theo mastery).
@@ -41,6 +62,23 @@ export function calculateNextReview(mastery) {
   const clamped = Math.min(Math.max(mastery, MASTERY_MIN), MASTERY_MAX);
   const hours = SRS_INTERVALS_HOURS[clamped] ?? SRS_INTERVALS_HOURS[MASTERY_MAX];
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function isMissingColumn(error, column) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204'
+  ) && message.includes(column.toLowerCase());
+}
+
+async function saveProgress(payload) {
+  const upsert = supabase
+    .from('user_progress')
+    .upsert(payload, { onConflict: 'user_id,word_sense_id' });
+  return typeof upsert?.select === 'function'
+    ? upsert.select().maybeSingle()
+    : upsert;
 }
 
 /**
@@ -54,10 +92,10 @@ export function calculateNextReview(mastery) {
  *   5. Upsert user_progress.
  *   6. Trả về progress mới.
  *
- * @param {{ userId: string, wordSenseId: string, correct: boolean }} params
+ * @param {{ userId: string, wordSenseId: string, correct: boolean, rating?: number, isFlashcard?: boolean }} params
  * @returns {Promise<{ progress: object | null, error: object | null }>}
  */
-export async function recordLearningResult({ userId, wordSenseId, correct, rating }) {
+export async function recordLearningResult({ userId, wordSenseId, correct, rating, isFlashcard = false }) {
   // Accept either legacy { correct: boolean } or new { rating }
   if (!userId || !wordSenseId || (typeof correct === 'undefined' && typeof rating === 'undefined')) {
     return { progress: null, error: { message: 'Thiếu userId, wordSenseId hoặc result.' } };
@@ -69,7 +107,9 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
     r = correct ? RATING.GOOD : RATING.AGAIN;
   }
 
-  // First, compute SRS update payload using srs.service (if DB has columns)
+  // `computeSrsUpdate` is also used by the interval preview. Do not fall back
+  // to the legacy scheduler here: preview and persisted `review_due_at` must
+  // always be calculated by the same SRS implementation.
   try {
     const { progress: srsProgress, error: srsErr } = await computeSrsUpdate({ userId, wordSenseId, rating: r });
     if (srsErr) throw srsErr;
@@ -78,15 +118,32 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
     // Fetch existing mastery to apply change
     const { data: existing, error: fetchError } = await supabase
       .from('user_progress')
-      .select('mastery_level, review_count')
+      .select('mastery_level, review_count, flashcard_reviews')
       .eq('user_id', userId)
       .eq('word_sense_id', wordSenseId)
       .maybeSingle();
-    if (fetchError && fetchError.code !== 'PGRST116') {
+    // Production can temporarily be one migration behind. Fetching the
+    // optional flashcard column would then fail before the real save attempt,
+    // so retry this read with guaranteed columns only. The write below still
+    // reports every error except this one known migration gap.
+    let safeExisting = existing;
+    if (fetchError && isMissingColumn(fetchError, 'flashcard_reviews')) {
+      const fallbackRead = await supabase
+        .from('user_progress')
+        .select('mastery_level, review_count')
+        .eq('user_id', userId)
+        .eq('word_sense_id', wordSenseId)
+        .maybeSingle();
+      if (fallbackRead.error && fallbackRead.error.code !== 'PGRST116') {
+        return { progress: null, error: fallbackRead.error };
+      }
+      safeExisting = fallbackRead.data;
+    } else if (fetchError && fetchError.code !== 'PGRST116') {
       return { progress: null, error: fetchError };
     }
-    const currentMastery = existing?.mastery_level ?? 0;
-    const currentReviewCount = existing?.review_count ?? 0;
+    const currentMastery = safeExisting?.mastery_level ?? 0;
+    const currentReviewCount = safeExisting?.review_count ?? 0;
+    const currentFlashcardReviews = Number(safeExisting?.flashcard_reviews ?? 0);
     // Determine mastery change: rating >= HARD (2) => correct (HARD counts as remembered)
     const isCorrect = Number(r) >= RATING.HARD;
     const nextMastery = isCorrect ? Math.min(currentMastery + 1, MASTERY_MAX) : Math.max(currentMastery - 1, MASTERY_MIN);
@@ -95,58 +152,33 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
       ...srsProgress,
       mastery_level: nextMastery,
       review_count: Number(currentReviewCount) + 1,
+      // Tăng flashcard_reviews khi đây là lượt flashcard (server lưu thành công mới tăng).
+      flashcard_reviews: isFlashcard
+        ? Math.min(currentFlashcardReviews + 1, FLASHCARD_REVIEWS_THRESHOLD)
+        : currentFlashcardReviews,
     };
 
-    // Upsert into user_progress (this requires migration to have the new columns).
-    const { error: upsertErr } = await supabase.from('user_progress').upsert(upsertPayload);
-    if (upsertErr) {
-      // Fallback: if DB doesn't have new columns, revert to original simple behavior
-      throw upsertErr;
+    let saveResult = await saveProgress(upsertPayload);
+    let flashcardReviewsPersisted = true;
+    if (isMissingColumn(saveResult.error, 'flashcard_reviews')) {
+      // This is a real, diagnosed schema mismatch (42703/PGRST204), not a
+      // swallowed DB error. Save the SRS fields that do exist so a user is not
+      // blocked while the included migration is deployed.
+      const { flashcard_reviews: _flashcardReviews, ...compatiblePayload } = upsertPayload;
+      saveResult = await saveProgress(compatiblePayload);
+      flashcardReviewsPersisted = false;
     }
+    if (saveResult.error) return { progress: null, error: saveResult.error };
 
-    return { progress: upsertPayload, error: null };
+    return {
+      progress: {
+        ...(saveResult.data || upsertPayload),
+        flashcard_reviews_persisted: flashcardReviewsPersisted,
+      },
+      error: null,
+    };
   } catch (err) {
-    // Fallback path: preserve legacy behavior if SRS fields not available or error occurs
-    try {
-      // 1. Lấy progress hiện tại
-      const { data: existing, error: fetchError } = await supabase
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('word_sense_id', wordSenseId)
-        .maybeSingle();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        return { progress: null, error: fetchError };
-      }
-
-      // 2. Tính mastery mới (legacy)
-      const currentMastery = existing?.mastery_level ?? 0;
-      const currentReviewCount = existing?.review_count ?? 0;
-      const isCorrect = Number(r) >= RATING.HARD;
-      const nextMastery = isCorrect
-        ? Math.min(currentMastery + 1, MASTERY_MAX)
-        : Math.max(currentMastery - 1, MASTERY_MIN);
-
-      // 3–4. Tính review_due_at + last_reviewed_at
-      const nowIso = new Date().toISOString();
-      const payload = {
-        user_id: userId,
-        word_sense_id: wordSenseId,
-        mastery_level: nextMastery,
-        review_due_at: calculateNextReview(nextMastery),
-        last_reviewed_at: nowIso,
-        review_count: Number(currentReviewCount) + 1,
-      };
-
-      // 5. Upsert (legacy)
-      const { error } = await supabase.from('user_progress').upsert(payload);
-      if (error) return { progress: null, error };
-
-      return { progress: { ...payload }, error: null };
-    } catch (fallbackErr) {
-      return { progress: null, error: fallbackErr };
-    }
+    return { progress: null, error: err };
   }
 }
 
@@ -156,62 +188,123 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
  * @param {string} userId
  * @param {number} limit
  */
-export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
-  const { data, error } = await supabase
+// Base columns guaranteed to exist in the production database.
+const BASE_PROGRESS_SELECT = `word_sense_id,
+        mastery_level,
+        review_count,
+        review_due_at,
+        last_reviewed_at,
+        word_senses (
+          id,
+          word_type,
+          meaning,
+          description,
+          example,
+          words (
+            word,
+            ipa,
+            cefr_level
+          )
+        )`;
+
+// Extended SRS columns from migrations (may not exist in every DB environment).
+const SRS_PROGRESS_SELECT = `word_sense_id,
+        mastery_level,
+        review_count,
+        flashcard_reviews,
+        review_due_at,
+        last_reviewed_at,
+        repetitions,
+        interval_hours,
+        ease_factor,
+        lapses,
+        state,
+        learning_step,
+        word_senses (
+          id,
+          word_type,
+          meaning,
+          description,
+          example,
+          words (
+            word,
+            ipa,
+            cefr_level
+          )
+        )`;
+
+/**
+ * Map a raw user_progress row into the unified word shape.
+ * Falls back to safe defaults for any SRS columns that may be missing.
+ */
+function mapProgressRow(item) {
+  const sense = item.word_senses || {};
+  const word = sense.words || {};
+  return {
+    id: sense.id || item.word_sense_id,
+    word: word.word || '',
+    ipa: word.ipa || '',
+    cefr_level: word.cefr_level || '',
+    word_type: sense.word_type || '',
+    meaning: sense.meaning || '',
+    memory_clue: sense.description || '',
+    example: sense.example || '',
+    mastery_level: item.mastery_level ?? 0,
+    review_count: item.review_count ?? 0,
+    flashcard_reviews: item.flashcard_reviews ?? 0,
+    review_due_at: item.review_due_at,
+    last_reviewed_at: item.last_reviewed_at,
+    repetitions: item.repetitions ?? 0,
+    interval_hours: item.interval_hours ?? 0,
+    ease_factor: item.ease_factor ?? 2.5,
+    lapses: item.lapses ?? 0,
+    state: item.state ?? 'new',
+    learning_step: item.learning_step ?? 0,
+  };
+}
+
+/**
+ * Fetch user_progress rows with graceful fallback: try the full SRS column
+ * set first, and if a column does not exist, retry with only base columns
+ * and fill the rest with defaults.
+ */
+async function fetchProgressRows(selectText, userId, limit) {
+  let { data, error } = await supabase
     .from('user_progress')
-    .select(
-      `word_sense_id,
-       mastery_level,
-       review_count,
-       review_due_at,
-       last_reviewed_at,
-       repetitions,
-       interval_hours,
-       ease_factor,
-       lapses,
-       state,
-       learning_step,
-       word_senses (
-         id,
-         word_type,
-         meaning,
-         description,
-         example,
-         words (
-           word,
-           ipa,
-           cefr_level
-         )
-       )`
-    )
+    .select(selectText)
     .eq('user_id', userId)
     .lte('review_due_at', new Date().toISOString())
     .order('review_due_at', { ascending: true })
     .limit(limit);
 
+  if (error) {
+    ({ data, error } = await supabase
+      .from('user_progress')
+      .select(BASE_PROGRESS_SELECT)
+      .eq('user_id', userId)
+      .lte('review_due_at', new Date().toISOString())
+      .order('review_due_at', { ascending: true })
+      .limit(limit));
+    if (error) return { data: null, error };
+  }
+
+  return { data: data || [], error: null };
+}
+
+/**
+ * Lấy danh sách từ đến hạn ôn tập của user (review_due_at <= now).
+ * Chỉ lấy từ thuộc user hiện tại, giới hạn mặc định 50 từ, ưu tiên quá hạn lâu nhất.
+ * @param {string} userId
+ * @param {number} limit
+ */
+export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
+  const { data, error } = await fetchProgressRows(SRS_PROGRESS_SELECT, userId, limit);
   if (error) return { data: null, error };
 
-  const merged = (data || []).map((item) => {
-    const sense = item.word_senses || {};
-    const word = sense.words || {};
-    return {
-      id: sense.id || item.word_sense_id,
-      word: word.word || '',
-      ipa: word.ipa || '',
-      cefr_level: word.cefr_level || '',
-      word_type: sense.word_type || '',
-      meaning: sense.meaning || '',
-      description: sense.description || '',
-      example: sense.example || '',
-      mastery_level: item.mastery_level ?? 0,
-      review_count: item.review_count ?? 0,
-      review_due_at: item.review_due_at,
-      last_reviewed_at: item.last_reviewed_at,
-    };
-  });
-
+  const merged = data.map(mapProgressRow);
   return { data: merged, error: null };
 }
+
 
 /**
  * Đếm TỔNG số từ đến hạn ôn tập của user (cho badge hiển thị).
@@ -290,8 +383,111 @@ export async function getSrsDashboardStats(userId) {
       nextIntervalHours: nextItem ? nextItem.interval_hours : null,
     };
 
-    return { data: stats, error: null };
+        return { data: stats, error: null };
   } catch (err) {
     return { data: null, error: err };
+  }
+}
+
+// ---- Daily NEW limit persistence (user_settings + daily_new_progress) ----
+// Quota is tracked per (user, UTC day). The NEW words a user introduces today
+// are recorded by word_sense_id so reloads never reset the daily quota.
+
+/**
+ * Read the user's `daily_new_limit` setting.
+ * Missing row / unconfigured user → DEFAULT_DAILY_NEW_LIMIT (10).
+ * Tolerates both a raw-number and a `{ value: N }` jsonb shape.
+ * @param {string} userId
+ * @returns {Promise<{ value: number, error: object|null }>}
+ */
+export async function getUserDailyNewLimit(userId) {
+  if (!userId) return { value: DEFAULT_DAILY_NEW_LIMIT, error: null };
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('value_jsonb')
+      .eq('user_id', userId)
+      .eq('key', DAILY_NEW_LIMIT_KEY)
+      .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    const raw = data?.value_jsonb;
+    const num = typeof raw === 'number' ? raw : raw && raw.value;
+    return { value: resolveDailyNewLimit(num), error: null };
+  } catch (e) {
+    // Never block a learning session because the setting can't be read.
+    return { value: DEFAULT_DAILY_NEW_LIMIT, error: e };
+  }
+}
+
+/**
+ * word_sense_ids already introduced to the user today (persist across reloads).
+ * @param {string} userId
+ * @param {string} [dateKey] — defaults to the current UTC day
+ * @returns {Promise<{ data: string[], error: object|null }>}
+ */
+export async function getDailyNewProgress(userId, dateKey) {
+  const key = dateKey || getDailyDateKey();
+  if (!userId) return { data: [], error: null };
+  try {
+    const { data, error } = await supabase
+      .from('daily_new_progress')
+      .select('word_sense_id')
+      .eq('user_id', userId)
+      .eq('day', key);
+    if (error) return { data: [], error };
+    return {
+      data: (data || []).map((r) => r.word_sense_id).filter(Boolean),
+      error: null,
+    };
+  } catch (e) {
+    return { data: [], error: e };
+  }
+}
+
+/**
+ * Record that a NEW word_sense_id was introduced to the user today.
+ * Upsert is idempotent: introducing the same card twice never counts twice.
+ * @param {string} userId
+ * @param {string} wordSenseId
+ * @param {string} [dateKey]
+ * @returns {Promise<{ error: object|null }>}
+ */
+export async function markDailyNewIntroduced(userId, wordSenseId, dateKey) {
+  const key = dateKey || getDailyDateKey();
+  if (!userId || !wordSenseId) {
+    return { error: { message: 'Thiếu userId hoặc wordSenseId.' } };
+  }
+  try {
+    const { error } = await supabase
+      .from('daily_new_progress')
+      .upsert(
+        { user_id: userId, day: key, word_sense_id: wordSenseId },
+        { onConflict: 'user_id,day,word_sense_id' }
+      );
+    return { error: error ?? null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+/**
+ * Persist the user's daily_new_limit setting (idempotent upsert).
+ * @param {string} userId
+ * @param {*} value
+ * @returns {Promise<{ value: number, error: object|null }>}
+ */
+export async function updateDailyNewLimit(userId, value) {
+  const limit = resolveDailyNewLimit(value);
+  if (!userId) return { value: limit, error: { message: 'Thiếu userId.' } };
+  try {
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert(
+        { user_id: userId, key: DAILY_NEW_LIMIT_KEY, value_jsonb: limit },
+        { onConflict: 'user_id,key' }
+      );
+    return { value: limit, error: error ?? null };
+  } catch (e) {
+    return { value: limit, error: e };
   }
 }

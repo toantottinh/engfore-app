@@ -14,9 +14,16 @@ const MAX_EF = 10.0;
 // Cap interval to a few years (hours). 10 years ≈ 10 * 365 * 24 = 87600 hours
 export const MAX_INTERVAL_HOURS = 87600;
 
-// learning steps in minutes (configurable)
+// Learning steps in minutes. Ratings advance through these steps differently:
+// Again restarts, Hard repeats the current step, Good advances one step, and
+// Easy advances two. Once a card graduates, the intervals below are used.
 const LEARNING_STEPS_MIN = [10, 60, 240]; // 10m, 1h, 4h
 const RELEARN_STEPS_MIN = [10, 60];
+const GRADUATING_INTERVAL_HOURS = {
+  [RATING.HARD]: 24,
+  [RATING.GOOD]: 72,
+  [RATING.EASY]: 168,
+};
 
 function minutesToIso(minutes) {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
@@ -85,18 +92,27 @@ export function computeSrsPayload(prog = {}, rating, ids = {}) {
       nextDueIso = minutesToIso(steps[0]);
       nextState = state === 'relearning' ? 'relearning' : 'learning';
     } else {
-      // Schedule current step (do not skip first step)
-      if (learning_step < steps.length) {
+      const advanceBy = q === RATING.EASY ? 2 : q === RATING.GOOD ? 1 : 0;
+      // At the last learning step, every successful rating graduates. This
+      // gives the final typing rating its meaningful 1d / 3d / 7d choice.
+      const nextStep =
+        learning_step === steps.length - 1 && q >= RATING.HARD
+          ? steps.length
+          : learning_step + advanceBy;
+
+      if (nextStep < steps.length) {
+        // Hard stays on its current step; Good/Easy move further through the
+        // learning steps. This makes the preview reflect the same scheduler
+        // that will be persisted below.
+        learning_step = nextStep;
         nextDueIso = minutesToIso(steps[learning_step]);
-        learning_step += 1;
         nextState = state === 'relearning' ? 'relearning' : 'learning';
-      }
-      if (learning_step >= steps.length) {
-        // Graduate to review
+      } else {
+        // Graduate to review. The values use the application's existing SRS
+        // cadence: 1 day (Hard), 3 days (Good), 7 days (Easy).
         nextState = 'review';
         repetitions = 1;
-        interval_hours = 24;
-        interval_hours = clampInterval(interval_hours);
+        interval_hours = clampInterval(GRADUATING_INTERVAL_HOURS[q] ?? 72);
         nextDueIso = hoursToIso(interval_hours);
         learning_step = 0;
         if (q === RATING.EASY) ease = clampEF(ease + 0.15);

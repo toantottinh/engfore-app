@@ -6,7 +6,7 @@
  *       lion
  *       fan
  *  2) Format pipe 7 cột (có hoặc không header):
- *       Word | IPA | Type | Meaning | Example | Description | CEFR
+ *       Word | IPA | Type | Meaning | Example | Memory Clue | CEFR
  *       apple | /ˈæp.əl/ | noun | quả táo | She ate an apple. | A round fruit. | A1
  *
  * Xử lý khoảng trắng thừa, bỏ dòng trống, tự nhận diện header,
@@ -34,11 +34,13 @@ const HEADER_ALIASES = {
   example: 'example',
   'ví dụ': 'example',
   'vi du': 'example',
-  description: 'description',
-  'mô tả': 'description',
-  'mo ta': 'description',
-  'ghi chú': 'description',
-  'ghi chu': 'description',
+  description: 'memory_clue',
+  'memory clue': 'memory_clue',
+  'memory_clue': 'memory_clue',
+  'mô tả': 'memory_clue',
+  'mo ta': 'memory_clue',
+  'ghi chú': 'memory_clue',
+  'ghi chu': 'memory_clue',
   cefr: 'cefr',
   'cấp độ': 'cefr',
   'cap do': 'cefr',
@@ -168,7 +170,7 @@ function normalizeCefr(value) {
  * Parse văn bản nhập vào thành mảng từ đã chuẩn hóa.
  *
  * @param {string} text - Văn bản người dùng dán.
- * @returns {{ rows: Array<{ word, ipa, word_type, meaning, example, description, cefr, _warnings: string[] }>,
+ * @returns {{ rows: Array<{ word, ipa, word_type, meaning, example, memory_clue, cefr, _warnings: string[] }>,
  *            warnings: string[], hadHeader: boolean, format: 'single'|'pipe' }}
  */
 export function parseVocabularyText(text) {
@@ -219,7 +221,7 @@ const wt = normalizeWordType(cells[2]);
         word_type: wt.value,
         meaning: cells[3] || '',
         example: cells[4] || '',
-        description: cells[5] || '',
+        memory_clue: cells[5] || '',
         cefr: normalizeCefr(cells[6]),
         _warnings: [],
       };
@@ -241,7 +243,7 @@ const wt = normalizeWordType(cells[2]);
         word_type: '',
         meaning: '',
         example: '',
-        description: '',
+        memory_clue: '',
         cefr: '',
         _warnings: [],
       });
@@ -277,7 +279,7 @@ export function toImportPayload(rows) {
       word_type: wt.value,
       meaning: (r.meaning || '').trim(),
       example: (r.example || '').trim(),
-      description: (r.description || '').trim(),
+      memory_clue: (r.memory_clue || '').trim(),
       // Chuẩn hóa CEFR nghiêm ngặt: chỉ A1–C2 được giữ, còn lại null (Chưa xác định).
       cefr: normalizeCefr(r.cefr),
     };

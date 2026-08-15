@@ -8,6 +8,7 @@ import { getVocabularySet } from '../../services/vocabulary.service.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
+import VocabularyAnswerDetails from '../../components/VocabularyAnswerDetails.jsx';
 
 export default function TypingPractice() {
   const { setId } = useParams();
@@ -264,12 +265,13 @@ export default function TypingPractice() {
                   {current.ipa && <div>IPA: <strong className="text-zinc-800">/{current.ipa}/</strong></div>}
                   {current.word_type && <div>Loại từ: <strong className="text-zinc-800">{wordTypeLabel(current.word_type)}</strong></div>}
                   {current.example && <div>Ví dụ: <em>"{current.example}"</em></div>}
-                  {current.description && <div>Ghi chú: {current.description}</div>}
+                  {current.memory_clue && <div>Memory Clue: {current.memory_clue}</div>}
                   {current.cefr_level && <div>CEFR: <strong>{current.cefr_level}</strong></div>}
                   <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(current.mastery_level)}</strong></div>
                   <div>Thành thạo: <strong className="text-zinc-800">{masteryFraction(current.mastery_level)}</strong></div>
                   <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(current.review_due_at, current.mastery_level)}</strong></div>
                 </div>
+                <VocabularyAnswerDetails word={current} />
                 <div className="mt-2 text-center">
                   <button type="button" onClick={() => { try { ttsService.speak(current.word); } catch (e) {} }} className="text-sm text-zinc-600">🔊 Phát lại</button>
                 </div>

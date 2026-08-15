@@ -31,6 +31,36 @@ describe('computeSrsPayload (pure SRS logic)', () => {
     expect(isIso(progress.review_due_at)).toBeTruthy();
   });
 
+  it('uses distinct scheduler intervals for learning ratings at graduation', () => {
+    const base = { state: 'learning', learning_step: 2, ease_factor: 2.5 };
+    const { progress: again } = computeSrsPayload(base, RATING.AGAIN);
+    const { progress: hard } = computeSrsPayload(base, RATING.HARD);
+    const { progress: good } = computeSrsPayload(base, RATING.GOOD);
+    const { progress: easy } = computeSrsPayload(base, RATING.EASY);
+
+    expect(again.interval_hours).toBe(0);
+    expect(hard.interval_hours).toBe(24);
+    expect(good.interval_hours).toBe(72);
+    expect(easy.interval_hours).toBe(168);
+    expect(Date.parse(again.review_due_at)).toBeLessThan(Date.parse(hard.review_due_at));
+    expect(Date.parse(good.review_due_at)).toBeLessThan(Date.parse(easy.review_due_at));
+  });
+
+  it('never treats Hard, Good, or Easy as Again for a new card', () => {
+    const base = { state: 'new', learning_step: 0 };
+    const { progress: again } = computeSrsPayload(base, RATING.AGAIN);
+    const { progress: hard } = computeSrsPayload(base, RATING.HARD);
+    const { progress: good } = computeSrsPayload(base, RATING.GOOD);
+    const { progress: easy } = computeSrsPayload(base, RATING.EASY);
+
+    expect(again.learning_step).toBe(0);
+    expect(hard.state).toBe('learning');
+    expect(good.learning_step).toBe(1);
+    expect(easy.learning_step).toBe(2);
+    expect(good.review_due_at).not.toBe(again.review_due_at);
+    expect(easy.review_due_at).not.toBe(again.review_due_at);
+  });
+
   it('review state + AGAIN -> relearning and increases lapses', () => {
     const prog = { state: 'review', repetitions: 2, lapses: 0, ease_factor: 2.5 };
     const { progress } = computeSrsPayload(prog, RATING.AGAIN);

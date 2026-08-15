@@ -76,4 +76,32 @@ describe('recordLearningResult integration (mocked supabase & srs)', () => {
     expect(progress.review_due_at).toBeDefined();
     expect(progress.review_count).toBeDefined();
   });
+
+  it('retries without flashcard_reviews only when that production column is missing', async () => {
+    maybeSingleMock
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '42703', message: 'column user_progress.flashcard_reviews does not exist' },
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+    upsertMock
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: '42703', message: 'column user_progress.flashcard_reviews does not exist' },
+      })
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const { progress, error } = await recordLearningResult({
+      userId: 'user-1',
+      wordSenseId: 'sense-1',
+      rating: 3,
+      isFlashcard: true,
+    });
+
+    expect(error).toBeNull();
+    expect(upsertMock).toHaveBeenCalledTimes(2);
+    expect(upsertMock.mock.calls[0][0].flashcard_reviews).toBe(1);
+    expect(upsertMock.mock.calls[1][0].flashcard_reviews).toBeUndefined();
+    expect(progress.flashcard_reviews_persisted).toBe(false);
+  });
 });

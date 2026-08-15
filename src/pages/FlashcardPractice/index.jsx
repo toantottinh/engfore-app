@@ -8,6 +8,7 @@ import { getVocabularySet } from '../../services/vocabulary.service.js';
 import Button from '../../components/ui/Button.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
+import VocabularyAnswerDetails from '../../components/VocabularyAnswerDetails.jsx';
 
 export default function FlashcardPractice() {
   const { setId } = useParams();
@@ -225,6 +226,7 @@ export default function FlashcardPractice() {
                     <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(current.review_due_at, current.mastery_level)}</strong></div>
                   </div>
                 )}
+                {rated && <VocabularyAnswerDetails word={current} />}
                 {rated && (
                   <div className="mt-3 text-center">
                     <button

@@ -77,3 +77,43 @@ CREATE INDEX ON vocabulary_sets (user_id);
 CREATE INDEX ON word_senses (word_id);
 CREATE INDEX ON vocabulary_set_words (sense_id);
 CREATE INDEX ON user_progress (user_id, review_due_at);
+
+/* --- Daily NEW limit settings --- */
+
+/* Table: user_settings
+   Per-user persistent settings stored as key/value_jsonb.
+   Each row: (user_id, key, value_jsonb).
+   The daily_new_limit setting lives here.
+*/
+CREATE TABLE user_settings (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  key TEXT NOT NULL,
+  value_jsonb JSONB NOT NULL DEFAULT '{}'::jsonb,
+  PRIMARY KEY (user_id, key)
+);
+
+/* RLS for user_settings */
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own settings."
+  ON user_settings FOR ALL USING (auth.uid() = user_id);
+
+/* Table: daily_new_progress
+   Tracks which NEW word_sense_ids a user has already introduced today.
+   One row per (user, day, word_sense_id) — upsert is idempotent.
+*/
+CREATE TABLE daily_new_progress (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  day TEXT NOT NULL,               -- UTC date key "YYYY-MM-DD"
+  word_sense_id UUID NOT NULL,
+  PRIMARY KEY (user_id, day, word_sense_id)
+);
+
+/* RLS for daily_new_progress */
+ALTER TABLE daily_new_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own daily new progress."
+  ON daily_new_progress FOR ALL USING (auth.uid() = user_id);
+
+/* Add indexes for performance */
+CREATE INDEX ON user_settings (user_id);
+CREATE INDEX ON daily_new_progress (user_id);
+CREATE INDEX ON daily_new_progress (day);

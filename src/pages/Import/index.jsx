@@ -21,7 +21,7 @@ const COLUMN_HEADERS = [
   { key: 'word_type', label: 'Loại từ', required: false },
   { key: 'meaning', label: 'Nghĩa', required: false },
   { key: 'example', label: 'Ví dụ', required: false },
-  { key: 'description', label: 'Ghi chú/Mô tả', required: false },
+  { key: 'memory_clue', label: 'Memory Clue', required: false },
   { key: 'cefr', label: 'CEFR', required: false },
 ];
 
@@ -281,7 +281,7 @@ if (err) {
         <p className="mt-1 mb-2 text-xs text-zinc-500">
           Hỗ trợ: danh sách từ đơn (apple, lion, fan...) hoặc format pipe:{' '}
           <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">
-            Word | IPA | Type | Meaning | Example | Description | CEFR
+            Word | IPA | Type | Meaning | Example | Memory Clue | CEFR
           </code>
         </p>
         <Textarea

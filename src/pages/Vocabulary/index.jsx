@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
@@ -11,12 +11,16 @@ import Alert from '../../components/ui/Alert.jsx';
 export default function Vocabulary() {
   const { sets, loading, error, createSet, updateSet, removeSet, mutationLoading } =
     useVocabulary();
+  const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // Bộ từ được chọn cho "Học ngay" (multi-set practice, không dùng SRS).
+  const [selectedSetIds, setSelectedSetIds] = useState([]);
 
   // State cho các form
   const [formName, setFormName] = useState('');
@@ -33,6 +37,25 @@ export default function Vocabulary() {
         (set.description || '').toLowerCase().includes(lowercasedFilter)
     );
   }, [sets, searchTerm]);
+
+  const toggleSetSelection = (id) => {
+    setSelectedSetIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllFiltered = () => {
+    setSelectedSetIds(filteredSets.map((set) => set.id));
+  };
+
+  const clearSelection = () => {
+    setSelectedSetIds([]);
+  };
+
+  const startPractice = () => {
+    if (selectedSetIds.length === 0) return;
+    navigate(`/practice/session?setIds=${selectedSetIds.join(',')}`);
+  };
 
   const openCreate = () => {
     setFormError('');
@@ -111,12 +134,22 @@ export default function Vocabulary() {
       };
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        }, []);
 
     return (
       <div className="flex flex-col rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg">
         <div className="flex items-start justify-between">
-          <h3 className="flex-1 pr-2 font-semibold text-text-primary">{set.name}</h3>
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={selectedSetIds.includes(set.id)}
+              onChange={() => toggleSetSelection(set.id)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Chọn bộ ${set.name}`}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-zinc-300 text-brand-primary focus:ring-brand-primary"
+            />
+            <h3 className="font-semibold text-text-primary">{set.name}</h3>
+          </div>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -165,8 +198,8 @@ export default function Vocabulary() {
             Xem bộ từ
           </Link>
           <Link
-            to={`/practice/flashcard/${set.id}`}
-            className="flex-1 rounded-lg border border-border-color bg-surface-default px-3 py-2 text-center text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+            to={`/learn/session/${set.id}`}
+            className="flex-1 rounded-lg bg-brand-primary px-3 py-2 text-center text-sm font-medium text-white transition-colors hover:opacity-90"
           >
             Bắt đầu học
           </Link>
@@ -186,7 +219,7 @@ export default function Vocabulary() {
   );
 
   return (
-    <div className="space-y-6">
+        <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Bộ từ</h1>
@@ -195,6 +228,43 @@ export default function Vocabulary() {
         <Button onClick={openCreate}>
           <i className="bx bx-plus text-lg"></i>
           <span>Tạo bộ từ</span>
+        </Button>
+      </div>
+
+      {/* Thanh công cụ chọn bộ để "Học ngay" (không dùng SRS) */}
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-color bg-surface-sidebar px-4 py-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+          <input
+            type="checkbox"
+            checked={
+              filteredSets.length > 0 &&
+              filteredSets.every((s) => selectedSetIds.includes(s.id))
+            }
+            onChange={(e) =>
+              e.target.checked ? selectAllFiltered() : clearSelection()
+            }
+            className="h-4 w-4 cursor-pointer rounded border-zinc-300 text-brand-primary focus:ring-brand-primary"
+          />
+          Chọn tất cả
+        </label>
+        <button
+          type="button"
+          onClick={clearSelection}
+          disabled={selectedSetIds.length === 0}
+          className="text-sm font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
+        >
+          Bỏ chọn
+        </button>
+        <div className="ml-auto text-sm text-text-secondary">
+          Đã chọn <span className="font-semibold text-text-primary">{selectedSetIds.length}</span> bộ
+        </div>
+        <Button
+          onClick={startPractice}
+          disabled={selectedSetIds.length === 0}
+          className="inline-flex items-center gap-1.5"
+        >
+          <span>🎯 Học ngay</span>
+          <span className="hidden sm:inline">(Không lưu SRS)</span>
         </Button>
       </div>
 

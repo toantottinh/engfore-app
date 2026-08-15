@@ -33,14 +33,14 @@ export function useLearning() {
    * @param {{ correct?: boolean, rating?: number | string }} result
    */
   const recordProgress = useCallback(
-    async (wordSenseId, { correct, rating } = {}) => {
+    async (wordSenseId, { correct, rating, isFlashcard } = {}) => {
       if (!user) return { progress: null, error: { message: 'Bạn cần đăng nhập.' } };
       // If rating string provided (e.g., 'AGAIN'/'GOOD'), pass it through.
       if (typeof rating !== 'undefined') {
-        return recordLearningResult({ userId: user.id, wordSenseId, rating });
+        return recordLearningResult({ userId: user.id, wordSenseId, rating, isFlashcard: !!isFlashcard });
       }
       // Fallback to legacy boolean
-      return recordLearningResult({ userId: user.id, wordSenseId, correct: !!correct });
+      return recordLearningResult({ userId: user.id, wordSenseId, correct: !!correct, isFlashcard: !!isFlashcard });
     },
     [user]
   );

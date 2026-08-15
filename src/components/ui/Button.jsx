@@ -2,19 +2,21 @@ import React from 'react';
 
 const variants = {
   primary:
-    'bg-indigo-600 text-white hover:bg-indigo-700 focus-visible:ring-indigo-500 disabled:bg-indigo-300',
+    'bg-brand-primary text-white hover:bg-brand-primary-hover focus-visible:ring-brand-primary disabled:bg-brand-primary-soft',
   secondary:
-    'bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 focus-visible:ring-zinc-400 disabled:text-zinc-400',
+    'bg-surface-sidebar text-text-primary border border-border-color hover:bg-surface-hover focus-visible:ring-border-color disabled:text-text-secondary/60',
   danger:
-    'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 disabled:bg-red-300',
+    'bg-danger text-white hover:bg-danger/90 focus-visible:ring-danger disabled:bg-danger/50',
   ghost:
-    'bg-transparent text-zinc-600 hover:bg-zinc-100 focus-visible:ring-zinc-400 disabled:text-zinc-300',
+    'bg-transparent text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-border-color disabled:text-text-secondary/50',
+  success:
+    'bg-success text-white hover:bg-success/90 focus-visible:ring-success disabled:bg-success/50',
 };
 
 const sizes = {
   sm: 'px-3 py-1.5 text-sm',
   md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+  lg: 'px-5 py-2.5 text-base',
 };
 
 export default function Button({
@@ -42,3 +44,4 @@ export default function Button({
     </button>
   );
 }
+

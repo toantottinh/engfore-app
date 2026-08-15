@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 const tabs = [
-  { name: 'Ôn tập ngắt quãng', to: '/learn', end: true },
+  { name: 'Học từ vựng ngắt quãng', to: '/learn', end: true },
   // { name: 'Nghe', to: '/learn/dictation' }, // Dành cho tương lai
   // { name: 'Đọc', to: '/learn/reading' }, // Dành cho tương lai
 ];

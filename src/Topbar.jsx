@@ -146,7 +146,7 @@ export default function Topbar() {
           <NavItem to="/vocabulary" end={false}>Từ vựng</NavItem>
           <NavItem to="/learn" end={false}>
             <div className="relative flex items-center gap-2">
-              <span>Học</span>
+              <span>Học ngắt quãng</span>
               {reviewCount > 0 && (
                 <span className="grid min-w-[20px] h-5 place-items-center rounded-full bg-orange-500 px-1.5 text-xs font-bold text-white">
                   {reviewCount}

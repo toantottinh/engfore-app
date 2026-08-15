@@ -15,7 +15,7 @@ import Vocabulary from './pages/Vocabulary/index.jsx';
 import VocabularyDetail from './pages/VocabularyDetail/index.jsx';
 import Import from './pages/Import/index.jsx';
 import Practice from './pages/Practice/index.jsx';
-import Review from './pages/Review/index.jsx';
+import PracticeSession from './pages/PracticeSession/index.jsx';
 import TypingPractice from './pages/TypingPractice/index.jsx';
 import FlashcardPractice from './pages/FlashcardPractice/index.jsx';
 import LearningSession from './pages/LearningSession/index.jsx';
@@ -47,12 +47,13 @@ export default function AppRoutes() {
           </Route>
           <Route path="/vocabulary/:setId" element={<VocabularyDetail />} />
           <Route path="/learn/session/:setId" element={<LearningSession />} />
+          <Route path="/practice/session" element={<PracticeSession />} />
           <Route path="/practice/typing/:setId" element={<TypingPractice />} />
           <Route path="/practice/flashcard/:setId" element={<FlashcardPractice />} />
 
           {/* Khu vực "Học" với sub-navigation */}
           <Route path="/learn" element={<LearnLayout />}>
-            <Route index element={<Review />} />
+            <Route index element={<LearningSession />} />
           </Route>
           <Route path="/profile" element={<Profile />} />
         </Route>
