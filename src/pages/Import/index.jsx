@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
-import { getVocabularySets, getWordsInSet, importWordsToSet } from '../../services/vocabulary.service.js';
+import { getVocabularySets, getUserVocabulary, importWords } from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import {
   parseVocabularyText,
@@ -81,6 +81,15 @@ export default function Import() {
   const [success, setSuccess] = useState('');
   const [importing, setImporting] = useState(false);
 
+  // Destination Word Set — TÙY CHỌN, không bắt buộc.
+  const [destMode, setDestMode] = useState('vocab'); // 'vocab' | 'newSet' | 'existingSet'
+  const [destSetId, setDestSetId] = useState('');
+  const [newSetName, setNewSetName] = useState('');
+  const [lastSetId, setLastSetId] = useState('');
+
+  // Phân loại khi preview: từ trùng trong file / đã có trong Vocabulary / dòng lỗi.
+  const [summary, setSummary] = useState(null); // { found, invalid, dupFile, inVocab }
+
   // Tải danh sách bộ từ của user.
   useEffect(() => {
     let active = true;
@@ -107,49 +116,51 @@ export default function Import() {
     };
   }, [user]);
 
-  const handleParse = useCallback(() => {
+  const handleParse = useCallback(async () => {
     setError('');
     setSuccess('');
     setDuplicates([]);
-    setPreviewed(true);
-
-    if (!setId) {
-      setError('Vui lòng chọn một bộ từ vựng trước khi xem trước.');
-      setPreviewRows([]);
-      setParseInfo(null);
-      return;
-    }
+    setSummary(null);
 
     const result = parseVocabularyText(text);
-    setParseInfo({ format: result.format, hadHeader: result.hadHeader, warnings: result.warnings });
-    setPreviewRows(result.rows);
-  }, [text, setId]);
+    const format = result.format;
+    const parsed = result.rows || [];
 
-  // Khi thay đổi set, tự động kiểm tra duplicate (nếu đã preview).
-  useEffect(() => {
-    let active = true;
-    if (!previewed || previewRows.length === 0 || !setId) {
-      setDuplicates([]);
-      return;
+    // Toàn bộ từ đã có trong Vocabulary của user (phân loại "đã có trong kho").
+    let existing = new Set();
+    if (user) {
+      const voc = await getUserVocabulary(user.id);
+      existing = new Set((voc.data || []).map((w) => (w.word || '').toLowerCase()));
     }
-    setLoadSetsError('');
-    getWordsInSet(setId)
-      .then(({ data, error: err }) => {
-        if (!active) return;
-        if (err) {
-          setDuplicates([]);
-          return;
-        }
-        const existing = (data || []).map((w) => w.word);
-        const { rows, duplicates: dup } = dedupeRows(previewRows, existing);
-        setPreviewRows(rows);
-        setDuplicates(dup || []);
-      });
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setId, previewed]);
+
+    // Phân loại: dòng lỗi / trùng trong file / đã có trong Vocabulary / hợp lệ (giữ).
+    const seen = new Set();
+    let invalid = 0;
+    let dupFile = 0;
+    let inVocab = 0;
+    const valid = [];
+    parsed.forEach((row) => {
+      const w = (row.word || '').trim();
+      if (!w || (format === 'pipe' && !(row.meaning || '').trim())) {
+        invalid += 1;
+        return;
+      }
+      const key = w.toLowerCase();
+      if (seen.has(key)) {
+        dupFile += 1;
+        return;
+      }
+      seen.add(key);
+      if (existing.has(key)) inVocab += 1;
+      valid.push(row);
+    });
+
+    setParseInfo({ format, hadHeader: result.hadHeader, warnings: result.warnings });
+    setPreviewRows(valid);
+    setDuplicates([]);
+    setSummary({ found: parsed.length, invalid, dupFile, inVocab, valid: valid.length });
+    setPreviewed(true);
+  }, [text, user]);
 
   const updateCell = (index, key, value) => {
     setPreviewRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
@@ -162,23 +173,32 @@ export default function Import() {
   const handleImport = async () => {
     setError('');
     setSuccess('');
-    if (!setId) {
-      setError('Vui lòng chọn một bộ từ vựng.');
-      return;
-    }
     const validRows = previewRows.filter((r) => (r.word || '').trim());
     if (validRows.length === 0) {
       setError('Không có từ hợp lệ nào để nhập.');
+      return;
+    }
+    // Xác định payload destination của RPC import_words.
+    let setIdPayload = null;
+    let newSetNamePayload = null;
+    if (destMode === 'existingSet') setIdPayload = destSetId;
+    if (destMode === 'newSet') newSetNamePayload = newSetName.trim();
+    if ((destMode === 'newSet' || destMode === 'existingSet') && !setIdPayload && !newSetNamePayload) {
+      setError('Vui lòng chọn Word Set hoặc nhập tên Word Set mới.');
       return;
     }
     if (importing) return;
 
     setImporting(true);
     const payload = toImportPayload(validRows);
-    const { data, error: err } = await importWordsToSet(setId, payload);
+    const { meta, error: err } = await importWords({
+      words: payload,
+      setId: setIdPayload,
+      newSetName: newSetNamePayload,
+    });
     setImporting(false);
 
-if (err) {
+    if (err) {
       // Log đầy đủ lỗi thật dạng CHUỖI để console không gập thành "Object"
       // — chỉ log khi DEV, tránh lộ thông tin chi tiết trong production.
       if (import.meta.env.DEV) {
@@ -189,30 +209,37 @@ if (err) {
           details: err?.details ?? null,
           hint: err?.hint ?? null,
           error_code: err?.error_code ?? null,
-          setId,
+          setId: setIdPayload,
+          newSetName: newSetNamePayload,
           payloadCount: payload.length,
           firstWord: payload?.[0]?.word ?? null,
           payloadSample: payload,
         };
-        console.error('[Import] importWordsToSet error:', JSON.stringify(errInfo, null, 2));
+        console.error('[Import] importWords error:', JSON.stringify(errInfo, null, 2));
       }
       setError(getAuthErrorMessage(err));
       return;
     }
 
-    const importedCount = data?.length ?? validRows.length;
+    const created = meta?.created ?? 0;
+    const existing = meta?.existing ?? 0;
     setSuccess(
-      `Đã nhập thành công ${importedCount} từ vào bộ từ. Bạn có thể xem trong phần Từ vựng.`
+      `Đã nhập thành công: ${created} từ mới, ${existing} từ đã có (gộp vào kho).${
+        destMode !== 'vocab' ? ' Đã thêm vào Word Set.' : ' Đã thêm vào Vocabulary.'
+      }`
     );
+    setLastSetId(meta?.set_id ?? (destMode === 'existingSet' ? destSetId : ''));
     setPreviewRows([]);
     setPreviewed(false);
     setDuplicates([]);
     setParseInfo(null);
+    setSummary(null);
     setText('');
   };
 
   const goToSet = () => {
-    if (setId) navigate(`/vocabulary/${setId}`);
+    if (lastSetId) navigate(`/vocabulary/${lastSetId}`);
+    else navigate('/vocabulary');
   };
 
   return (
@@ -235,42 +262,80 @@ if (err) {
       {error && <Alert type="error" message={error} className="mb-4" />}
       {success && <Alert type="success" message={success} className="mb-4" />}
 
-      {/* Bước 1: Chọn bộ từ */}
+      {/* Bước 1: Đích nhập (Word Set — TÙY CHỌN, không bắt buộc) */}
       <div className="mb-5 rounded-xl border border-zinc-200 bg-white p-5">
-        <label htmlFor="set-select" className="text-sm font-medium text-zinc-700">
-          Chọn bộ từ vựng để nhập vào *
-        </label>
-        {setsLoading ? (
-          <div className="mt-2">
-            <Spinner />
-          </div>
-        ) : sets.length === 0 ? (
-          <div className="mt-3">
-            <Alert
-              type="info"
-              message="Bạn chưa có bộ từ nào. Vui lòng tạo bộ từ trước khi nhập từ vựng."
+        <div className="text-sm font-medium text-zinc-700">Thêm vào đâu?</div>
+        <p className="mt-1 mb-3 text-xs text-zinc-500">
+          Bạn có thể chỉ thêm vào Vocabulary (toàn bộ kho từ), chọn sẵn Word Set, hoặc tạo Word Set
+          mới — việc chọn Word Set là tùy chọn.
+        </p>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="dest"
+              checked={destMode === 'vocab'}
+              onChange={() => setDestMode('vocab')}
+              className="mt-1"
             />
-            <Link
-              to="/vocabulary"
-              className="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              Tạo bộ từ
-            </Link>
-          </div>
-        ) : (
-          <select
-            id="set-select"
-            value={setId}
-            onChange={(e) => setSetId(e.target.value)}
-            className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {sets.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.word_count ?? 0} từ)
-              </option>
+            <span className="text-sm text-zinc-700">Chỉ thêm vào Vocabulary</span>
+          </label>
+
+          <label className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="dest"
+              checked={destMode === 'newSet'}
+              onChange={() => setDestMode('newSet')}
+              className="mt-1"
+            />
+            <span className="text-sm text-zinc-700">Tạo Word Set mới</span>
+          </label>
+          {destMode === 'newSet' && (
+            <Input
+              value={newSetName}
+              onChange={(e) => setNewSetName(e.target.value)}
+              placeholder="Tên Word Set mới, ví dụ: Travel"
+              className="ml-6 mt-1 w-full sm:w-80"
+            />
+          )}
+
+          <label className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="dest"
+              checked={destMode === 'existingSet'}
+              onChange={() => setDestMode('existingSet')}
+              className="mt-1"
+            />
+            <span className="text-sm text-zinc-700">Thêm vào Word Set có sẵn</span>
+          </label>
+          {destMode === 'existingSet' &&
+            (setsLoading ? (
+              <div className="ml-6 mt-1">
+                <Spinner />
+              </div>
+            ) : sets.length === 0 ? (
+              <Alert
+                type="info"
+                className="ml-6 mt-1"
+                message="Bạn chưa có Word Set nào. Chọn 'Tạo Word Set mới' hoặc 'Chỉ thêm vào Vocabulary'."
+              />
+            ) : (
+              <select
+                value={destSetId}
+                onChange={(e) => setDestSetId(e.target.value)}
+                className="ml-6 mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-80"
+              >
+                <option value="">-- Chọn Word Set --</option>
+                {sets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.word_count ?? 0} từ)
+                  </option>
+                ))}
+              </select>
             ))}
-          </select>
-        )}
+        </div>
       </div>
 
       {/* Bước 2: Dán nội dung */}
@@ -323,14 +388,30 @@ if (err) {
             </div>
           )}
 
-          {duplicates.length > 0 && (
-            <Alert
-              type="info"
-              className="mb-3"
-              message={`Đã loại ${duplicates.length} từ trùng đã tồn tại trong bộ từ (${
-                duplicates.length > 0 ? duplicates.map((d) => d.word).join(', ') : ''
-              }).`}
-            />
+          {summary && (
+            <div className="mb-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+              <div className="font-medium">Kết quả kiểm tra:</div>
+              <ul className="mt-1 space-y-1 text-zinc-600">
+                <li>
+                  Tìm thấy: <strong className="text-zinc-800">{summary.found}</strong> dòng
+                </li>
+                <li>
+                  Hợp lệ (sẽ nhập):{' '}
+                  <strong className="text-green-600">{summary.valid}</strong>
+                </li>
+                <li>
+                  Đã có trong Vocabulary (gộp):{' '}
+                  <strong className="text-amber-600">{summary.inVocab}</strong>
+                </li>
+                <li>
+                  Trùng trong chính nội dung (bỏ, giữ 1):{' '}
+                  <strong className="text-amber-600">{summary.dupFile}</strong>
+                </li>
+                <li>
+                  Dòng lỗi (bỏ qua): <strong className="text-red-500">{summary.invalid}</strong>
+                </li>
+              </ul>
+            </div>
           )}
 
           {previewRows.length === 0 ? (
@@ -422,7 +503,7 @@ if (err) {
               <Button onClick={handleImport} loading={importing} disabled={importing}>
                 {importing ? 'Đang nhập...' : 'Nhập từ'}
               </Button>
-              {success && setId && (
+              {success && lastSetId && (
                 <Button variant="secondary" onClick={goToSet}>
                   Xem bộ từ
                 </Button>
