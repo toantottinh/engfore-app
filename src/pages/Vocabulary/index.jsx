@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
 import { getUserVocabulary, addWordsToSet, removeFromVocabulary } from '../../services/vocabulary.service.js';
+import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
@@ -29,6 +30,21 @@ export default function Vocabulary() {
 
   // Bộ từ được chọn cho "Học ngay" (multi-set practice, không dùng SRS).
   const [selectedSetIds, setSelectedSetIds] = useState([]);
+
+  // Delete word confirmation modal state
+  const [deleteWordOpen, setDeleteWordOpen] = useState(false);
+  const [deletingWord, setDeletingWord] = useState(null);
+  const [deleteWordLoading, setDeleteWordLoading] = useState(false);
+  const [deleteWordError, setDeleteWordError] = useState('');
+
+  // Bulk delete confirmation modal state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [bulkDeleteResults, setBulkDeleteResults] = useState(null);
+
+  // Delete set confirmation modal state
+  const [deleteSetLoading, setDeleteSetLoading] = useState(false);
+  const [deleteSetError, setDeleteSetError] = useState('');
 
   // State cho cac form
   const [formName, setFormName] = useState('');
@@ -280,18 +296,91 @@ export default function Vocabulary() {
 
   const clearWordSelection = () => setSelectedWordIds([]);
 
-  const handleRemoveFromVocabulary = async (id) => {
+    const handleRemoveFromVocabulary = async (id) => {
     const { error: err } = await removeFromVocabulary(id);
     if (err) {
-      setError('Xoa that bai. Vui long thu lai.');
-      return;
+      return { error: getAuthErrorMessage(err) };
     }
     setWords((prev) => prev.filter((w) => (w.id ?? w.word_sense_id) !== id));
+    return { error: null };
+  };
+
+  // Single word delete: open confirmation modal
+  const openDeleteWordModal = (word) => {
+    setDeletingWord(word);
+    setDeleteWordError('');
+    setDeleteWordOpen(true);
+  };
+
+  // Confirm single word delete
+  const handleConfirmDeleteWord = async () => {
+    if (!deletingWord) return;
+    const wordId = deletingWord.id ?? deletingWord.word_sense_id;
+    if (!wordId) {
+      setDeleteWordError('Khong the xac dinh tu can xoa.');
+      return;
+    }
+    setDeleteWordLoading(true);
+    setDeleteWordError('');
+
+    const { error: err } = await handleRemoveFromVocabulary(wordId);
+    if (err) {
+      setDeleteWordError(err);
+      // Keep modal open on error so user can retry or cancel
+    } else {
+      // Remove from selection if selected
+      setSelectedWordIds((prev) =>
+        prev.filter((id) => id !== wordId)
+      );
+      setDeleteWordOpen(false);
+      setDeletingWord(null);
+    }
+    setDeleteWordLoading(false);
+  };
+
+  // Bulk delete: open confirmation modal
+  const openBulkDeleteModal = () => {
+    if (selectedWordIds.length === 0) return;
+    setBulkDeleteResults(null);
+    setBulkDeleteOpen(true);
+  };
+
+  // Confirm bulk delete — sequential with summary
+  const handleConfirmBulkDelete = async () => {
+    if (selectedWordIds.length === 0) return;
+    setBulkDeleteLoading(true);
+    setBulkDeleteResults(null);
+
+    let successCount = 0;
+    let failCount = 0;
+    const failedWords = [];
+
+    for (const id of selectedWordIds) {
+      const { error: err } = await handleRemoveFromVocabulary(id);
+      if (err) {
+        failCount++;
+        const word = words.find((w) => (w.id ?? w.word_sense_id) === id);
+        failedWords.push({ id, word: word?.word || id, error: err });
+      } else {
+        successCount++;
+      }
+    }
+
+    setBulkDeleteResults({ successCount, failCount, failedWords });
+    setBulkDeleteLoading(false);
+
+    if (failCount === 0) {
+      // All succeeded: clear selection and close
+      setSelectedWordIds([]);
+      setBulkDeleteOpen(false);
+      setBulkDeleteResults(null);
+    }
+        // Partial failures: keep modal open to show summary
   };
 
   const openAddToSetModal = () => {
     if (selectedWordIds.length === 0) return;
-    alert('Them tu da chon vao Word Set. Tinh nang dang phat trien.');
+    // Feature coming soon - use UI instead of alert
   };
 
   const handleSearchChange = (e) => {
