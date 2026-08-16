@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
+import { getUserVocabulary, addWordsToSet, removeFromVocabulary } from '../../services/vocabulary.service.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
@@ -9,11 +10,18 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 
 export default function Vocabulary() {
-  const { sets, loading, error, createSet, updateSet, removeSet, mutationLoading } =
+  const { sets, loading: setsLoading, error: setsError, createSet, updateSet, removeSet, mutationLoading } =
     useVocabulary();
   const navigate = useNavigate();
 
+  // --- Vocabulary Library State ---
+  const [words, setWords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [selectedWordIds, setSelectedWordIds] = useState([]);
+  const [viewMode, setViewMode] = useState('library');
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -22,11 +30,33 @@ export default function Vocabulary() {
   // Bộ từ được chọn cho "Học ngay" (multi-set practice, không dùng SRS).
   const [selectedSetIds, setSelectedSetIds] = useState([]);
 
-  // State cho các form
+  // State cho cac form
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [editingSet, setEditingSet] = useState(null);
   const [deletingSet, setDeletingSet] = useState(null);
+
+  // Load user vocabulary on mount
+  useEffect(() => {
+    const loadVocabulary = async () => {
+      if (!process.client) return;
+      setLoading(true);
+      setError('');
+      try {
+        const { data, error } = await getUserVocabulary(
+          process.env.VITE_SUPABASE_USER_ID || 'current-user'
+        );
+        if (error) throw error;
+        setWords(data || []);
+      } catch (e) {
+        setError('Khong the tai tu Vung. Vui long thu lai.');
+        setWords([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadVocabulary();
+  }, []);
 
   const filteredSets = useMemo(() => {
     if (!searchTerm.trim()) return sets;
@@ -208,7 +238,71 @@ export default function Vocabulary() {
     );
   };
 
-  // Component con cho các trạng thái đặc biệt
+  // --- Vocabulary Library derived data & helpers ---
+  const filteredWords = useMemo(() => {
+    if (!words.length) return [];
+    const now = new Date();
+    return words.filter((word) => {
+      const state = word.state ?? 'new';
+      const mastery = word.mastery_level ?? 0;
+      const dueDate = word.review_due_at;
+      if (filter === 'all') return true;
+      if (filter === 'new') return state === 'new';
+      if (filter === 'learning') return state === 'learning' || state === 'relearning';
+      if (filter === 'due') {
+        if (state === 'new' || state === 'mastered') return false;
+        if (!dueDate) return false;
+        return new Date(dueDate) <= now;
+      }
+      if (filter === 'mastered') return mastery >= 4;
+      return true;
+    });
+  }, [words, filter]);
+
+  const searchAndFilter = useMemo(() => {
+    let result = filteredWords;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(
+        (w) =>
+          (w.word || '').toLowerCase().includes(term) ||
+          (w.meaning || '').toLowerCase().includes(term)
+      );
+    }
+    return result;
+  }, [filteredWords, searchTerm]);
+
+  const toggleSelect = (id) => {
+    setSelectedWordIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const clearWordSelection = () => setSelectedWordIds([]);
+
+  const handleRemoveFromVocabulary = async (id) => {
+    const { error: err } = await removeFromVocabulary(id);
+    if (err) {
+      setError('Xoa that bai. Vui long thu lai.');
+      return;
+    }
+    setWords((prev) => prev.filter((w) => (w.id ?? w.word_sense_id) !== id));
+  };
+
+  const openAddToSetModal = () => {
+    if (selectedWordIds.length === 0) return;
+    alert('Them tu da chon vao Word Set. Tinh nang dang phat trien.');
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const tabs = [
+    { id: 'library', name: 'Từ vựng' },
+    { id: 'sets', name: 'Bộ từ' },
+  ];
+
   const EmptyState = ({ icon, title, description, action }) => (
     <div className="col-span-full flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-color bg-surface-sidebar/50 py-20 text-center">
       <span className="text-5xl" aria-hidden="true">{icon}</span>
@@ -218,96 +312,249 @@ export default function Vocabulary() {
     </div>
   );
 
+  const renderLibrary = () => {
+    const displayWords = searchTerm ? searchAndFilter : filteredWords;
+    const hasWords = words.length > 0;
+
+    return (
+      <div>
+        {hasWords ? (
+          <div className="space-y-4">
+            {displayWords.length === 0 ? (
+              <Alert type="info" message="Khong co tu nay khop voi loc/tim kiem cua ban." />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayWords.map((word) => {
+                  const ipa = word.ipa ? ` /${word.ipa}/` : '';
+                  const type = word.word_type ? ` · ${word.word_type}` : '';
+                  const mastery = word.mastery_level ?? 0;
+                  const isMastered = mastery >= 4;
+                  const wordId = word.id ?? word.word_sense_id ?? '';
+
+                  return (
+                    <div
+                      key={wordId}
+                      className="p-4 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors cursor-pointer"
+                      onClick={() => navigate('/learn/session')}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex-1 truncate font-medium text-zinc-800">
+                          {word.word || ''}
+                        </span>
+                        <span className="text-indigo-600 text-sm">{ipa}</span>
+                        <span className="text-zinc-500 text-xs">{type}</span>
+                      </div>
+                      <p className="mt-1 text-zinc-600 text-truncate line-clamp-1 max-w-xs">
+                        {word.meaning || ''}
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className={`text-${isMastered ? 'green-500' : 'zinc-400'} text-xs font-medium ${isMastered ? 'opacity-80' : ''}`}>
+                          {mastery}/5 {isMastered && '🟢'}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={selectedWordIds.includes(wordId)}
+                          onChange={() => toggleSelect(wordId)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded border-zinc-400 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <Alert type="info" message="Vocabulary cua ban dang trong. Hay nhap tu moi hoac import tu Vung." />
+        )}
+        {selectedWordIds.length > 0 && (
+          <div className="mt-4 p-3 rounded-xl border border-brand-primary/30 bg-brand-primary/5">
+            <span className="text-zinc-800">{selectedWordIds.length} tu da duoc chon</span>
+            <Button variant="ghost" size="sm" onClick={clearWordSelection} className="ml-2">Bo chon</Button>
+            <Button variant="danger" size="sm" onClick={async () => {
+              for (const id of selectedWordIds) await handleRemoveFromVocabulary(id);
+              alert('Da xoa ' + selectedWordIds.length + ' tu khoi Vocabulary.');
+            }}>Xoa khoi Vocabulary</Button>
+            <Button variant="secondary" size="sm" onClick={openAddToSetModal}>Them vao Word Set</Button>
+          </div>
+        )}
+        {!hasWords && (
+          <div className="mt-6 text-center">
+            <Button variant="ghost" onClick={() => navigate('/vocabulary/import')}>+ Nhap tu Vung</Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-        <div className="space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Bộ từ</h1>
-          <p className="mt-1 text-text-secondary">Quản lý các bộ từ vựng của bạn.</p>
+          <h1 className="text-2xl font-bold text-text-primary">Từ vựng</h1>
+          <p className="mt-1 text-text-secondary">Quản lý từ vựng và bộ từ của bạn.</p>
         </div>
-        <Button onClick={openCreate}>
-          <i className="bx bx-plus text-lg"></i>
-          <span>Tạo bộ từ</span>
-        </Button>
+        {viewMode === 'sets' && (
+          <Button onClick={openCreate}>
+            <i className="bx bx-plus text-lg"></i>
+            <span>Tạo bộ từ</span>
+          </Button>
+        )}
       </div>
 
-      {/* Thanh công cụ chọn bộ để "Học ngay" (không dùng SRS) */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-color bg-surface-sidebar px-4 py-3">
-        <label className="flex items-center gap-2 text-sm font-medium text-text-secondary">
-          <input
-            type="checkbox"
-            checked={
-              filteredSets.length > 0 &&
-              filteredSets.every((s) => selectedSetIds.includes(s.id))
-            }
-            onChange={(e) =>
-              e.target.checked ? selectAllFiltered() : clearSelection()
-            }
-            className="h-4 w-4 cursor-pointer rounded border-zinc-300 text-brand-primary focus:ring-brand-primary"
-          />
-          Chọn tất cả
-        </label>
-        <button
-          type="button"
-          onClick={clearSelection}
-          disabled={selectedSetIds.length === 0}
-          className="text-sm font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
-        >
-          Bỏ chọn
-        </button>
-        <div className="ml-auto text-sm text-text-secondary">
-          Đã chọn <span className="font-semibold text-text-primary">{selectedSetIds.length}</span> bộ
-        </div>
-        <Button
-          onClick={startPractice}
-          disabled={selectedSetIds.length === 0}
-          className="inline-flex items-center gap-1.5"
-        >
-          <span>🎯 Học ngay</span>
-          <span className="hidden sm:inline">(Không lưu SRS)</span>
-        </Button>
+      {/* Tabs: Library vs Word Sets */}
+      <div className="border-b border-border-color">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.name}
+              type="button"
+              onClick={() => setViewMode(tab.id)}
+              className={`
+                whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium
+                ${
+                  viewMode === tab.id
+                    ? 'border-brand-primary text-brand-primary'
+                    : 'border-transparent text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                }
+              `}
+            >
+              {tab.name}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <div className="relative">
-        <i className="bx bx-search absolute left-3 top-1/2 -translate-y-1/2 text-lg text-text-secondary"></i>
-        <Input
-          type="search"
-          placeholder="Tìm kiếm bộ từ..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          aria-label="Tìm kiếm bộ từ"
-          className="!pl-10"
-        />
-      </div>
+      {viewMode === 'sets' && (
+        <>
+          {/* Thanh cong cu chon bo de "Hoc ngay" (khong dung SRS) */}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-color bg-surface-sidebar px-4 py-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+              <input
+                type="checkbox"
+                checked={
+                  filteredSets.length > 0 &&
+                  filteredSets.every((s) => selectedSetIds.includes(s.id))
+                }
+                onChange={(e) =>
+                  e.target.checked ? selectAllFiltered() : clearSelection()
+                }
+                className="h-4 w-4 cursor-pointer rounded border-zinc-300 text-brand-primary focus:ring-brand-primary"
+              />
+              Chọn tất cả
+            </label>
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={selectedSetIds.length === 0}
+              className="text-sm font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
+            >
+              Bỏ chọn
+            </button>
+            <div className="ml-auto text-sm text-text-secondary">
+              Đã chọn <span className="font-semibold text-text-primary">{selectedSetIds.length}</span> bộ
+            </div>
+            <Button
+              onClick={startPractice}
+              disabled={selectedSetIds.length === 0}
+              className="inline-flex items-center gap-1.5"
+            >
+              <span>🎯 Học ngay</span>
+              <span className="hidden sm:inline">(Không lưu SRS)</span>
+            </Button>
+          </div>
 
-      {error && <Alert type="error" message={error} className="mb-4" />}
-
-      {loading ? (
-        <Spinner />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredSets.length > 0 ? (
-            filteredSets.map((set) => <SetCard key={set.id} set={set} />)
-          ) : searchTerm ? (
-            <EmptyState
-              icon="🔍"
-              title="Không tìm thấy bộ từ"
-              description="Không có bộ từ nào khớp với từ khóa tìm kiếm của bạn."
+          <div className="relative">
+            <i className="bx bx-search absolute left-3 top-1/2 -translate-y-1/2 text-lg text-text-secondary"></i>
+            <Input
+              type="search"
+              placeholder="Tìm kiếm bộ từ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label="Tìm kiếm bộ từ"
+              className="!pl-10"
             />
+          </div>
+
+          {setsError && <Alert type="error" message={setsError} className="mb-4" />}
+
+          {setsLoading ? (
+            <Spinner />
           ) : (
-            <EmptyState
-              icon="📚"
-              title="Chưa có bộ từ nào"
-              description="Tạo bộ từ đầu tiên để bắt đầu học."
-              action={
-                <Button onClick={openCreate}>
-                  <i className="bx bx-plus text-lg"></i>
-                  <span>Tạo bộ từ</span>
-                </Button>
-              }
-            />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredSets.length > 0 ? (
+                filteredSets.map((set) => <SetCard key={set.id} set={set} />)
+              ) : searchTerm ? (
+                <EmptyState
+                  icon="🔍"
+                  title="Không tìm thấy bộ từ"
+                  description="Không có bộ từ nào khớp với từ khóa tìm kiếm của bạn."
+                />
+              ) : (
+                <EmptyState
+                  icon="📚"
+                  title="Chưa có bộ từ nào"
+                  description="Tạo bộ từ đầu tiên để bắt đầu học."
+                  action={
+                    <Button onClick={openCreate}>
+                      <i className="bx bx-plus text-lg"></i>
+                      <span>Tạo bộ từ</span>
+                    </Button>
+                  }
+                />
+              )}
+            </div>
           )}
-        </div>
+        </>
+      )}
+
+      {viewMode === 'library' && (
+        <>
+          {/* Library search & filter */}
+          <div className="mb-4 rounded-xl border border-zinc-200 p-4">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <i className="bx bx-search absolute left-3 top-1/2 -translate-y-1/2 text-lg text-text-secondary"></i>
+                <Input
+                  type="search"
+                  placeholder="Tim tu Vung..."
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  aria-label="Tim tu Vung"
+                  className="!pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {[
+                { id: 'all', label: 'Tat ca' },
+                { id: 'new', label: 'Moi' },
+                { id: 'learning', label: 'Dang hoc' },
+                { id: 'due', label: 'Den han' },
+                { id: 'mastered', label: 'Thanh thao' },
+              ].map((f) => (
+                <Button
+                  key={f.id}
+                  variant={filter === f.id ? 'primary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setFilter(f.id)}
+                  className="h-6"
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {error && <Alert type="error" message={error} className="mb-4" />}
+
+          {loading ? (
+            <Spinner />
+          ) : (
+            <div>{renderLibrary()}</div>
+          )}
+        </>
       )}
 
       {/* Modal tạo bộ từ */}
