@@ -305,6 +305,39 @@ export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
   return { data: merged, error: null };
 }
 
+/**
+ * Lấy danh sách từ đến hạn ôn tập của user NHƯNG thuộc một Word Set cụ thể.
+ * Set chỉ xác định PHẠM VI từ — FSRS/user_progress vẫn là nguồn sự thật duy nhất
+ * (không có FSRS riêng cho từng set). RLS `set_words` đảm bảo chỉ truy cập set của mình.
+ * @param {string} userId
+ * @param {string} setId
+ * @param {number} limit
+ */
+export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE_LIMIT) {
+  if (!userId || !setId) return { data: null, error: { message: 'Thiếu userId hoặc setId.' } };
+
+  const { data: links, error: linkError } = await supabase
+    .from('set_words')
+    .select('word_sense_id')
+    .eq('set_id', setId);
+  if (linkError) return { data: null, error: linkError };
+
+  const senseIds = (links || []).map((l) => l.word_sense_id);
+  if (senseIds.length === 0) return { data: [], error: null };
+
+  const { data, error } = await supabase
+    .from('user_progress')
+    .select(SRS_PROGRESS_SELECT)
+    .eq('user_id', userId)
+    .lte('review_due_at', new Date().toISOString())
+    .in('word_sense_id', senseIds)
+    .order('review_due_at', { ascending: true })
+    .limit(limit);
+  if (error) return { data: null, error };
+
+  return { data: (data || []).map(mapProgressRow), error: null };
+}
+
 
 /**
  * Đếm TỔNG số từ đến hạn ôn tập của user (cho badge hiển thị).
