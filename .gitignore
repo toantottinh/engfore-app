@@ -25,3 +25,6 @@ Thumbs.db
 supabase/.temp/
 supabase/.branches/
 staging_backup.sql
+
+# Local production backups (data, do not commit)
+.backups/
