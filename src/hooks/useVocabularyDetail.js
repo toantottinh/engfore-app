@@ -5,6 +5,8 @@ import {
   addWordToSet,
   updateWord,
   deleteWordFromSet,
+  updateVocabularySet, // Import this
+  removeFromVocabulary as serviceRemoveFromVocabulary, // Import with alias
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
 
@@ -92,6 +94,33 @@ export function useVocabularyDetail(setId) {
     [setId, loadSetAndWords]
   );
 
+  const updateSetDetails = useCallback(
+    async (updates) => {
+      setMutationLoading(true);
+      const { error: err } = await updateVocabularySet(setId, updates);
+      setMutationLoading(false);
+      if (err) return { error: getAuthErrorMessage(err) };
+      await loadSetAndWords();
+      return { error: null };
+    },
+    [setId, loadSetAndWords]
+  );
+
+  /**
+   * Removes a word from the user's entire vocabulary library.
+   * This is a global removal, not just from the current set.
+   */
+  const removeFromVocabulary = useCallback(
+    async (wordSenseId) => {
+      setMutationLoading(true);
+      const { error: err } = await serviceRemoveFromVocabulary(wordSenseId);
+      setMutationLoading(false);
+      if (err) return { error: getAuthErrorMessage(err) };
+      await loadSetAndWords(); // FIX: Added await to ensure UI updates after data is reloaded.
+      return { error: null };
+    },
+    [loadSetAndWords]
+  );
   return {
     set,
     words,
@@ -102,5 +131,7 @@ export function useVocabularyDetail(setId) {
     addWord,
     editWord,
     removeWord,
+    removeFromVocabulary,
+    updateSetDetails,
   };
 }

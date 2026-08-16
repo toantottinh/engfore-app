@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
+import { useAuth } from '../../hooks/useAuth.jsx';
 import { getUserVocabulary, addWordsToSet, removeFromVocabulary } from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import Button from '../../components/ui/Button.jsx';
@@ -9,10 +10,13 @@ import Textarea from '../../components/ui/Textarea.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
+import Select from '../../components/ui/Select.jsx';
+
 
 export default function Vocabulary() {
   const { sets, loading: setsLoading, error: setsError, createSet, updateSet, removeSet, mutationLoading } =
     useVocabulary();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // --- Vocabulary Library State ---
@@ -27,6 +31,13 @@ export default function Vocabulary() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // --- Add to set modal state ---
+  const [addToSetModalOpen, setAddToSetModalOpen] = useState(false);
+  const [addToSetTargetId, setAddToSetTargetId] = useState('');
+  const [addToSetLoading, setAddToSetLoading] = useState(false);
+  const [addToSetError, setAddToSetError] = useState('');
+
 
   // Bộ từ được chọn cho "Học ngay" (multi-set practice, không dùng SRS).
   const [selectedSetIds, setSelectedSetIds] = useState([]);
@@ -55,24 +66,26 @@ export default function Vocabulary() {
   // Load user vocabulary on mount
   useEffect(() => {
     const loadVocabulary = async () => {
-      if (!process.client) return;
+      if (!user) {
+        setWords([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError('');
       try {
-        const { data, error } = await getUserVocabulary(
-          process.env.VITE_SUPABASE_USER_ID || 'current-user'
-        );
+        const { data, error } = await getUserVocabulary(user.id);
         if (error) throw error;
         setWords(data || []);
       } catch (e) {
-        setError('Khong the tai tu Vung. Vui long thu lai.');
+        setError('Không thể tải từ vựng. Vui lòng thử lại.');
         setWords([]);
       } finally {
         setLoading(false);
       }
     };
     loadVocabulary();
-  }, []);
+  }, [user]);
 
   const filteredSets = useMemo(() => {
     if (!searchTerm.trim()) return sets;
@@ -317,7 +330,7 @@ export default function Vocabulary() {
     if (!deletingWord) return;
     const wordId = deletingWord.id ?? deletingWord.word_sense_id;
     if (!wordId) {
-      setDeleteWordError('Khong the xac dinh tu can xoa.');
+      setDeleteWordError('Không thể xác định từ cần xóa.');
       return;
     }
     setDeleteWordLoading(true);
@@ -380,8 +393,30 @@ export default function Vocabulary() {
 
   const openAddToSetModal = () => {
     if (selectedWordIds.length === 0) return;
-    // Feature coming soon - use UI instead of alert
+    setAddToSetError('');
+    setAddToSetTargetId(sets.length > 0 ? sets[0].id : '');
+    setAddToSetModalOpen(true);
   };
+
+  const handleAddToSet = async (e) => {
+    e.preventDefault();
+    if (!addToSetTargetId) {
+      setAddToSetError('Vui lòng chọn một bộ từ.');
+      return;
+    }
+    setAddToSetLoading(true);
+    setAddToSetError('');
+    const { error } = await addWordsToSet(addToSetTargetId, selectedWordIds);
+    setAddToSetLoading(false);
+    if (error) {
+      setAddToSetError(getAuthErrorMessage(error));
+    } else {
+      setAddToSetModalOpen(false);
+      clearWordSelection();
+      // Maybe show a success toast later
+    }
+  };
+
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
@@ -410,7 +445,7 @@ export default function Vocabulary() {
         {hasWords ? (
           <div className="space-y-4">
             {displayWords.length === 0 ? (
-              <Alert type="info" message="Khong co tu nay khop voi loc/tim kiem cua ban." />
+              <Alert type="info" message="Không có từ nào khớp với bộ lọc/tìm kiếm của bạn." />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {displayWords.map((word) => {
@@ -455,22 +490,19 @@ export default function Vocabulary() {
             )}
           </div>
         ) : (
-          <Alert type="info" message="Vocabulary cua ban dang trong. Hay nhap tu moi hoac import tu Vung." />
+          <Alert type="info" message="Thư viện của bạn đang trống. Hãy nhập từ mới hoặc import từ vựng." />
         )}
         {selectedWordIds.length > 0 && (
           <div className="mt-4 p-3 rounded-xl border border-brand-primary/30 bg-brand-primary/5">
-            <span className="text-zinc-800">{selectedWordIds.length} tu da duoc chon</span>
-            <Button variant="ghost" size="sm" onClick={clearWordSelection} className="ml-2">Bo chon</Button>
-            <Button variant="danger" size="sm" onClick={async () => {
-              for (const id of selectedWordIds) await handleRemoveFromVocabulary(id);
-              alert('Da xoa ' + selectedWordIds.length + ' tu khoi Vocabulary.');
-            }}>Xoa khoi Vocabulary</Button>
-            <Button variant="secondary" size="sm" onClick={openAddToSetModal}>Them vao Word Set</Button>
+            <span className="text-zinc-800">{selectedWordIds.length} từ đã được chọn</span>
+            <Button variant="ghost" size="sm" onClick={clearWordSelection} className="ml-2">Bỏ chọn</Button>
+            <Button variant="danger" size="sm" onClick={openBulkDeleteModal}>Xóa khỏi thư viện</Button>
+            <Button variant="secondary" size="sm" onClick={openAddToSetModal}>Thêm vào bộ từ</Button>
           </div>
         )}
         {!hasWords && (
           <div className="mt-6 text-center">
-            <Button variant="ghost" onClick={() => navigate('/vocabulary/import')}>+ Nhap tu Vung</Button>
+            <Button variant="ghost" onClick={() => navigate('/vocabulary/import')}>+ Nhập từ vựng</Button>
           </div>
         )}
       </div>
@@ -607,21 +639,21 @@ export default function Vocabulary() {
                 <i className="bx bx-search absolute left-3 top-1/2 -translate-y-1/2 text-lg text-text-secondary"></i>
                 <Input
                   type="search"
-                  placeholder="Tim tu Vung..."
+                  placeholder="Tìm từ vựng..."
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  aria-label="Tim tu Vung"
+                  aria-label="Tìm từ vựng"
                   className="!pl-10"
                 />
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
               {[
-                { id: 'all', label: 'Tat ca' },
-                { id: 'new', label: 'Moi' },
-                { id: 'learning', label: 'Dang hoc' },
-                { id: 'due', label: 'Den han' },
-                { id: 'mastered', label: 'Thanh thao' },
+                { id: 'all', label: 'Tất cả' },
+                { id: 'new', label: 'Mới' },
+                { id: 'learning', label: 'Đang học' },
+                { id: 'due', label: 'Đến hạn' },
+                { id: 'mastered', label: 'Thành thạo' },
               ].map((f) => (
                 <Button
                   key={f.id}
@@ -742,6 +774,44 @@ export default function Vocabulary() {
           hoàn tác.
         </p>
       </Modal>
+
+      {/* Modal thêm từ vào bộ từ */}
+      <Modal
+        open={addToSetModalOpen}
+        onClose={() => setAddToSetModalOpen(false)}
+        title={`Thêm ${selectedWordIds.length} từ vào bộ`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAddToSetModalOpen(false)}>
+              Hủy
+            </Button>
+            <Button type="submit" form="add-to-set-form" loading={addToSetLoading}>
+              {addToSetLoading ? 'Đang thêm...' : 'Thêm'}
+            </Button>
+          </>
+        }
+      >
+        <form id="add-to-set-form" onSubmit={handleAddToSet} className="space-y-4">
+          {addToSetError && <Alert type="error" message={addToSetError} />}
+          {sets.length > 0 ? (
+            <Select
+              label="Chọn bộ từ"
+              value={addToSetTargetId}
+              onChange={(e) => setAddToSetTargetId(e.target.value)}
+              options={sets.map(s => ({ value: s.id, label: s.name }))}
+            />
+          ) : (
+            <p className="text-sm text-text-secondary">
+              Bạn chưa có bộ từ nào. Hãy{' '}
+              <button type="button" onClick={() => { setAddToSetModalOpen(false); openCreate(); }} className="text-brand-primary font-medium hover:underline">
+                tạo một bộ từ mới
+              </button>
+              {' '}trước.
+            </p>
+          )}
+        </form>
+      </Modal>
+
     </div>
   );
 }

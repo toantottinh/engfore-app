@@ -7,7 +7,8 @@ import Modal from '../../components/ui/Modal.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import Select from '../../components/ui/Select.jsx';
-import EmptyState from '../../components/ui/EmptyState.jsx'; // Moved from internal
+import EmptyState from '../../components/ui/EmptyState.jsx';
+import { useVocabulary } from '../../hooks/useVocabulary.js';
 import { useVocabularyDetail } from '../../hooks/useVocabularyDetail.js';
 import { VALID_WORD_TYPES } from '../../utils/vocabulary-importer.js';
 import { cefrBadgeClass, cefrLabel } from '../../utils/cefr.js';
@@ -24,21 +25,18 @@ const CEFR_OPTIONS = [
   ...CEFR_LEVELS.map((level) => ({ value: level, label: level })),
 ];
 
-// Component con cho các trạng thái đặc biệt (Moved from internal)
-/*
-const EmptyState = ({ icon, title, description, action }) => (
-  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-color bg-surface-sidebar/50 py-20 text-center">
-    <span className="text-5xl" aria-hidden="true">{icon}</span>
-    <h3 className="mt-4 text-lg font-semibold text-text-primary">{title}</h3>
-    <p className="mt-1 max-w-xs text-sm text-text-secondary">{description}</p>
-    {action && <div className="mt-6">{action}</div>}
-  </div>
-);
-*/
+const SORT_OPTIONS = [
+  { value: 'default', label: 'Sắp xếp mặc định' },
+  { value: 'az', label: 'A-Z' },
+  { value: 'za', label: 'Z-A' },
+  { value: 'newest', label: 'Mới nhất' },
+  { value: 'oldest', label: 'Cũ nhất' },
+];
 
 export default function VocabularyDetail() {
   const { setId } = useParams();
   const navigate = useNavigate();
+  const { removeSet } = useVocabulary();
 
   const {
     set,
@@ -48,22 +46,32 @@ export default function VocabularyDetail() {
     mutationLoading,
     loadSetAndWords,
     addWord,
-    updateWordInCurrentSet,
+    editWord,
     removeWord,
+    updateSetDetails,
   } = useVocabularyDetail(setId);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [addEditModalOpen, setAddEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteSetModalOpen, setDeleteSetModalOpen] = useState(false);
+  const [deleteSetLoading, setDeleteSetLoading] = useState(false);
+  const [deleteSetError, setDeleteSetError] = useState(null);
   const [formError, setFormError] = useState('');
   const [activeTab, setActiveTab] = useState('vocabulary');
 
+  // State cho modal sửa bộ từ
+  const [editSetModalOpen, setEditSetModalOpen] = useState(false);
+  const [editSetName, setEditSetName] = useState('');
+  const [editSetError, setEditSetError] = useState('');
+
   const [cefrFilter, setCefrFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('default');
 
   // State cho form thêm/sửa từ
   const [isEditing, setIsEditing] = useState(false);
-  const [currentWord, setCurrentWord] = useState(null); // Dùng cho chế độ sửa
+  const [currentWord, setCurrentWord] = useState(null);
   const [formWord, setFormWord] = useState('');
   const [formIPA, setFormIPA] = useState('');
   const [formWordType, setFormWordType] = useState('');
@@ -75,20 +83,46 @@ export default function VocabularyDetail() {
   // State cho xóa từ
   const [deletingWord, setDeletingWord] = useState(null);
 
-  const filteredWords = useMemo(() => {
-    if (!searchTerm.trim()) return words;
-    const lowercasedFilter = searchTerm.trim().toLowerCase();
-    return words.filter((word) => {
-      const searchMatch =
-        word.word.toLowerCase().includes(lowercasedFilter) ||
-        word.meaning.toLowerCase().includes(lowercasedFilter);
+  const displayedWords = useMemo(() => {
+    let filtered = [...words];
 
-      const typeMatch = typeFilter === 'all' || word.word_type === typeFilter;
-      const cefrMatch = cefrFilter === 'all' || word.cefr_level === cefrFilter;
+    // Filter
+    if (searchTerm.trim()) {
+      const lowercasedFilter = searchTerm.trim().toLowerCase();
+      filtered = filtered.filter(
+        (word) =>
+          word.word.toLowerCase().includes(lowercasedFilter) ||
+          word.meaning.toLowerCase().includes(lowercasedFilter)
+      );
+    }
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((word) => word.word_type === typeFilter);
+    }
+    if (cefrFilter !== 'all') {
+      filtered = filtered.filter((word) => word.cefr_level === cefrFilter);
+    }
 
-      return searchMatch && typeMatch && cefrMatch;
-    });
-  }, [words, searchTerm, typeFilter, cefrFilter]);
+    // Sort
+    switch (sortOrder) {
+      case 'az':
+        filtered.sort((a, b) => a.word.localeCompare(b.word));
+        break;
+      case 'za':
+        filtered.sort((a, b) => b.word.localeCompare(a.word));
+        break;
+      case 'newest':
+        filtered.sort((a, b) => b.id - a.id);
+        break;
+      case 'oldest':
+        filtered.sort((a, b) => a.id - b.id);
+        break;
+      default:
+        // default order from db
+        break;
+    }
+
+    return filtered;
+  }, [words, searchTerm, typeFilter, cefrFilter, sortOrder]);
 
   const resetForm = () => {
     setFormWord('');
@@ -126,6 +160,12 @@ export default function VocabularyDetail() {
     setDeletingWord(word);
     setDeleteModalOpen(true);
   };
+  
+  const openEditSetModal = () => {
+    setEditSetName(set.name);
+    setEditSetError('');
+    setEditSetModalOpen(true);
+  };
 
   const handleAddEditWord = async (e) => {
     e.preventDefault();
@@ -148,7 +188,7 @@ export default function VocabularyDetail() {
 
     let result;
     if (isEditing && currentWord) {
-      result = await updateWordInCurrentSet(currentWord.word_id, currentWord.id, wordData);
+      result = await editWord(currentWord.word_id, currentWord.id, wordData);
     } else {
       result = await addWord(wordData);
     }
@@ -166,12 +206,49 @@ export default function VocabularyDetail() {
     if (!deletingWord) return;
     const result = await removeWord(deletingWord.id);
     if (result.error) {
-      setFormError(result.error); // Hiển thị lỗi trong modal chính hoặc alert
+      setFormError(result.error);
       setDeleteModalOpen(false);
       return;
     }
     setDeleteModalOpen(false);
     setDeletingWord(null);
+  };
+
+  const handleDeleteSet = async () => {
+    setDeleteSetError(null);
+    setDeleteSetLoading(true);
+    const { error } = await removeSet(setId);
+    setDeleteSetLoading(false);
+
+    if (error) {
+      setDeleteSetError(`Lỗi khi xóa bộ từ: ${error.message}`);
+      return;
+    }
+
+    setDeleteSetModalOpen(false);
+    navigate('/vocabulary');
+  };
+
+  const handleUpdateSet = async (e) => {
+    e.preventDefault();
+    setEditSetError('');
+
+    if (!editSetName.trim()) {
+      setEditSetError('Tên bộ từ không được để trống.');
+      return;
+    }
+    if (editSetName.trim() === set.name) {
+      setEditSetModalOpen(false);
+      return;
+    }
+
+    const result = await updateSetDetails({ name: editSetName.trim() });
+
+    if (result.error) {
+      setEditSetError(result.error);
+      return;
+    }
+    setEditSetModalOpen(false);
   };
 
   if (loading) {
@@ -210,17 +287,26 @@ export default function VocabularyDetail() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm">Chỉnh sửa</Button>
+          <Button variant="secondary" size="sm" onClick={openEditSetModal}>Chỉnh sửa</Button>
           <Button variant="secondary" size="sm">Nhập từ</Button>
           <Button variant="secondary" size="sm">Chia sẻ</Button>
-          <Button variant="danger" size="sm">Xóa bộ từ</Button>
+          <Button variant="danger" size="sm" onClick={() => setDeleteSetModalOpen(true)}>Xóa bộ từ</Button>
         </div>
       </div>
+
+      {deleteSetError && (
+        <Alert
+          type="error"
+          message={deleteSetError}
+          onClose={() => setDeleteSetError(null)}
+          className="my-4"
+        />
+      )}
 
       {/* Tabs */}
       <div className="border-b border-border-color">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          {['Từ vựng', 'Thống kê', 'Cài đặt'].map((tabName) => ( // TODO: Implement other tabs
+          {['Từ vựng', 'Thống kê', 'Cài đặt'].map((tabName) => (
             <button
               key={tabName}
               onClick={() => setActiveTab(tabName.toLowerCase())}
@@ -262,14 +348,18 @@ export default function VocabularyDetail() {
             options={[{ value: 'all', label: 'Tất cả CEFR' }, ...CEFR_OPTIONS.slice(1)]}
             className="min-w-[160px]"
           />
+          <Select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            options={SORT_OPTIONS}
+            className="min-w-[180px]"
+          />
         </div>
         <div className="flex items-center gap-3">
-          {/* Cùng mục đích học từ vựng -> single entry đi qua LearningSession (SRS) */}
           <Button variant="secondary" onClick={() => navigate(`/learn/session/${setId}`)}>
             <i className="bx bx-brain text-lg"></i>
             <span>Học ngắt quãng</span>
           </Button>
-          {/* "Học ngay": luyện tập nhanh flashcard/typing, KHÔNG ghi SRS */}
           <Button
             onClick={() => navigate(`/practice/session?setIds=${setId}`)}
             className="inline-flex items-center gap-1.5"
@@ -295,8 +385,8 @@ export default function VocabularyDetail() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-color">
-            {filteredWords.length > 0 ? (
-              filteredWords.map((word) => (
+            {displayedWords.length > 0 ? (
+              displayedWords.map((word) => (
                 <tr key={word.id} className="hover:bg-surface-hover">
                   <td className="px-4 py-3 align-top">
                     <div className="flex items-center gap-3">
@@ -483,6 +573,61 @@ export default function VocabularyDetail() {
           <span className="font-semibold">"{deletingWord?.word}"</span> khỏi bộ từ này? Hành động
           này không thể hoàn tác.
         </p>
+      </Modal>
+
+      {/* Modal xác nhận xóa BỘ TỪ */}
+      <Modal
+        open={deleteSetModalOpen}
+        onClose={() => setDeleteSetModalOpen(false)}
+        title="Xóa bộ từ"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteSetModalOpen(false)} disabled={deleteSetLoading}>
+              Hủy
+            </Button>
+            <Button variant="danger" onClick={handleDeleteSet} loading={deleteSetLoading}>
+              {deleteSetLoading ? 'Đang xóa...' : 'Xác nhận xóa'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Bạn có chắc chắn muốn xóa vĩnh viễn bộ từ{' '}
+          <span className="font-semibold text-text-primary">"{set?.name}"</span>? Toàn bộ{' '}
+          <span className="font-semibold text-text-primary">{words.length}</span> từ trong bộ này và
+          tiến trình học của bạn sẽ bị mất.
+          <br />
+          <strong className="mt-2 block">Hành động này không thể hoàn tác.</strong>
+        </p>
+      </Modal>
+      
+      {/* Modal sửa bộ từ */}
+      <Modal
+        open={editSetModalOpen}
+        onClose={() => setEditSetModalOpen(false)}
+        title="Chỉnh sửa bộ từ"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditSetModalOpen(false)}>
+              Hủy
+            </Button>
+            <Button type="submit" form="edit-set-form" loading={mutationLoading}>
+              {mutationLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </Button>
+          </>
+        }
+      >
+        <form id="edit-set-form" onSubmit={handleUpdateSet} className="space-y-4">
+          {editSetError && <Alert type="error" message={editSetError} />}
+          <Input
+            label="Tên bộ từ"
+            name="name"
+            value={editSetName}
+            onChange={(e) => setEditSetName(e.target.value)}
+            placeholder="Ví dụ: English 101"
+            autoFocus
+          />
+        </form>
       </Modal>
     </div>
   );

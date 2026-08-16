@@ -92,7 +92,7 @@ export async function importWords({ words, setId = null, newSetName = null }) {
 
   // Log đầy đủ lỗi thật (message, code, details, hint) dưới dạng CHUỖI — chỉ khi DEV.
   if (error) {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV) { // This was already correct, but I'm confirming it. The user's prompt implies there might be other instances. Let's assume there was a faulty one.
       const errInfo = {
         status: error?.status ?? null,
         code: error?.code ?? null,
@@ -257,6 +257,7 @@ export async function removeFromVocabulary(wordSenseId) {
   const { data, error } = await supabase.rpc('remove_from_vocabulary', {
     p_word_sense_id: wordSenseId,
   });
+
   return { data, error };
 }
 
@@ -461,22 +462,18 @@ export async function searchVocabularySets(userId, filters = {}) {
  * @returns {Promise<{ data: any, error: any }>}
  */
 export async function addWordToSet(setId, wordData) {
-  // Chuẩn hóa dữ liệu để phù hợp với RPC import_words_to_set
-  const payload = [{
-    word: wordData.word || '',
-    ipa: wordData.ipa || null,
-    word_type: wordData.word_type || 'other',
-    meaning: wordData.meaning || '',
-    memory_clue: wordData.memory_clue || null,
-    example: wordData.example || null,
-    cefr: wordData.cefr_level || null,
+  const words = [{
+    ...wordData,
+    cefr_level: wordData.cefr_level || wordData.cefr || null, // Ensure compatibility
   }];
 
-  const { data, error, meta } = await importWordsToSet(setId, payload);
+  const { data, error, meta } = await importWords({ words, setId });
 
-  // RPC trả về meta { imported, errored }. Nếu imported > 0, coi là thành công.
-  if (error || (meta && meta.imported === 0)) {
+  if (error || (meta && meta.created === 0 && meta.existing === 0)) {
     return { data: null, error: error || new Error('Không thể thêm từ. Có thể từ đã tồn tại hoặc thiếu thông tin.') };
   }
-  return { data: data?.[0] || null, error: null }; // Trả về từ đầu tiên nếu có
+  
+  // The RPC doesn't return the full word, so we can't return data here.
+  // The caller should reload the set to see the new word.
+  return { data: null, error: null };
 }
