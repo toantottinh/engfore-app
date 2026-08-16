@@ -28,6 +28,33 @@ export async function getVocabularySets(userId) {
   return { data: mapped, error: null };
 }
 
+/** [ADMIN] Lấy TOÀN BỘ danh sách bộ từ (public và của user) kèm thông tin owner. */
+export async function getAdminAllSets() {
+  const { data, error } = await supabase
+    .from('vocabulary_sets')
+    .select(
+      `*,
+       set_words(count),
+       users ( username )
+      `
+    )
+    .order('created_at', { ascending: false });
+
+  if (error) return { data: null, error };
+
+  const mapped = (data || []).map((set) => {
+    const count = set.set_words?.[0]?.count ?? 0;
+    const { set_words: _sw, ...rest } = set;
+    return {
+      ...rest,
+      word_count: count,
+      owner_username: set.users?.username || 'Public', // Public if user is null
+    };
+  });
+
+  return { data: mapped, error: null };
+}
+
 /** Lấy thông tin chi tiết một bộ từ. */
 export async function getVocabularySet(setId) {
   const { data, error } = await supabase
@@ -121,6 +148,110 @@ export async function importWords({ words, setId = null, newSetName = null }) {
 export async function importWordsToSet(setId, words) {
   return importWords({ words, setId });
 }
+
+/**
+ * [ADMIN] Import words, allowing creation of a new public set or adding to an existing public set.
+ * Requires admin privileges, enforced by the RPC.
+ * @param {{ words: Array, setId?: string|null, newSetName?: string|null, newSetTopicId?: string|null, newSetStatus?: 'draft'|'published' }} params
+ */
+export async function adminImportWords({ words, setId = null, newSetName = null, newSetTopicId = null, newSetStatus = 'draft' }) {
+  const storageWords = (words || []).map(({ memory_clue, ...word }) => ({
+    ...word,
+    description: memory_clue ?? word.description ?? null,
+  }));
+
+  const { data, error } = await supabase.rpc('admin_import_words', {
+    p_set_id: setId,
+    p_new_set_name: newSetName,
+    p_words_data: storageWords,
+    p_new_set_topic_id: newSetTopicId,
+    p_new_set_status: newSetStatus,
+  });
+
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.error('[adminImportWords] RPC error:', JSON.stringify(error, null, 2));
+    }
+    return { data: null, error, meta: null };
+  }
+
+  const meta = Array.isArray(data) && data[0] ? data[0] : null;
+  return { data, error: null, meta };
+}
+
+/**
+ * [ADMIN] Update a vocabulary set, including admin-only fields like status and topic.
+ */
+export async function adminUpdateVocabularySet(setId, updates) {
+  // `updates` can include { name, description, topic_id, status }
+  const { data, error } = await supabase
+    .from('vocabulary_sets')
+    .update(updates)
+    .eq('id', setId)
+    .select()
+    .maybeSingle();
+  return { data, error };
+}
+
+/**
+ * [ADMIN] Update a canonical word and its sense. Uses RPC to ensure it runs with correct permissions.
+ */
+export async function adminUpdateWord(wordId, senseId, updates) {
+  const { error } = await supabase.rpc('admin_update_word', {
+    p_word_id: wordId,
+    p_sense_id: senseId,
+    p_word_data: updates,
+  });
+  return { error };
+}
+
+/**
+ * [ADMIN] Permanently delete a word and its senses from the global tables.
+ * This is a destructive action and should be used with care.
+ */
+export async function adminDeleteWord(wordId) {
+  // The delete will cascade to word_senses, set_words, user_progress, etc.
+  // RLS policies ensure only admins can do this.
+  const { error } = await supabase.from('words').delete().eq('id', wordId);
+  return { error };
+}
+
+/** Lấy danh sách tất cả các topics. */
+export async function getTopics() {
+  const { data, error } = await supabase
+    .from('topics')
+    .select('*')
+    .order('name', { ascending: true });
+  return { data, error };
+}
+
+/** [ADMIN] Create a new topic. */
+export async function createTopic(topicData) {
+  const { data, error } = await supabase
+    .from('topics')
+    .insert([topicData])
+    .select()
+    .single();
+  return { data, error };
+}
+
+/** [ADMIN] Update an existing topic. */
+export async function updateTopic(topicId, updates) {
+  const { data, error } = await supabase
+    .from('topics')
+    .update(updates)
+    .eq('id', topicId)
+    .select()
+    .single();
+  return { data, error };
+}
+
+/** [ADMIN] Delete a topic. */
+export async function deleteTopic(topicId) {
+  const { error } = await supabase.from('topics').delete().eq('id', topicId);
+  return { error };
+}
+
 /**
  * Toàn bộ Vocabulary của user: các sense thuộc (user, sense) qua user_vocabulary,
  * kèm tiến trình học (user_progress) và các Word Set chứa sense (để hiển thị).
@@ -342,45 +473,18 @@ export async function getWordsInSet(setId) {
       mastery_level: progress?.mastery_level ?? 0,
       review_due_at: progress?.review_due_at ?? null,
       last_reviewed_at: progress?.last_reviewed_at ?? null,
-      repetitions: progress?.repetitions ?? 0,
-      interval_hours: progress?.interval_hours ?? 0,
-      ease_factor: progress?.ease_factor ?? 2.5,
-      lapses: progress?.lapses ?? 0,
-      state: progress?.state ?? 'new',
-      learning_step: progress?.learning_step ?? 0,
-      flashcard_reviews: progress?.flashcard_reviews ?? 0,
+      repetitions: prog?.repetitions ?? 0,
+      interval_hours: prog?.interval_hours ?? 0,
+      ease_factor: prog?.ease_factor ?? 2.5,
+      lapses: prog?.lapses ?? 0,
+      state: prog?.state ?? 'new',
+      learning_step: prog?.learning_step ?? 0,
+      flashcard_reviews: prog?.flashcard_reviews ?? 0,
       _idx: idx,
     };
   });
 
   return { data: merged, error: null };
-}
-
-/** Cập nhật chi tiết một từ (word + word_sense). */
-export async function updateWord(wordId, senseId, updates) {
-  // Cập nhật word_senses trước (RLS cho phép UPDATE trong schema hiện tại)
-  const senseResult = await supabase
-    .from('word_senses')
-    .update({
-      word_type: updates.word_type,
-      meaning: updates.meaning,
-      description: updates.memory_clue || null,
-      example: updates.example || null,
-    })
-    .eq('id', senseId);
-  if (senseResult.error) return { error: senseResult.error };
-
-  // Cập nhật words (best-effort — có thể bị giới hạn RLS)
-  const { error: wordError } = await supabase
-    .from('words')
-    .update({
-      word: updates.word,
-      ipa: updates.ipa || null,
-      cefr_level: updates.cefr_level || null,
-    })
-    .eq('id', wordId);
-
-  return { error: wordError };
 }
 
 /** Xóa một từ khỏi set (gỡ quan hệ set_words). */

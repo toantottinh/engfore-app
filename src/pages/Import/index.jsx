@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
-import { getVocabularySets, getUserVocabulary, importWords } from '../../services/vocabulary.service.js';
+import {
+  getVocabularySets,
+  getUserVocabulary,
+  importWords,
+  adminImportWords,
+  getAdminAllSets,
+  getTopics,
+} from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import {
   parseVocabularyText,
@@ -63,11 +70,13 @@ function wordTypeLabel(t) {
 }
 
 export default function Import() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [text, setText] = useState('');
   const [sets, setSets] = useState([]);
+  const [allSets, setAllSets] = useState([]); // For admin view
+  const [topics, setTopics] = useState([]);
   const [setId, setSetId] = useState('');
   const [setsLoading, setSetsLoading] = useState(true);
 
@@ -86,35 +95,64 @@ export default function Import() {
   const [destSetId, setDestSetId] = useState('');
   const [newSetName, setNewSetName] = useState('');
   const [lastSetId, setLastSetId] = useState('');
+  
+  // Admin-specific state for creating public sets
+  const [isPublicSet, setIsPublicSet] = useState(false);
+  const [newSetTopicId, setNewSetTopicId] = useState('');
+  const [newSetStatus, setNewSetStatus] = useState('draft');
 
   // Phân loại khi preview: từ trùng trong file / đã có trong Vocabulary / dòng lỗi.
   const [summary, setSummary] = useState(null); // { found, invalid, dupFile, inVocab }
 
-  // Tải danh sách bộ từ của user.
+  // Tải danh sách bộ từ của user và (nếu là admin) các bộ từ public + topics.
   useEffect(() => {
     let active = true;
-    setSetsLoading(true);
-    setLoadSetsError('');
     if (!user) {
       setSetsLoading(false);
       return;
     }
-    getVocabularySets(user.id).then(({ data, error: err }) => {
-      if (!active) return;
-      setSetsLoading(false);
-      if (err) {
-        setLoadSetsError(getAuthErrorMessage(err));
-        return;
+
+    setSetsLoading(true);
+    setLoadSetsError('');
+
+    const loadData = async () => {
+      try {
+        const { data: userSets, error: userSetsError } = await getVocabularySets(user.id);
+        if (!active) return;
+        if (userSetsError) throw userSetsError;
+        
+        setSets(userSets || []);
+
+        if (isAdmin) {
+          const [{ data: allSetsData, error: allSetsError }, { data: topicsData, error: topicsError }] = await Promise.all([
+            getAdminAllSets(),
+            getTopics(),
+          ]);
+
+          if (!active) return;
+          if (allSetsError) throw allSetsError;
+          if (topicsError) throw topicsError;
+          
+          setAllSets(allSetsData || []);
+          setTopics(topicsData || []);
+        }
+      } catch (err) {
+        if (active) {
+          setLoadSetsError(getAuthErrorMessage(err));
+        }
+      } finally {
+        if (active) {
+          setSetsLoading(false);
+        }
       }
-      setSets(data || []);
-      if (data && data.length > 0) {
-        setSetId((prev) => prev || data[0].id);
-      }
-    });
+    };
+
+    loadData();
+
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   const handleParse = useCallback(async () => {
     setError('');
@@ -178,11 +216,15 @@ export default function Import() {
       setError('Không có từ hợp lệ nào để nhập.');
       return;
     }
-    // Xác định payload destination của RPC import_words.
+
     let setIdPayload = null;
     let newSetNamePayload = null;
-    if (destMode === 'existingSet') setIdPayload = destSetId;
-    if (destMode === 'newSet') newSetNamePayload = newSetName.trim();
+    if (destMode === 'existingSet') {
+      setIdPayload = destSetId;
+    } else if (destMode === 'newSet') {
+      newSetNamePayload = newSetName.trim();
+    }
+    
     if ((destMode === 'newSet' || destMode === 'existingSet') && !setIdPayload && !newSetNamePayload) {
       setError('Vui lòng chọn Word Set hoặc nhập tên Word Set mới.');
       return;
@@ -191,31 +233,34 @@ export default function Import() {
 
     setImporting(true);
     const payload = toImportPayload(validRows);
-    const { meta, error: err } = await importWords({
-      words: payload,
-      setId: setIdPayload,
-      newSetName: newSetNamePayload,
-    });
+
+    const useAdminFlow = isAdmin && (destMode === 'newSet' || (destMode === 'existingSet' && allSets.find(s => s.id === destSetId && !s.user_id)));
+
+    const { meta, error: err } = useAdminFlow
+      ? await adminImportWords({
+          words: payload,
+          setId: setIdPayload,
+          newSetName: newSetNamePayload,
+          newSetTopicId: newSetNamePayload ? newSetTopicId : null,
+          newSetStatus: newSetNamePayload ? newSetStatus : 'draft',
+        })
+      : await importWords({
+          words: payload,
+          setId: setIdPayload,
+          newSetName: newSetNamePayload,
+        });
+
     setImporting(false);
 
     if (err) {
-      // Log đầy đủ lỗi thật dạng CHUỖI để console không gập thành "Object"
-      // — chỉ log khi DEV, tránh lộ thông tin chi tiết trong production.
       if (import.meta.env.DEV) {
         const errInfo = {
-          status: err?.status ?? null,
-          code: err?.code ?? null,
-          message: err?.message ?? null,
-          details: err?.details ?? null,
-          hint: err?.hint ?? null,
-          error_code: err?.error_code ?? null,
-          setId: setIdPayload,
-          newSetName: newSetNamePayload,
-          payloadCount: payload.length,
-          firstWord: payload?.[0]?.word ?? null,
-          payloadSample: payload,
+          message: err?.message,
+          details: err?.details,
+          hint: err?.hint,
+          code: err?.code,
         };
-        console.error('[Import] importWords error:', JSON.stringify(errInfo, null, 2));
+        console.error('[Import] Error:', JSON.stringify(errInfo, null, 2));
       }
       setError(getAuthErrorMessage(err));
       return;
@@ -292,12 +337,47 @@ export default function Import() {
             <span className="text-sm text-zinc-700">Tạo Word Set mới</span>
           </label>
           {destMode === 'newSet' && (
-            <Input
-              value={newSetName}
-              onChange={(e) => setNewSetName(e.target.value)}
-              placeholder="Tên Word Set mới, ví dụ: Travel"
-              className="ml-6 mt-1 w-full sm:w-80"
-            />
+            <div className="ml-6 mt-1 space-y-3">
+              <Input
+                value={newSetName}
+                onChange={(e) => setNewSetName(e.target.value)}
+                placeholder="Tên Word Set mới, ví dụ: Travel"
+                className="w-full sm:w-80"
+              />
+              {isAdmin && (
+                <div className="space-y-2 rounded-md border border-sky-200 bg-sky-50 p-3">
+                  <div className="text-sm font-medium text-sky-800">Admin: Public Set Options</div>
+                   <label className="flex items-center gap-2">
+                      <span className="w-20 text-xs text-zinc-600">Topic:</span>
+                      <select
+                        value={newSetTopicId}
+                        onChange={(e) => setNewSetTopicId(e.target.value)}
+                        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-64"
+                      >
+                        <option value="">-- No topic --</option>
+                        {topics.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.cefr_level})
+                          </option>
+                        ))}
+                      </select>
+                   </label>
+                   <label className="flex items-center gap-2">
+                      <span className="w-20 text-xs text-zinc-600">Status:</span>
+                       <div className="flex gap-4">
+                         <label className="flex items-center gap-1">
+                           <input type="radio" name="status" value="draft" checked={newSetStatus === 'draft'} onChange={(e) => setNewSetStatus(e.target.value)} />
+                           <span className="text-sm">Draft</span>
+                         </label>
+                         <label className="flex items-center gap-1">
+                           <input type="radio" name="status" value="published" checked={newSetStatus === 'published'} onChange={(e) => setNewSetStatus(e.target.value)} />
+                           <span className="text-sm">Published</span>
+                         </label>
+                       </div>
+                   </label>
+                </div>
+              )}
+            </div>
           )}
 
           <label className="flex items-start gap-2">
@@ -328,11 +408,30 @@ export default function Import() {
                 className="ml-6 mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-80"
               >
                 <option value="">-- Chọn Word Set --</option>
-                {sets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.word_count ?? 0} từ)
-                  </option>
-                ))}
+                {isAdmin ? (
+                  <>
+                    <optgroup label="Public Sets">
+                      {allSets.filter(s => !s.user_id).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.word_count ?? 0} từ)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="My Sets">
+                      {allSets.filter(s => s.user_id === user.id).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.word_count ?? 0} từ)
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                ) : (
+                  sets.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.word_count ?? 0} từ)
+                    </option>
+                  ))
+                )}
               </select>
             ))}
         </div>

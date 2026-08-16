@@ -125,7 +125,7 @@ export const authService = {
     if (!user) return { data: null, error: null };
     const { data: existing, error: fetchError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, username, role')
       .eq('id', user.id)
       .maybeSingle();
     if (fetchError && fetchError.code !== 'PGRST116') {
@@ -140,7 +140,7 @@ export const authService = {
     const { data, error } = await supabase
       .from('users')
       .insert([{ id: user.id, username }])
-      .select()
+      .select('id, username, role')
       .maybeSingle();
 return { data, error };
   },

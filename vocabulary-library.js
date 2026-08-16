@@ -1,17 +1,20 @@
 import { authService } from './auth.service.js';
 import { dbService } from './db.service.js';
+import * as vocabularyService from './src/services/vocabulary.service.js';
 
-// Biến để lưu trữ element DOM, tránh query nhiều lần
-let vocabSetListContainer;
+// Module-level state
 let rootElement;
+let vocabSetListContainer;
+let isAdmin = false;
+let adminViewActive = false;
 
 /**
- * Tải và render component Vocabulary Library vào một element gốc.
- * @param {HTMLElement} element - Element để render component vào.
+ * Main function to render the Vocabulary Library component.
  */
 export async function renderVocabularyLibrary(element) {
     rootElement = element;
-    // 1. Tải CSS
+    
+    // Load CSS
     if (!document.querySelector('link[href="/vocabulary-library.css"]')) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -19,237 +22,294 @@ export async function renderVocabularyLibrary(element) {
         document.head.appendChild(link);
     }
 
-    // 2. Tải HTML
+    // Load HTML
     const response = await fetch('/vocabulary-library.html');
     if (!response.ok) {
-        rootElement.innerHTML = `<p style="color: red; padding: 2rem;">Error loading vocabulary library.</p>`;
+        rootElement.innerHTML = `<p class="error">Error loading vocabulary library.</p>`;
         return;
     }
-    const html = await response.text();
+    rootElement.innerHTML = await response.text();
 
-    // 3. Render HTML
-    rootElement.innerHTML = html;
-
-    // 4. Gắn các event listener
-    setupEventListeners();
-    // 5. Tải và hiển thị danh sách các bộ từ
+    // Setup UI and event listeners
+    await setupEventListeners();
+    
+    // Initial render of the set list
     await renderSetList();
 }
 
 /**
- * Gắn các event listener cho component Vocabulary Library.
+ * Sets up all event listeners and dynamically adds admin controls if applicable.
  */
-function setupEventListeners() {
-    const addSetBtn = rootElement.querySelector('.add-set-btn');
+async function setupEventListeners() {
     vocabSetListContainer = rootElement.querySelector('.vocab-set-list');
-    
-    if (!addSetBtn || !vocabSetListContainer) return;
+    if (!vocabSetListContainer) return;
 
-    addSetBtn.addEventListener('click', handleCreateSet);
+    // --- Check for Admin Role ---
+    const { data: { user } } = await authService.getUser();
+    if (user) {
+        const { data: profile } = await authService.getProfile(user.id);
+        isAdmin = profile?.role === 'admin';
+    }
 
-    // Sử dụng event delegation cho các hành động trên card
+    // --- Standard User Event Listeners ---
+    rootElement.querySelector('.add-set-btn').addEventListener('click', handleCreateSet);
     vocabSetListContainer.addEventListener('click', handleCardActions);
-
-    // Lắng nghe các thay đổi trên thanh tìm kiếm và sắp xếp
-    const searchInput = rootElement.querySelector('.search-input');
-    const sortSelect = rootElement.getElementById('sort-sets-select');
-
-    searchInput.addEventListener('input', debounce(renderSetList, 300));
-    sortSelect.addEventListener('change', renderSetList);
-
-    // --- Advanced Search Listeners ---
-    const advancedSearchToggle = rootElement.getElementById('advanced-search-toggle');
-    const advancedSearchPanel = rootElement.getElementById('advanced-search-panel');
-    
-    advancedSearchToggle.addEventListener('click', () => {
-        advancedSearchPanel.classList.toggle('hidden');
+    rootElement.querySelector('.search-input').addEventListener('input', debounce(renderSetList, 300));
+    rootElement.getElementById('sort-sets-select').addEventListener('change', renderSetList);
+    rootElement.getElementById('advanced-search-toggle').addEventListener('click', () => {
+        rootElement.getElementById('advanced-search-panel').classList.toggle('hidden');
     });
-
-    const applyAdvancedSearchBtn = rootElement.getElementById('apply-advanced-search-btn');
-    applyAdvancedSearchBtn.addEventListener('click', renderSetList);
-
-    const clearAdvancedSearchBtn = rootElement.getElementById('clear-advanced-search-btn');
-    clearAdvancedSearchBtn.addEventListener('click', () => {
+    rootElement.getElementById('apply-advanced-search-btn').addEventListener('click', renderSetList);
+    rootElement.getElementById('clear-advanced-search-btn').addEventListener('click', () => {
         rootElement.getElementById('contains-word-input').value = '';
         rootElement.getElementById('created-after-date').value = '';
         rootElement.getElementById('created-before-date').value = '';
         renderSetList();
     });
-}
 
-/**
- * Xử lý việc tạo bộ từ mới.
- */
-async function handleCreateSet() {
-    const setName = prompt("Nhập tên cho bộ từ vựng mới của bạn:");
+    // --- Admin-Specific UI and Listeners ---
+    if (isAdmin) {
+        const headerActions = rootElement.querySelector('.header-actions');
+        
+        const createPublicSetBtn = document.createElement('button');
+        createPublicSetBtn.className = 'btn btn-secondary';
+        createPublicSetBtn.textContent = '+ Public Set';
+        createPublicSetBtn.addEventListener('click', handleCreatePublicSet);
+        headerActions.appendChild(createPublicSetBtn);
 
-    if (setName && setName.trim() !== '') {
-        const { data: { user } } = await authService.getUser();
-        if (!user) {
-            alert('Lỗi: Bạn phải đăng nhập để tạo bộ từ.');
-            return;
-        }
-
-        const { error } = await dbService.createVocabularySet(setName.trim(), user.id);
-
-        if (error) {
-            console.error('Lỗi khi tạo bộ từ:', error.message);
-            alert(`Không thể tạo bộ từ: ${error.message}`);
-        } else {
-            await renderSetList(); // Render lại để hiển thị bộ từ mới
-        }
-    } else if (setName !== null) {
-        alert('Tên bộ từ không được để trống.');
+        const adminToggleBtn = document.createElement('button');
+        adminToggleBtn.className = 'btn btn-warning admin-toggle-btn';
+        adminToggleBtn.textContent = 'Admin Dashboard';
+        adminToggleBtn.addEventListener('click', () => {
+            adminViewActive = !adminViewActive;
+            adminToggleBtn.textContent = adminViewActive ? 'My Dashboard' : 'Admin Dashboard';
+            adminToggleBtn.classList.toggle('active');
+            renderSetList();
+        });
+        headerActions.insertAdjacentElement('afterend', adminToggleBtn);
     }
 }
 
 /**
- * Xử lý các hành động trên card (sửa, xóa) bằng event delegation.
- * @param {Event} event 
- */
-async function handleCardActions(event) {
-    const target = event.target;
-    const deleteButton = target.closest('.delete-set-btn');
-    const editButton = target.closest('.edit-set-btn');
-
-    if (deleteButton) {
-        handleDeleteSet(deleteButton);
-    } else if (editButton) {
-        handleEditSet(editButton);
-    }
-}
-
-/**
- * Xử lý xóa một bộ từ.
- * @param {HTMLElement} button 
- */
-async function handleDeleteSet(button) {
-    const setId = button.dataset.setId;
-    const setName = button.dataset.setName;
-
-    if (confirm(`Bạn có chắc chắn muốn xóa bộ từ "${setName}" không?
-Hành động này không thể hoàn tác.`)) {
-        const { error } = await dbService.deleteVocabularySet(setId);
-        if (error) {
-            alert(`Không thể xóa bộ từ: ${error.message}`);
-        } else {
-            await renderSetList();
-        }
-    }
-}
-
-/**
- * Xử lý sửa tên một bộ từ.
- * @param {HTMLElement} button 
- */
-async function handleEditSet(button) {
-    const setId = button.dataset.setId;
-    const currentName = button.dataset.setName;
-    const newName = prompt("Nhập tên mới cho bộ từ:", currentName);
-
-    if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
-        const { error } = await dbService.updateVocabularySetName(setId, newName.trim());
-        if (error) {
-            alert(`Không thể đổi tên bộ từ: ${error.message}`);
-        } else {
-            await renderSetList();
-        }
-    } else if (newName !== null && newName.trim() === '') {
-        alert('Tên bộ từ không được để trống.');
-    }
-}
-
-/**
- * Lấy dữ liệu và render danh sách các bộ từ vựng.
+ * Renders the list of vocabulary sets based on user role and view mode.
  */
 async function renderSetList() {
     if (!vocabSetListContainer) return;
-    vocabSetListContainer.innerHTML = `<p class="empty-state">Đang tải các bộ từ của bạn...</p>`;
+    vocabSetListContainer.innerHTML = `<p class="empty-state">Loading sets...</p>`;
 
     const { data: { user } } = await authService.getUser();
     if (!user) {
-        vocabSetListContainer.innerHTML = `<p class="empty-state">Vui lòng đăng nhập để xem các bộ từ của bạn.</p>`;
+        vocabSetListContainer.innerHTML = `<p class="empty-state">Please log in to view vocabulary sets.</p>`;
         return;
     }
 
-    // Thu thập tất cả các tiêu chí lọc và sắp xếp
-    const sortValue = rootElement.getElementById('sort-sets-select').value;
-    const [sortBy, sortOrder] = sortValue.split('-');
-    
-    const filters = {
-        nameQuery: rootElement.querySelector('.search-input').value.trim(),
-        containsWord: rootElement.getElementById('contains-word-input').value.trim(),
-        createdAfter: rootElement.getElementById('created-after-date').value || null,
-        createdBefore: rootElement.getElementById('created-before-date').value || null,
-        sortBy: sortBy,
-        sortOrderAsc: sortOrder === 'asc'
-    };
+    let sets, error;
 
-    const { data: sets, error } = await dbService.advancedSearchVocabularySets(user.id, filters);
+    if (adminViewActive && isAdmin) {
+        // Admin View: Fetch all sets
+        const result = await vocabularyService.getAdminAllSets();
+        sets = result.data;
+        error = result.error;
+    } else {
+        // Standard User View: Fetch user's sets with filters
+        const filters = {
+            nameQuery: rootElement.querySelector('.search-input').value.trim(),
+            containsWord: rootElement.getElementById('contains-word-input').value.trim(),
+            createdAfter: rootElement.getElementById('created-after-date').value || null,
+            createdBefore: rootElement.getElementById('created-before-date').value || null,
+            sortBy: rootElement.getElementById('sort-sets-select').value.split('-')[0],
+            sortOrderAsc: rootElement.getElementById('sort-sets-select').value.split('-')[1] === 'asc'
+        };
+        const result = await dbService.advancedSearchVocabularySets(user.id, filters);
+        sets = result.data;
+        error = result.error;
+    }
 
     if (error) {
-        vocabSetListContainer.innerHTML = `<p class="empty-state" style="color: red;">Lỗi khi tải danh sách bộ từ: ${error.message}</p>`;
+        vocabSetListContainer.innerHTML = `<p class="empty-state error">Error loading sets: ${error.message}</p>`;
         return;
     }
 
     if (!sets || sets.length === 0) {
-        if (Object.values(filters).some(val => val)) {
-            vocabSetListContainer.innerHTML = `<p class="empty-state">Không tìm thấy bộ từ nào phù hợp với điều kiện của bạn.</p>`;
-        } else {
-            vocabSetListContainer.innerHTML = `<p class="empty-state">Bạn chưa có bộ từ vựng nào. Nhấn "+ Bộ từ mới" để tạo bộ đầu tiên.</p>`;
-        }
+        vocabSetListContainer.innerHTML = `<p class="empty-state">No vocabulary sets found.</p>`;
         return;
     }
 
-    vocabSetListContainer.innerHTML = sets.map(set => createSetCardHTML(set)).join('');
+    vocabSetListContainer.innerHTML = sets.map(set => createSetCardHTML(set, adminViewActive)).join('');
 }
 
+
 /**
- * Tạo chuỗi HTML cho một card bộ từ vựng.
- * @param {object} set - Đối tượng bộ từ vựng từ database.
- * @returns {string} - Chuỗi HTML.
+ * Creates HTML for a vocabulary set card, with a different template for admin view.
+ * @param {object} set - The vocabulary set object.
+ * @param {boolean} isForAdminView - Flag to render the admin version of the card.
+ * @returns {string} HTML string for the card.
  */
-function createSetCardHTML(set) {
-    const createdAt = new Date(set.created_at).toLocaleDateString('vi-VN', {
-        day: '2-digit', month: 'short', year: 'numeric'
-    });
+function createSetCardHTML(set, isForAdminView) {
+    const createdAt = new Date(set.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: 'short', year: 'numeric' });
     const mastery = set.mastery_level ? `${Math.round(set.mastery_level * 100)}%` : 'N/A';
 
+    if (isForAdminView) {
+        const statusClass = set.status === 'published' ? 'published' : 'draft';
+        const ownerInfo = set.owner_username ? `By: ${escapeHTML(set.owner_username)}` : 'Public (Official)';
+        
+        return `
+            <div class="vocab-set-card admin-card" data-set-id="${set.id}">
+                <div class="card-actions">
+                    <button class="btn-icon" data-action="edit" title="Edit">✏️</button>
+                    ${set.status === 'draft' ? `<button class="btn-icon" data-action="publish" title="Publish">🚀</button>` : ''}
+                    ${set.status === 'published' ? `<button class="btn-icon" data-action="unpublish" title="Unpublish">↩️</button>` : ''}
+                    <button class="btn-icon" data-action="delete" title="Delete">🗑️</button>
+                </div>
+                <a href="#/set/${set.id}" class="vocab-set-card-link">
+                    <h3 class="card-title">${escapeHTML(set.name)}</h3>
+                    <div class="card-meta">
+                        <span>${set.word_count || 0} words</span>
+                        <span>•</span>
+                        <span>${ownerInfo}</span>
+                    </div>
+                    <div class="card-footer">
+                        <span class="status ${statusClass}">${set.status}</span>
+                        <span>Created: ${createdAt}</span>
+                    </div>
+                </a>
+            </div>
+        `;
+    }
+
+    // Default card for regular users
     return `
         <div class="vocab-set-card" data-set-id="${set.id}">
             <div class="card-actions">
-                <button class="btn-icon edit-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Đổi tên bộ từ">✏️</button>
-                <button class="btn-icon delete-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Xóa bộ từ">🗑️</button>
+                <button class="btn-icon edit-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Edit Name">✏️</button>
+                <button class="btn-icon delete-set-btn" data-set-id="${set.id}" data-set-name="${escapeHTML(set.name)}" title="Delete Set">🗑️</button>
             </div>
             <a href="#/set/${set.id}" class="vocab-set-card-link">
                 <h3 class="card-title">${escapeHTML(set.name)}</h3>
                 <div class="card-meta">
-                    <span>${set.word_count || 0} từ</span>
+                    <span>${set.word_count || 0} words</span>
                     <span>•</span>
-                    <span>Tạo: ${createdAt}</span>
+                    <span>Created: ${createdAt}</span>
                 </div>
                 <div class="card-footer">
-                    <span>Độ thành thạo: ${mastery}</span>
+                    <span>Mastery: ${mastery}</span>
                 </div>
             </a>
         </div>
     `;
 }
 
-/** Helper để tránh XSS */
+// --- Action Handlers ---
+
+async function handleCardActions(event) {
+    const target = event.target;
+    // Regular user buttons
+    const deleteBtn = target.closest('.delete-set-btn');
+    const editBtn = target.closest('.edit-set-btn');
+    // Admin buttons
+    const actionBtn = target.closest('[data-action]');
+
+    if (adminViewActive && actionBtn) {
+        const action = actionBtn.dataset.action;
+        const card = actionBtn.closest('.vocab-set-card');
+        const setId = card.dataset.setId;
+        const setName = card.querySelector('.card-title')?.textContent || 'this set';
+
+        switch(action) {
+            case 'delete':
+                handleDeleteSet(setId, setName);
+                break;
+            case 'edit':
+                alert(`Admin edit for ${setName} (ID: ${setId}) is not implemented yet.`);
+                break;
+            case 'publish':
+                handleSetStatus(setId, 'published');
+                break;
+            case 'unpublish':
+                handleSetStatus(setId, 'draft');
+                break;
+        }
+    } else if (deleteBtn) {
+        handleDeleteSet(deleteBtn.dataset.setId, deleteBtn.dataset.setName);
+    } else if (editBtn) {
+        handleEditSet(editBtn.dataset.setId, editBtn.dataset.setName);
+    }
+}
+
+async function handleDeleteSet(setId, setName) {
+    if (confirm(`Are you sure you want to delete the set "${setName}"? This cannot be undone.`)) {
+        // Note: RLS policies will determine if the user has permission.
+        const { error } = await vocabularyService.deleteVocabularySet(setId);
+        if (error) {
+            alert(`Could not delete set: ${error.message}`);
+        } else {
+            await renderSetList();
+        }
+    }
+}
+
+async function handleEditSet(setId, currentName) {
+    const newName = prompt("Enter new name for the set:", currentName);
+    if (newName && newName.trim() && newName.trim() !== currentName) {
+        // Note: RLS policies will determine permission.
+        const { error } = await vocabularyService.updateVocabularySet(setId, { name: newName.trim() });
+        if (error) {
+            alert(`Could not rename set: ${error.message}`);
+        } else {
+            await renderSetList();
+        }
+    }
+}
+
+async function handleSetStatus(setId, status) {
+    if (!isAdmin) return;
+    const { error } = await vocabularyService.updateVocabularySet(setId, { status });
+    if (error) {
+        alert(`Could not update status: ${error.message}`);
+    } else {
+        await renderSetList();
+    }
+}
+
+async function handleCreateSet() {
+    const setName = prompt("Enter name for your new vocabulary set:");
+    if (setName && setName.trim()) {
+        const { data: { user } } = await authService.getUser();
+        if (!user) {
+            alert('You must be logged in to create a set.');
+            return;
+        }
+        const { error } = await vocabularyService.createVocabularySet({ name: setName.trim(), userId: user.id });
+        if (error) {
+            alert(`Could not create set: ${error.message}`);
+        } else {
+            await renderSetList();
+        }
+    }
+}
+
+async function handleCreatePublicSet() {
+    if (!isAdmin) return;
+    const setName = prompt("[Admin] Enter name for new PUBLIC set:");
+    if (setName && setName.trim()) {
+        // user_id is null for public sets. RLS policy allows this for admins.
+        const { error } = await vocabularyService.createVocabularySet({ name: setName.trim(), description: 'An official EngFore set.' });
+        if (error) {
+            alert(`Could not create public set: ${error.message}`);
+        } else {
+            await renderSetList();
+        }
+    }
+}
+
+/** Helper to escape HTML to prevent XSS */
 const escapeHTML = str => String(str).replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag]));
 
-/**
- * Tạo một phiên bản "debounced" của một hàm.
- * @param {Function} func - Hàm cần debounce.
- * @param {number} delay - Thời gian chờ (ms).
- * @returns {Function}
- */
+/** Debounce utility */
 function debounce(func, delay) {
     let timeout;
     return function(...args) {
-        const context = this;
         clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), delay);
+        timeout = setTimeout(() => func.apply(this, args), delay);
     };
 }

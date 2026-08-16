@@ -62,12 +62,16 @@ export function AuthProvider({ children, initialUser, initialSession }) {
   useEffect(() => {
     let mounted = true;
     if (user) {
+      console.log('[DEV] AuthProvider: user object changed', user);
       authService
         .ensureProfile(user)
         .then(({ data }) => {
-          if (mounted && data) setProfile(data);
+          if (mounted && data) {
+            console.log('[DEV] AuthProvider: Profile loaded', data);
+            setProfile(data);
+          }
         })
-.catch((err) => {
+        .catch((err) => {
           if (mounted && import.meta.env.DEV) console.error('Lỗi khi đồng bộ profile:', err);
         });
     } else {
@@ -83,12 +87,18 @@ export function AuthProvider({ children, initialUser, initialSession }) {
     navigate('/login', { replace: true });
   }, [navigate]);
 
+  const role = profile?.role;
+  const isAdmin = role === 'admin';
+  console.log(`[DEV] AuthProvider: Role='${role}', IsAdmin=${isAdmin}`);
+
   const value = {
     user,
     session,
     profile,
     loading,
     signOut,
+    role,
+    isAdmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

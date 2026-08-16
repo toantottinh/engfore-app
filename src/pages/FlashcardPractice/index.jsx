@@ -207,36 +207,7 @@ export default function FlashcardPractice() {
                 )}
               </>
             ) : (
-              <div className="w-full">
-                <p className="text-xl font-semibold text-zinc-900">{current.word}</p>
-                {current.ipa && (
-                  <p className="mt-1 text-indigo-600">/{current.ipa}/</p>
-                )}
-                <div className="mx-auto mt-4 max-w-sm rounded-lg bg-indigo-50 p-4">
-                  <p className="text-lg font-medium text-indigo-900">{current.meaning}</p>
-                </div>
-                {current.example && (
-                  <p className="mt-3 text-sm italic text-zinc-500">"{current.example}"</p>
-                )}
-                {/* After rating, show mastery and next review info */}
-                {rated && (
-                  <div className="mt-4 text-sm text-zinc-600">
-                    <div>Mức độ: <strong className="text-zinc-800">{masteryLabel(current.mastery_level)}</strong></div>
-                    <div>Thành thạo: <strong className="text-zinc-800">{masteryFraction(current.mastery_level)}</strong></div>
-                    <div>Ôn lại: <strong className="text-zinc-800">{formatReviewDue(current.review_due_at, current.mastery_level)}</strong></div>
-                  </div>
-                )}
-                {rated && <VocabularyAnswerDetails word={current} />}
-                {rated && (
-                  <div className="mt-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => { try { ttsService.speak(current.word); } catch (e) {} }}
-                      className="text-sm text-zinc-600"
-                    >🔊 Phát lại</button>
-                  </div>
-                )}
-              </div>
+              <VocabularyAnswerDetails word={current} />
             )}
           </button>
 

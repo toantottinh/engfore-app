@@ -21,6 +21,12 @@ import FlashcardPractice from './pages/FlashcardPractice/index.jsx';
 import LearningSession from './pages/LearningSession/index.jsx';
 import Profile from './pages/Profile/index.jsx';
 
+import AdminRoute from './components/AdminRoute.jsx';
+import AdminLayout from './layouts/AdminLayout.jsx';
+import AdminDashboard from './pages/Admin/index.jsx';
+import AdminTopics from './pages/Admin/AdminTopics.jsx';
+import AdminSets from './pages/Admin/AdminSets.jsx';
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -56,6 +62,15 @@ export default function AppRoutes() {
             <Route index element={<LearningSession />} />
           </Route>
           <Route path="/profile" element={<Profile />} />
+        </Route>
+        
+        {/* Admin Section */}
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="topics" element={<AdminTopics />} />
+            <Route path="sets" element={<AdminSets />} />
+          </Route>
         </Route>
       </Route>
 

@@ -75,11 +75,11 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false }) {
 
       {/* Memory Clue */}
       {word.memory_clue && (
-        <div className="mt-3 rounded-lg border-l-2 border-brand-primary bg-brand-primary-soft px-3 py-2 text-sm text-text-primary/90">
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
-            Memory Clue
+        <div className="mt-3 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-zinc-700">
+          <span className="text-sm font-semibold text-amber-800">
+            💡 Gợi ý
           </span>
-          <p className="mt-0.5 text-text-primary/80">{word.memory_clue}</p>
+          <p className="mt-1">{word.memory_clue}</p>
         </div>
       )}
     </div>

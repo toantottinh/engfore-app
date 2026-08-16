@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
 import {
   getVocabularySet,
   getWordsInSet,
   addWordToSet,
-  updateWord,
   deleteWordFromSet,
-  updateVocabularySet, // Import this
-  removeFromVocabulary as serviceRemoveFromVocabulary, // Import with alias
+  updateVocabularySet,
+  adminDeleteWord, // For global deletion by admins
+  removeFromVocabulary as serviceRemoveFromVocabulary,
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
 
@@ -70,19 +69,7 @@ export function useVocabularyDetail(setId) {
     [setId, loadSetAndWords]
   );
 
-  const editWord = useCallback(
-    async (wordId, senseId, updates) => {
-      setMutationLoading(true);
-      const { error: err } = await updateWord(wordId, senseId, updates);
-      setMutationLoading(false);
-      if (err) return { error: getAuthErrorMessage(err) };
-      await loadSetAndWords();
-      return { error: null };
-    },
-    [loadSetAndWords]
-  );
-
-  const removeWord = useCallback(
+  const removeWordFromSet = useCallback(
     async (wordSenseId) => {
       setMutationLoading(true);
       const { error: err } = await deleteWordFromSet(setId, wordSenseId);
@@ -92,6 +79,18 @@ export function useVocabularyDetail(setId) {
       return { error: null };
     },
     [setId, loadSetAndWords]
+  );
+  
+  const deleteSystemWord = useCallback(
+    async (wordId) => {
+      setMutationLoading(true);
+      const { error: err } = await adminDeleteWord(wordId);
+      setMutationLoading(false);
+      if (err) return { error: getAuthErrorMessage(err) };
+      await loadSetAndWords();
+      return { error: null };
+    },
+    [loadSetAndWords]
   );
 
   const updateSetDetails = useCallback(
@@ -116,11 +115,12 @@ export function useVocabularyDetail(setId) {
       const { error: err } = await serviceRemoveFromVocabulary(wordSenseId);
       setMutationLoading(false);
       if (err) return { error: getAuthErrorMessage(err) };
-      await loadSetAndWords(); // FIX: Added await to ensure UI updates after data is reloaded.
+      await loadSetAndWords();
       return { error: null };
     },
     [loadSetAndWords]
   );
+  
   return {
     set,
     words,
@@ -129,8 +129,8 @@ export function useVocabularyDetail(setId) {
     mutationLoading,
     loadSetAndWords,
     addWord,
-    editWord,
-    removeWord,
+    removeWordFromSet,
+    deleteSystemWord,
     removeFromVocabulary,
     updateSetDetails,
   };

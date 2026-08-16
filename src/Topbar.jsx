@@ -108,7 +108,7 @@ const UserProfile = () => {
 };
 
 export default function Topbar() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [reviewCount, setReviewCount] = useState(0);
 
   useEffect(() => {
@@ -154,6 +154,7 @@ export default function Topbar() {
               )}
             </div>
           </NavItem>
+          {isAdmin && <NavItem to="/admin">Admin</NavItem>}
         </ul>
       </nav>
 
