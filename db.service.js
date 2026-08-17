@@ -448,53 +448,30 @@ export const dbService = {
      * @returns {Promise<{ data: Array, error: Error | null }>}
      */
     getWordsInSetWithProgress: async (setId, userId) => {
-        // Lấy danh sách từ trong set
-        const { data, error } = await supabase
-            .from('set_words')
-            .select(`
-                word_senses (
-                    id,
-                    word_type,
-                    meaning,
-                    description,
-                    example,
-                    words (
-                        word,
-                        ipa,
-                        cefr_level
-                    )
-                )
-            `)
-            .eq('set_id', setId);
+        // Gọi RPC mới để lấy dữ liệu đã được join sẵn từ DB.
+        // Hiệu quả hơn nhiều so với việc query 2 bảng và join ở client.
+        const { data, error } = await supabase.rpc('get_words_in_set_with_progress', {
+            p_set_id: setId,
+            p_user_id: userId,
+        });
 
-        if (error) return { data, error };
-
-        // Lấy tiến trình học của user cho các từ trong set
-        const senseIds = data.map(item => item.word_senses.id);
-        let progressMap = {};
-        if (userId && senseIds.length > 0) {
-            const { data: progress, error: progressError } = await supabase
-                .from('user_progress')
-                .select('word_sense_id, mastery_level')
-                .in('word_sense_id', senseIds)
-                .eq('user_id', userId);
-            if (!progressError) {
-                progressMap = progress.reduce((acc, p) => {
-                    acc[p.word_sense_id] = p.mastery_level;
-                    return acc;
-                }, {});
-            }
+        if (error) {
+            // Nếu RPC không tồn tại (ví dụ: migration chưa chạy), có thể fallback về logic cũ
+            // nhưng hiện tại chỉ báo lỗi để dễ debug.
+            console.error('Error calling get_words_in_set_with_progress RPC:', error);
+            return { data: null, error };
         }
 
-        // Gắn mastery_level vào mỗi từ
-        const merged = data.map(item => {
-            const sense = item.word_senses;
+        // RPC trả về một danh sách các object phẳng, cần điều chỉnh lại cấu trúc
+        // một chút để tương thích với cách UI đang dùng (nếu cần).
+        // Dựa trên cấu trúc RPC, các trường đã khớp với UI.
+        // Chỉ cần đổi tên một vài trường để khớp với logic cũ.
+        const merged = (data || []).map(item => {
             return {
-                ...sense,
-                reference: sense.words.word,
+                ...item,
+                reference: item.word, // UI cũ có thể dùng `reference`
                 created_at: null,
-                set_word_sense_id: item.word_sense_id || sense.id,
-                mastery_level: progressMap[sense.id] !== undefined ? progressMap[sense.id] : 0,
+                set_word_sense_id: item.id,
             };
         });
 

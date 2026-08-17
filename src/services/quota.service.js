@@ -13,6 +13,10 @@
  *  - Review / learning / relearning words are unlimited — only NEW is capped.
  */
 
+// Business timezone helpers (Asia/Ho_Chi_Minh) — xem src/utils/time.js.
+import { BUSINESS_TIMEZONE, getBusinessDateKey } from '../utils/time.js';
+export { BUSINESS_TIMEZONE, getBusinessDateKey };
+
 /** Default NEW cards a user may introduce per day when no setting exists. */
 export const DEFAULT_DAILY_NEW_LIMIT = 10;
 
@@ -40,22 +44,19 @@ export function resolveDailyNewLimit(value) {
 }
 
 /**
- * Stable UTC date key ("YYYY-MM-DD") used to bucket daily NEW-introductions.
+ * Stable Vietnam business date key ("YYYY-MM-DD") used to bucket daily
+ * NEW-introductions (`daily_new_progress.day`) and any other daily progress.
  *
- * UTC is used (not local time) so the quota boundary never shifts when a user
- * moves between devices/timezones — the rest of the stack stores
- * `review_due_at` as timestamptz in UTC, so this stays consistent with it and
- * never resets quota at an unexpected local hour.
+ * EngFore targets Vietnamese learners, so the business day is
+ * Asia/Ho_Chi_Minh (UTC+7). The old implementation derived the key from UTC,
+ * which meant every day between 00:00 and 06:59 Vietnam time the app still
+ * bucketed new words into YESTERDAY's record — the daily quota/goal looked
+ * already completed before the user had studied anything that day.
+ *
  * @param {Date|{}|string|number} [date=new Date()]
- * @returns {string} "YYYY-MM-DD" (UTC)
+ * @returns {string} "YYYY-MM-DD" (Asia/Ho_Chi_Minh)
  */
-export function getDailyDateKey(date = new Date()) {
-  const d = date instanceof Date ? date : new Date(date);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+export const getDailyDateKey = getBusinessDateKey;
 
 /**
  * Select the NEW words that may be introduced to a session today.

@@ -32,6 +32,9 @@ function formatIntervalPreview(iso) {
   return `${days} ngày`;
 }
 
+// Hiển thị số liệu thống kê vốn từ theo định dạng VN (vd: 2.000).
+const formatNumber = (n) => (Number(n) || 0).toLocaleString('vi-VN');
+
 const LearningSession = () => {
   const { setId } = useParams();
   const navigate = useNavigate();
@@ -53,9 +56,14 @@ const LearningSession = () => {
     mode,
     previewIntervals,
     wordsRemaining,
-    sessionStatusCounts,
+        sessionStatusCounts,
     stats,
+    learnMode,
+    setLearnMode,
+    dailyNewLimit,
+    introducedTodayCount,
     setUserInput,
+    vocabularyStats,
     submitAnswer,
     handleRating,
     proceedToNext,
@@ -122,27 +130,41 @@ const LearningSession = () => {
     navigate(setId ? `/vocabulary/${setId}` : '/app');
   };
 
-  // Keyboard: Enter = submit/flip/continue, Space = continue (chỉ sau rating),
-  // 1-4 = rating. Space không bao giờ submit hoặc rating.
+  // Keyboard: Enter = submit/flip/continue, Space = lật thẻ (flashcard) /
+  // continue (sau rating), 1-4 = rating. Space không bao giờ submit hoặc rating.
   useEffect(() => {
     const handler = (e) => {
       if (isSessionComplete) return;
 
       const el = document.activeElement;
-      const isTyping = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+      const isTyping =
+        !!el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable);
 
-      // SPACE: chèn khoảng trắng bình thường khi đang gõ;
-      // chỉ "Tiếp tục" khi đã rating thành công.
+      // SPACE:
+      //  - đang nhập liệu (input/textarea/select/contenteditable) → chèn space bình thường;
+      //  - đã rating thành công → "Tiếp tục";
+      //  - Flashcard đang ở mặt trước (chưa lật) → lật thẻ (tương đương click);
+      //  - còn lại → chặn để không cuộn trang / kích hoạt nút ngoài ý muốn.
       if (e.key === ' ' || e.code === 'Space') {
         if (isTyping) return; // nhập space bình thường
         const canContinue = isRated && !isRating;
         if (canContinue) {
           e.preventDefault();
           commitProceed();
-        } else {
-          // Ngăn Space kích hoạt nút đang focus (rating/submit/flip) ngoài ý muốn.
-          e.preventDefault();
+          return;
         }
+        // Flashcard: Space = lật thẻ (như click vào vùng lật thẻ).
+        if (mode === 'flashcard' && !flipped) {
+          e.preventDefault();
+          handleFlip();
+          return;
+        }
+        // Ngăn Space kích hoạt nút đang focus (rating/submit/flip) hoặc cuộn trang.
+        e.preventDefault();
         return;
       }
 
@@ -291,7 +313,11 @@ const LearningSession = () => {
   );
 
   const renderAnswerDetails = (opts = {}) => (
-    <VocabularyAnswerDetails word={currentWord} hideMeaning={opts.hideMeaning} />
+    <VocabularyAnswerDetails
+      word={currentWord}
+      hideMeaning={opts.hideMeaning}
+      hideClue={opts.hideClue}
+    />
   );
 
   const renderRatingSection = () => (
@@ -336,7 +362,7 @@ const LearningSession = () => {
         </div>
       </div>
 
-      {/* Progress Bar */}
+            {/* Progress Bar */}
       <div className="h-1 w-full bg-border-color">
         <div
           className="h-1 bg-brand-primary transition-all duration-300 ease-out"
@@ -344,10 +370,88 @@ const LearningSession = () => {
         ></div>
       </div>
 
+      {/* Learn Mode Selector (Limited / Unlimited) */}
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-xs font-medium text-text-secondary">Chế độ học:</span>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border-color bg-surface-default p-1 text-sm font-medium">
+            <button
+              onClick={() => setLearnMode('LIMITED')}
+              className={`rounded-md px-3 py-1 transition-all ${
+                learnMode === 'LIMITED'
+                  ? 'bg-brand-primary text-white shadow'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Theo giới hạn
+            </button>
+            <button
+              onClick={() => setLearnMode('UNLIMITED')}
+              className={`rounded-md px-3 py-1 transition-all ${
+                learnMode === 'UNLIMITED'
+                  ? 'bg-brand-primary text-white shadow'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Không giới hạn
+            </button>
+          </div>
+        </div>
+
+        {/* Daily NEW info */}
+        <div className="flex items-center justify-center">
+          {learnMode === 'LIMITED' ? (
+            <span className="text-xs text-text-secondary">
+              Từ mới hôm nay: {introducedTodayCount} / {dailyNewLimit}
+            </span>
+          ) : (
+            <span className="text-xs text-text-secondary">
+              Không giới hạn từ mới • Đã học hôm nay: {introducedTodayCount}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Vocabulary Stats */}
+      <div className="border-b border-border-color bg-surface-sidebar px-4 py-4">
+        <h3 className="mb-3 text-center text-xs font-bold uppercase tracking-wider text-text-secondary">
+          Vốn từ của bạn
+        </h3>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-xl font-bold text-text-primary">{formatNumber(vocabularyStats.total)}</p>
+            <p className="text-xs text-text-secondary">Tổng cộng</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-sky-500">{formatNumber(vocabularyStats.learning)}</p>
+            <p className="text-xs text-text-secondary">Đang học</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-green-500">{formatNumber(vocabularyStats.new)}</p>
+            <p className="text-xs text-text-secondary">Từ mới</p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-1 flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-5 py-4">
-          {/* Status counts (small, non-intrusive) */}
+                    {/* Status counts (small, non-intrusive) */}
           <div className="space-y-2">
+            {/* Current card type indicator */}
+            {currentWord && (
+              <div className="flex items-center justify-center">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    currentWord.state === 'new'
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-yellow-500/10 text-yellow-400'
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'currentColor' }} />
+                  {currentWord.state === 'new' ? '🆕 Từ mới' : '🔄 Ôn tập'}
+                </span>
+              </div>
+            )}
             <StatusCounts counts={sessionStatusCounts} />
           </div>
 
@@ -368,7 +472,7 @@ const LearningSession = () => {
                 {!flipped ? (
                   <>
                     <p className="text-xs uppercase tracking-widest text-text-secondary">
-                      Nhấn để lật thẻ
+                      Nhấn để lật thẻ · Space
                     </p>
                     <div className="mt-4 flex items-center gap-1">
                       <p className="text-4xl font-bold tracking-tight text-text-primary">
@@ -414,13 +518,23 @@ const LearningSession = () => {
           {mode === 'typing' && (
             <>
               {/* Question Area */}
-              <div className="px-2 text-center">
-                <p className="text-xs font-medium uppercase tracking-widest text-text-secondary">
-                  Nghĩa tiếng Việt
-                </p>
-                <h3 className="mt-2 text-3xl font-bold tracking-tight text-text-primary">
-                  {currentWord.meaning}
-                </h3>
+              <div className="rounded-lg border border-border-color bg-surface-sidebar p-6 text-center shadow-sm">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-widest text-text-secondary">
+                    Nghĩa tiếng Việt
+                  </p>
+                  <h3 className="mt-2 text-3xl font-bold tracking-tight text-text-primary">
+                    {currentWord.meaning}
+                  </h3>
+                </div>
+                {currentWord.memory_clue && (
+                  <div className="mt-4 border-t border-border-color pt-4">
+                    <p className="text-xs font-medium uppercase tracking-widest text-text-secondary">
+                      💡 Gợi ý
+                    </p>
+                    <p className="mt-1 text-sm text-text-secondary">{currentWord.memory_clue}</p>
+                  </div>
+                )}
               </div>
 
               {/* Answer Input */}
@@ -463,7 +577,7 @@ const LearningSession = () => {
                     </p>
                   )}
 
-                  {renderAnswerDetails({ hideMeaning: true })}
+                  {renderAnswerDetails({ hideMeaning: true, hideClue: true })}
                   {renderRatingSection()}
                 </div>
               )}

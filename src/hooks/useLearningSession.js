@@ -7,6 +7,8 @@ import {
   getUserDailyNewLimit,
   getDailyNewProgress,
   markDailyNewIntroduced,
+  getLearnSessionQueue,
+  getVocabularyStats,
 } from '../services/learning.service.js';
 import { DEFAULT_DAILY_NEW_LIMIT, selectNewWordsForToday } from '../services/quota.service.js';
 import { useLearning } from './useLearning.js';
@@ -47,10 +49,19 @@ export function useLearningSession(setId) {
     // Kết quả SRS mới nhất (để hiển thị lịch ôn tập tiếp theo)
   const [lastReviewResult, setLastReviewResult] = useState(null);
 
-  // Daily NEW limit (SRS-free sessions are unaffected; this only bounds how many
+    // Daily NEW limit (SRS-free sessions are unaffected; this only bounds how many
   // NEW words enter an SRS learning session each day). Persisted per user/day.
   const [dailyNewLimit, setDailyNewLimit] = useState(DEFAULT_DAILY_NEW_LIMIT);
   const [introducedTodaySet, setIntroducedTodaySet] = useState(new Set());
+
+  // Learn mode: LIMITED (NEW capped by daily quota) | UNLIMITED (no NEW cap).
+  // This is the user-facing mode selector, separate from the internal
+  // flashcard/typing `mode` below.
+  const [learnMode, setLearnMode] = useState('LIMITED');
+
+  // Thống kê vốn từ của user — Tổng cộng / Đang học / Từ mới.
+  // Lấy từ RPC get_user_vocabulary_stats (đếm ở DB, không tải toàn bộ từ về client).
+  const [vocabularyStats, setVocabularyStats] = useState({ total: 0, learning: 0, new: 0 });
 
   // Thống kê phiên học
   const [stats, setStats] = useState({
@@ -104,6 +115,21 @@ export function useLearningSession(setId) {
     return previews;
   }, [currentWord]);
 
+  // Làm mới thống kê vốn từ của user (Tổng cộng / Đang học / Từ mới) từ DB.
+  // Tái sử dụng RPC get_user_vocabulary_stats hiện có; đếm ở database layer.
+  const refreshVocabularyStats = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await getVocabularyStats(user.id);
+      if (res?.error || !res?.data) return;
+      const total = Number(res.data.total_count) || 0;
+      const learning = Number(res.data.learning_count) || 0;
+      setVocabularyStats({ total, learning, new: Math.max(total - learning, 0) });
+    } catch (e) {
+      // Non-fatal: giữ số liệu hiện tại nếu không đọc được thống kê.
+    }
+  }, [user]);
+
   const loadWords = useCallback(async () => {
     // Reset session state
     setLoading(true);
@@ -124,9 +150,18 @@ export function useLearningSession(setId) {
       attemptedWords: new Set(),
     });
 
-    // --- Daily NEW quota (SRS sessions only). Fetch the user's limit and the
-    //     words they already introduced today so NEW words are capped per-day.
-    //     Reviews / learning / relearning words are never limited by this.
+    // Luôn làm mới thống kê vốn từ từ DB khi bắt đầu phiên học.
+    refreshVocabularyStats();
+
+      // --- Unified Learn Engine: Learn Queue Policy ---
+    // Modes: LIMITED | UNLIMITED (default: LIMITED for safety).
+    // - LIMITED: NEW words capped by daily_new_limit - already_introduced_today.
+    // - UNLIMITED: NEW words without daily cap.
+    // Priority: default queue order DUE → LEARNING → NEW (always).
+    // Set learn_priority (user-specific) applies to NEW candidate order:
+    //   lower learn_priority = higher priority in NEW selection.
+    //   If set has no preference → priority = 1 (highest).
+    // Parameters from caller: learnMode (state), setId (if omitted → whole vocab).
     let dailyNewLimit = DEFAULT_DAILY_NEW_LIMIT;
     let introducedTodayIds = [];
     if (user) {
@@ -139,72 +174,42 @@ export function useLearningSession(setId) {
     }
 
     try {
-      let data, err;
-
-      if (!setId) {
-        // Không có setId: tải danh sách từ đến hạn trong review queue
-        if (!user) {
-          setError('Bạn cần đăng nhập để học.');
-          setLoading(false);
-          return;
-        }
-        const result = await getDueReviewWords(user.id);
-        data = result.data;
-        err = result.error;
-      } else {
-        // Có setId: tải danh sách từ trong set
-        const result = await getWordsInSet(setId);
-        data = result.data;
-        err = result.error;
-      }
-
-      if (err) {
-        setError('Không thể tải danh sách từ. Vui lòng thử lại.');
-        setLoading(false);
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        setError(setId ? 'Bộ từ này chưa có từ nào để học.' : 'Hiện tại không có từ nào cần ôn tập.');
-        setLoading(false);
-        return;
-      }
-
-      // Sắp xếp: 1. Due, 2. Learning, 3. New
-      const now = new Date().toISOString();
-      const dueWords = data.filter(
-        (w) => w.state !== 'new' && w.review_due_at && w.review_due_at <= now
-      );
-      const learningWords = data.filter(
-        (w) => (w.state === 'learning' || w.state === 'relearning') && w.review_due_at > now
-      );
-      const newWords = selectNewWordsForToday(
-        data.filter((w) => w.state === 'new'),
+      const { queue, error: queueError } = await getLearnSessionQueue(user.id, {
+        learnMode,
+        setId,
         dailyNewLimit,
-        introducedTodayIds
-      );
+        introducedTodayCount: introducedTodayIds.length,
+      });
 
-      // Sắp xếp các từ quá hạn theo thời gian quá hạn lâu nhất
-      dueWords.sort((a, b) => new Date(a.review_due_at) - new Date(b.review_due_at));
+      if (queueError) {
+        throw queueError;
+      }
 
-      const sortedQueue = [...dueWords, ...learningWords, ...newWords];
+      if (!queue || queue.length === 0) {
+        setError(setId ? 'Bộ từ này chưa có từ nào để học.' : 'Hiện tại không có từ nào cần ôn tập. Quay lại sau nhé!');
+        setSessionQueue([]);
+        setAllWords([]);
+        setLoading(false);
+        return;
+      }
+
       // Color coding: 🟢 New = brand-new words, 🟡 Review = words due /
       // in-progress review. A card rated Again later turns 🔴 and is requeued.
-      const initialQueue = sortedQueue.map((word) => ({
+      const initialQueue = queue.map((word) => ({
         ...word,
         againCount: 0,
         sessionStatus: word.state === 'new' ? 'new' : 'review',
       }));
 
-      setAllWords(data);
+      setAllWords(initialQueue); // allWords is now the session queue
       setSessionQueue(initialQueue);
-      setStats((prev) => ({ ...prev, totalWords: data.length }));
+      setStats((prev) => ({ ...prev, totalWords: initialQueue.length }));
       setLoading(false);
     } catch (e) {
-      setError('Đã xảy ra lỗi khi tải danh sách từ. Vui lòng thử lại.');
+      setError('Đã xảy ra lỗi khi tải phiên học. Vui lòng thử lại.');
       setLoading(false);
     }
-  }, [setId, user]);
+    }, [setId, user, learnMode, refreshVocabularyStats]);
 
   useEffect(() => {
     loadWords();
@@ -249,6 +254,8 @@ export function useLearningSession(setId) {
           markDailyNewIntroduced(user.id, currentWord.word_sense_id ?? currentWord.id).catch(() => {
             // Non-fatal: daily limit may be slightly generous but won't break.
           });
+          // Một từ NEW đã được đưa vào user_progress → Đang học +1, Từ mới -1.
+          refreshVocabularyStats();
         }
 
         // Update stats
@@ -327,7 +334,7 @@ export function useLearningSession(setId) {
         setIsRating(false);
       });
     },
-    [currentWord, isRating, isRated, recordProgress, isFlashcard, sessionQueue, currentIndex]
+    [currentWord, isRating, isRated, recordProgress, isFlashcard, sessionQueue, currentIndex, refreshVocabularyStats]
   );
 
   // Proceed to next word (only after rating or "Again" re-queue)
@@ -406,12 +413,17 @@ export function useLearningSession(setId) {
     lastReviewResult,
     isRated,
     isRating,
-    mode,
+        mode,
     isFlashcard,
+    learnMode,
+    setLearnMode,
+    dailyNewLimit,
+    introducedTodayCount: introducedTodaySet.size,
     previewIntervals,
     wordsRemaining,
     sessionStatusCounts,
     stats,
+    vocabularyStats,
     setUserInput,
     submitAnswer,
     handleRating,

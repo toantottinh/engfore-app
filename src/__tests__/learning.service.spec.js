@@ -27,6 +27,7 @@ vi.mock('../services/srs.service.js', () => ({
 // Mock supabase client used by learning.service with chainable methods
 const upsertMock = vi.fn(async (payload) => ({ error: null }));
 const maybeSingleMock = vi.fn(async () => ({ data: null, error: null }));
+const rpcMock = vi.fn(async () => ({ data: null, error: null }));
 
 vi.mock('../services/supabase.js', () => ({
   supabase: {
@@ -46,6 +47,8 @@ vi.mock('../services/supabase.js', () => ({
       };
       return chain;
     }),
+    // Lazy wrapper tránh lỗi hoisting (vi.mock factory chạy trước khi rpcMock khởi tạo).
+    rpc: (...args) => rpcMock(...args),
   },
 }));
 
@@ -103,5 +106,36 @@ describe('recordLearningResult integration (mocked supabase & srs)', () => {
     expect(upsertMock.mock.calls[0][0].flashcard_reviews).toBe(1);
     expect(upsertMock.mock.calls[1][0].flashcard_reviews).toBeUndefined();
     expect(progress.flashcard_reviews_persisted).toBe(false);
+  });
+
+  it('increments the daily goal once when a brand-new word is introduced', async () => {
+    // maybeSingleMock mặc định trả data null → chưa có user_progress row (từ mới).
+    const { error } = await recordLearningResult({ userId: 'user-1', wordSenseId: 'sense-1', rating: 3 });
+    expect(error).toBeNull();
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(rpcMock).toHaveBeenCalledWith('log_learning_activity', { p_words_learned: 1 });
+  });
+
+  it('does NOT increment the daily goal for a word that already has progress', async () => {
+    // Từ đã học (có user_progress row) — review/learning không được tính vào goal hôm nay.
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { mastery_level: 3, review_count: 2, flashcard_reviews: 1 },
+      error: null,
+    });
+    const { error } = await recordLearningResult({ userId: 'user-1', wordSenseId: 'sense-1', rating: 3 });
+    expect(error).toBeNull();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the SRS save when the daily-goal increment fails (non-fatal)', async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'rpc down' } });
+    maybeSingleMock.mockResolvedValueOnce({ data: null, error: null });
+    const { progress, error } = await recordLearningResult({
+      userId: 'user-1',
+      wordSenseId: 'sense-1',
+      rating: 3,
+    });
+    expect(error).toBeNull();
+    expect(progress).toBeTruthy();
   });
 });

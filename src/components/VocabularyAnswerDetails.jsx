@@ -12,7 +12,7 @@ import { ttsService } from '../../tts.service.js';
  *   Example (italic, soft)
  *   Memory Clue (subtle highlighted block)
  */
-export default function VocabularyAnswerDetails({ word, hideMeaning = false }) {
+export default function VocabularyAnswerDetails({ word, hideMeaning = false, hideClue = false }) {
   if (!word) return null;
 
   return (
@@ -59,10 +59,21 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false }) {
         </div>
       )}
 
-      {/* Meaning (hidden when it's already shown as the typing prompt) */}
+      {/* Meaning + Memory Clue — cùng một khu vực thông tin ngữ nghĩa.
+          Gợi ý xuất hiện ngay bên dưới Nghĩa, giữ là hai field riêng biệt. */}
       {word.meaning && !hideMeaning && (
         <div className="mt-3 text-lg font-semibold text-text-primary">
           {word.meaning}
+        </div>
+      )}
+
+      {/* Memory Clue (chỉ hiện khi có; không render block rỗng) */}
+      {word.memory_clue && !hideClue && (
+        <div className="mt-2 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-zinc-700">
+          <span className="text-sm font-semibold text-amber-800">
+            💡 Gợi ý
+          </span>
+          <p className="mt-1">{word.memory_clue}</p>
         </div>
       )}
 
@@ -70,16 +81,6 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false }) {
       {word.example && (
         <div className="mt-2 text-sm italic text-text-secondary">
           “{word.example}”
-        </div>
-      )}
-
-      {/* Memory Clue */}
-      {word.memory_clue && (
-        <div className="mt-3 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-zinc-700">
-          <span className="text-sm font-semibold text-amber-800">
-            💡 Gợi ý
-          </span>
-          <p className="mt-1">{word.memory_clue}</p>
         </div>
       )}
     </div>

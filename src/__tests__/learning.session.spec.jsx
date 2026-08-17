@@ -6,10 +6,8 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { DEFAULT_DAILY_NEW_LIMIT } from '../services/quota.service.js';
 
 // ---------------------------------------------------------------
-// Mutable test data (mocks read through closure => reload per test)
+// Test Data
 // ---------------------------------------------------------------
-let mockWords = [];
-
 const TYPING = 2; // flashcard_reviews >= FLASHCARD_REVIEWS_THRESHOLD -> typing mode
 const FLASH = 0; //  flashcard_reviews below threshold              -> flashcard mode
 
@@ -44,9 +42,13 @@ const W_FLASH = [
 const phraseWord = makeWord('wp', 'have breakfast', 'ăn sáng', TYPING);
 
 // ---------------------------------------------------------------
-// TTS spy — shares a single mocked ttsService instance
+// Mocks
 // ---------------------------------------------------------------
 const speakMock = vi.fn(async () => {});
+const recordResultMock = vi.fn();
+const getLearnSessionQueueMock = vi.fn(); // The new primary mock for this test
+const getDailyNewProgressMock = vi.fn(async () => ({ data: [], error: null }));
+const getVocabularyStatsMock = vi.fn(async () => ({ data: { total_count: 2000, learning_count: 800 }, error: null }));
 
 vi.mock('../../tts.service.js', () => ({
   ttsService: { isSupported: () => true, speak: (...args) => speakMock(...args) },
@@ -58,9 +60,6 @@ vi.mock('/home/asus/EngFore/tts.service.js', () => ({
   ttsService: { isSupported: () => true, speak: (...args) => speakMock(...args) },
 }));
 
-// ---------------------------------------------------------------
-// Service mocks (same convention as the other spec files)
-// ---------------------------------------------------------------
 const okProgress = (userId, wordSenseId) => ({
   user_id: userId,
   word_sense_id: wordSenseId,
@@ -75,51 +74,53 @@ const okProgress = (userId, wordSenseId) => ({
   learning_step: 0,
 });
 
-const recordResultMock = vi.fn(async ({ userId, wordSenseId }) => ({
-  progress: okProgress(userId, wordSenseId),
-  error: null,
+// Mock the entire learning service, but override getLearnSessionQueue
+vi.mock('../services/learning.service.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getLearnSessionQueue: (...args) => getLearnSessionQueueMock(...args),
+    recordLearningResult: (...args) => recordResultMock(...args),
+    getDailyNewProgress: getDailyNewProgressMock,
+    getVocabularyStats: getVocabularyStatsMock,
+    getUserDailyNewLimit: async () => ({ value: DEFAULT_DAILY_NEW_LIMIT, error: null }),
+  };
+});
+vi.mock('../../services/learning.service.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getLearnSessionQueue: (...args) => getLearnSessionQueueMock(...args),
+    recordLearningResult: (...args) => recordResultMock(...args),
+    getDailyNewProgress: getDailyNewProgressMock,
+    getVocabularyStats: getVocabularyStatsMock,
+    getUserDailyNewLimit: async () => ({ value: DEFAULT_DAILY_NEW_LIMIT, error: null }),
+  };
+});
+vi.mock('/home/asus/EngFore/src/services/learning.service.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getLearnSessionQueue: (...args) => getLearnSessionQueueMock(...args),
+    recordLearningResult: (...args) => recordResultMock(...args),
+    getDailyNewProgress: getDailyNewProgressMock,
+    getVocabularyStats: getVocabularyStatsMock,
+    getUserDailyNewLimit: async () => ({ value: DEFAULT_DAILY_NEW_LIMIT, error: null }),
+  };
+});
+
+
+// This mock is now only needed for getVocabularySet
+vi.mock('../services/vocabulary.service.js', () => ({
+  getVocabularySet: async () => ({ data: { id: 'set-1', name: 'Test Set' }, error: null }),
+}));
+vi.mock('../../services/vocabulary.service.js', () => ({
+  getVocabularySet: async () => ({ data: { id: 'set-1', name: 'Test Set' }, error: null }),
+}));
+vi.mock('/home/asus/EngFore/src/services/vocabulary.service.js', () => ({
+    getVocabularySet: async () => ({ data: { id: 'set-1', name: 'Test Set' }, error: null }),
 }));
 
-const getWordsInSetMock = vi.fn(async () => ({ data: mockWords, error: null }));
-const getDueReviewWordsMock = vi.fn(async () => ({ data: [], error: null }));
-
-function vocabularyFactory() {
-  return {
-    getWordsInSet: (...args) => getWordsInSetMock(...args),
-    getVocabularySet: async () => ({ data: { id: 'set-1', name: 'Test Set' }, error: null }),
-    importWordsToSet: async () => ({ data: null, error: null }),
-  };
-}
-
-function learningFactory() {
-  return {
-    getDueReviewWords: (...args) => getDueReviewWordsMock(...args),
-    getDueReviewWordsCount: async () => ({ count: 0, error: null }),
-    FLASHCARD_REVIEWS_THRESHOLD: 2,
-    recordLearningResult: (...args) => recordResultMock(...args),
-    getSrsDashboardStats: async () => ({ data: { due: 0, new: 0, review: 0 }, error: null }),
-    getUserDailyNewLimit: async (userId) => {
-      if (!userId) return { value: DEFAULT_DAILY_NEW_LIMIT, error: null };
-      return { value: DEFAULT_DAILY_NEW_LIMIT, error: null };
-    },
-    getDailyNewProgress: async (userId, dateKey) => {
-      if (!userId) return { data: [], error: null };
-      return { data: [], error: null };
-    },
-    markDailyNewIntroduced: async (userId, wordSenseId, dateKey) => {
-      if (!userId || !wordSenseId) return { error: null };
-      return { error: null };
-    },
-  };
-}
-
-vi.mock('../services/vocabulary.service.js', vocabularyFactory);
-vi.mock('../../services/vocabulary.service.js', vocabularyFactory);
-vi.mock('/home/asus/EngFore/src/services/vocabulary.service.js', vocabularyFactory);
-
-vi.mock('../services/learning.service.js', learningFactory);
-vi.mock('../../services/learning.service.js', learningFactory);
-vi.mock('/home/asus/EngFore/src/services/learning.service.js', learningFactory);
 
 // Mock auth service (same as other specs)
 vi.mock('../services/auth.service.js', () => ({
@@ -134,10 +135,13 @@ vi.mock('../services/auth.service.js', () => ({
 // Helpers
 // ---------------------------------------------------------------
 async function mountSession(words = W_TYPING) {
-  mockWords = words;
+  // Configure the central mock to return the desired words for the session
+  getLearnSessionQueueMock.mockResolvedValue({ queue: words, error: null });
+
   const { default: LearningSession } = await import('../pages/LearningSession/index.jsx');
   const { AuthProvider } = await import('../hooks/useAuth.jsx');
-  return render(
+
+  render(
     <MemoryRouter initialEntries={['/learn/session/set-1']}>
       <AuthProvider initialUser={{ id: 'user-1', email: 'test@example.com' }}>
         <Routes>
@@ -146,6 +150,11 @@ async function mountSession(words = W_TYPING) {
       </AuthProvider>
     </MemoryRouter>
   );
+
+  // Wait for the main mock to be called, which signals the hook has run
+  await waitFor(() => {
+    expect(getLearnSessionQueueMock).toHaveBeenCalled();
+  });
 }
 
 function pressKey(key) {
@@ -186,7 +195,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   // ---- TTS ----------------------------------------------------
 
   it('typing: auto-speaks the correct word on each reveal (card 1, 2, 3)', async () => {
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -212,7 +221,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   });
 
   it('flashcard: revealing each card auto-speaks exactly that card', async () => {
-    mountSession(W_FLASH);
+    await mountSession(W_FLASH);
     await waitForFlashcard();
 
     await userEvent.click(screen.getByRole('button', { pressed: false }));
@@ -234,7 +243,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   });
 
   it('clicking the 🔊 button speaks the current word on cards 1, 2 and 3', async () => {
-    mountSession(W_FLASH);
+    await mountSession(W_FLASH);
     await waitForFlashcard();
 
     // Card 1: manual 🔊 + reveal
@@ -272,7 +281,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
       throw new Error('speechSynthesis unavailable');
     });
 
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -289,7 +298,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
 // ---- Keyboard: ENTER ----------------------------------------
 
   it('Enter before reveal submits; Enter after reveal does not rate; Enter after rating continues', async () => {
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     // Enter before reveal -> submit answer
@@ -312,7 +321,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   // ---- Keyboard: SPACE ----------------------------------------
 
   it('Space after rating continues (card 2 -> card 3)', async () => {
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     for (const [idx, word] of ['apple', 'banana'].entries()) {
@@ -327,7 +336,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   });
 
   it('Space while typing in the input inserts a normal space and does not advance', async () => {
-    mountSession([phraseWord]);
+    await mountSession([phraseWord]);
     await waitFor(() => screen.getByText('ăn sáng'));
 
     const input = screen.getByPlaceholderText('Nhập từ tiếng Anh...');
@@ -339,7 +348,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   });
 
   it('Space before rating does not continue', async () => {
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -361,7 +370,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
         })
     );
 
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -384,7 +393,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   it('Space does not continue after a DB save error (retry allowed)', async () => {
     recordResultMock.mockImplementation(async () => ({ progress: null, error: { message: 'boom' } }));
 
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -405,7 +414,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
 // ---- Session -------------------------------------------------
 
   it('no double advance when Space is held/spammed after rating', async () => {
-    mountSession(W_TYPING);
+    await mountSession(W_TYPING);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -422,7 +431,7 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
   });
 
   it('Space has no side effect on the completed session screen', async () => {
-    mountSession([W_TYPING[0]]);
+    await mountSession([W_TYPING[0]]);
     await waitFor(() => screen.getByText('quả táo'));
 
     await userEvent.type(screen.getByPlaceholderText('Nhập từ tiếng Anh...'), 'apple');
@@ -437,5 +446,63 @@ describe('LearningSession — TTS + keyboard + session behavior', () => {
     pressKey(' ');
     pressKey(' ');
     expect(screen.getByText('Hoàn thành phiên học!')).toBeInTheDocument();
+  });
+
+  // ---- Keyboard: SPACE + flashcard flip -----------------------
+
+  it('flashcard: Space flips the card, prevents default (no scroll) and does not rate', async () => {
+    await mountSession(W_FLASH);
+    await waitForFlashcard();
+
+    // Front of the card visible.
+    expect(screen.getByText('apple')).toBeInTheDocument();
+
+    const ev = new KeyboardEvent('keydown', {
+      key: ' ',
+      code: 'Space',
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(ev);
+
+    // preventDefault called → the page must not scroll.
+    expect(ev.defaultPrevented).toBe(true);
+
+    // Card is now flipped → answer details (meaning) + rating buttons appear.
+    await waitFor(() => screen.getByText('quả táo'));
+    expect(screen.getByRole('button', { name: /^Good/ })).toBeInTheDocument();
+  });
+
+  it('typing: Space when not in an input does not reveal/rate/advance (no flip behavior)', async () => {
+    await mountSession(W_TYPING);
+    await waitFor(() => screen.getByText('quả táo'));
+
+    // Move focus off the answer input so Space is handled by the session handler.
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+
+    pressKey(' ');
+
+    // Still on the same card: answer not submitted, nothing rated, no advance.
+    expect(screen.getByText('quả táo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Kiểm tra/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Chính xác/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tiếp tục/)).not.toBeInTheDocument();
+  });
+
+  it('keyboard listener is removed on unmount (Space no longer flips the card)', async () => {
+    await mountSession(W_FLASH);
+    await waitForFlashcard();
+    speakMock.mockClear();
+    cleanup();
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true })
+    );
+
+    // Flipping would have called TTS via handleFlip → speakWord; if the listener
+    // were still attached, speakMock would have been called. It must not be.
+    expect(speakMock).not.toHaveBeenCalled();
   });
 });

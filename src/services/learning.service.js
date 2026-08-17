@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { computeSrsUpdate, RATING } from './srs.service.js';
+import { logDailyLearning } from './dailyGoal.service.js';
 import {
   DEFAULT_DAILY_NEW_LIMIT,
   DAILY_NEW_LIMIT_OPTIONS,
@@ -170,6 +171,15 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
     }
     if (saveResult.error) return { progress: null, error: saveResult.error };
 
+    // Daily goal (daily_learning_log): count a brand-new word exactly ONCE —
+    // on its first-ever rating (no prior user_progress row). Cards that already
+    // have progress (learning/review/relearning) never increment, so reviewing
+    // yesterday's words cannot inflate today's goal. The increment is
+    // non-fatal: if the RPC fails (e.g. RLS/network), the SRS save is kept.
+    if (safeExisting == null && userId) {
+      logDailyLearning(1).catch(() => {});
+    }
+
     return {
       progress: {
         ...(saveResult.data || upsertPayload),
@@ -338,6 +348,188 @@ export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE
   return { data: (data || []).map(mapProgressRow), error: null };
 }
 
+
+/**
+ * Lấy danh sách từ đang trong giai đoạn học (learning/relearning) và chưa tới hạn.
+ * @param {string} userId
+ * @param {string[] | undefined} senseIds - Optional array of sense IDs to filter by.
+ * @param {number} limit
+ */
+export async function getLearningWords(userId, senseIds, limit = REVIEW_QUEUE_LIMIT) {
+  if (!userId) return { data: [], error: null };
+
+  let query = supabase
+    .from('user_progress')
+    .select(SRS_PROGRESS_SELECT)
+    .eq('user_id', userId)
+    .in('state', ['learning', 'relearning'])
+    .gt('review_due_at', new Date().toISOString())
+    .order('review_due_at', { ascending: true })
+    .limit(limit);
+
+  if (senseIds && senseIds.length > 0) {
+    query = query.in('word_sense_id', senseIds);
+  }
+
+  const { data, error } = await query;
+  if (error) return { data: null, error };
+
+  return { data: (data || []).map(mapProgressRow), error: null };
+}
+
+/**
+ * Lấy danh sách từ MỚI cho phiên học, tôn trọng thứ tự ưu tiên.
+ * @param {string} userId
+ * @param {string[]} prioritizedSetIds
+ * @param {number} limit
+ * @param {string[]} excludedIds - Các sense ID đã có trong queue (due, learning)
+ */
+export async function getNewWords(userId, prioritizedSetIds, limit, excludedIds = []) {
+  if (!userId || limit <= 0) return { data: [], error: null };
+
+  const { data, error } = await supabase.rpc('get_new_words_for_session', {
+    p_user_id: userId,
+    p_set_ids_prioritized: prioritizedSetIds,
+    p_limit: limit,
+    p_excluded_sense_ids: excludedIds,
+  });
+
+  if (error) {
+    if (import.meta.env.DEV) {
+      console.error('[getNewWords] RPC Error:', JSON.stringify(error, null, 2));
+    }
+    return { data: null, error };
+  }
+  return { data: data || [], error: null };
+}
+
+
+/**
+ * Xây dựng hàng đợi cho một phiên học (Unified Learn Engine).
+ * @param {string} userId
+ * @param {{
+ *   learnMode: 'LIMITED' | 'UNLIMITED',
+ *   dailyNewLimit: number,
+ *   introducedTodayCount: number,
+ *   sessionSize?: number,
+ *   setId?: string | null,
+ * }} options
+ * @returns {Promise<{ queue: any[], error: any }>}
+ */
+export async function getLearnSessionQueue(userId, options) {
+  const {
+    learnMode = 'LIMITED',
+    dailyNewLimit = DEFAULT_DAILY_NEW_LIMIT,
+    introducedTodayCount = 0,
+    sessionSize = 50,
+    setId: rawSetId = null, // Renamed to avoid conflict with effectiveSetId
+  } = options;
+
+  let finalQueue = [];
+  let error = null;
+
+  try {
+    // --- Step 1: Fetch DUE words ---
+    // Normalize set scope: 'all' means no set filter (null)
+    const effectiveSetId = rawSetId === 'all' ? null : rawSetId;
+    const { data: dueWords, error: dueError } = effectiveSetId
+      ? await getDueReviewWordsInSet(userId, effectiveSetId, sessionSize)
+      : await getDueReviewWords(userId, sessionSize);
+
+    if (dueError) throw dueError;
+    finalQueue.push(...(dueWords || []));
+
+    const currentIds = new Set(finalQueue.map(w => w.id));
+    let remainingSize = sessionSize - finalQueue.length;
+
+    // --- Step 2: Fetch LEARNING words ---
+    if (remainingSize > 0) {
+      // If learning within a set, we need to get all senseIds of that set first
+      let senseIdsInScope = undefined;
+      if (effectiveSetId) { // Use effectiveSetId
+        const { data: links, error: linkError } = await supabase
+          .from('set_words')
+          .select('word_sense_id')
+          .eq('set_id', effectiveSetId); // Use effectiveSetId
+        if (linkError) throw linkError;
+        senseIdsInScope = (links || []).map((l) => l.word_sense_id);
+      }
+
+      const { data: learningWords, error: learningError } = await getLearningWords(
+        userId,
+        senseIdsInScope,
+        remainingSize
+      );
+      if (learningError) throw learningError;
+
+      (learningWords || []).forEach(word => {
+        if (!currentIds.has(word.id)) {
+          finalQueue.push(word);
+          currentIds.add(word.id);
+        }
+      });
+    }
+
+    remainingSize = sessionSize - finalQueue.length;
+
+    // --- Step 3: Fetch NEW words ---
+    if (remainingSize > 0) {
+      let newWordLimit = 0;
+      if (learnMode === 'LIMITED') {
+        newWordLimit = Math.max(0, dailyNewLimit - introducedTodayCount);
+      } else {
+        newWordLimit = sessionSize; // For UNLIMITED, fetch up to a full batch
+      }
+
+      const finalNewLimit = Math.min(remainingSize, newWordLimit);
+
+      if (finalNewLimit > 0) {
+        let prioritizedSetIds = [];
+        if (effectiveSetId) { // Use effectiveSetId
+            prioritizedSetIds = [effectiveSetId]; // Use effectiveSetId
+        } else {
+            // Fetch user's set priorities to order new cards
+            const { data: priorities, error: prioError } = await supabase.rpc('get_user_set_learn_priorities', { p_user_id: userId });
+            if (prioError) console.warn('Could not fetch set priorities, using default order.', prioError);
+            
+            // Get all set ids and merge with priorities
+            const { data: allSets, error: setsError } = await supabase.from('vocabulary_sets').select('id').eq('user_id', userId);
+            if(setsError) throw setsError;
+
+            const prioMap = new Map((priorities || []).map(p => [p.set_id, p.learn_priority]));
+            const allSetIdsWithPrio = (allSets || []).map(s => ({ id: s.id, priority: prioMap.get(s.id) ?? 999 }));
+            allSetIdsWithPrio.sort((a,b) => a.priority - b.priority);
+
+            prioritizedSetIds = allSetIdsWithPrio.map(s => s.id);
+        }
+
+        if (prioritizedSetIds.length > 0) {
+            const { data: newWords, error: newWordsError } = await getNewWords(
+                userId,
+                prioritizedSetIds,
+                finalNewLimit,
+                Array.from(currentIds)
+            );
+            if (newWordsError) throw newWordsError;
+
+             (newWords || []).forEach(word => {
+                if (!currentIds.has(word.id)) {
+                    finalQueue.push(word);
+                    currentIds.add(word.id);
+                }
+            });
+        }
+      }
+    }
+
+    return { queue: finalQueue, error: null };
+
+  } catch (e) {
+    console.error("Error building learn session queue:", e);
+    error = e;
+    return { queue: [], error };
+  }
+}
 
 /**
  * Đếm TỔNG số từ đến hạn ôn tập của user (cho badge hiển thị).
@@ -522,5 +714,20 @@ export async function updateDailyNewLimit(userId, value) {
     return { value: limit, error: error ?? null };
   } catch (e) {
     return { value: limit, error: e };
+  }
+}
+
+/**
+ * Lấy thống kê vốn từ của người dùng (tổng số, đang học).
+ * @param {string} userId
+ * @returns {Promise<{ data: { total_count: number, learning_count: number } | null, error: object | null }>}
+ */
+export async function getVocabularyStats(userId) {
+  if (!userId) return { data: null, error: { message: 'Thiếu userId.' } };
+  try {
+    const { data, error } = await supabase.rpc('get_user_vocabulary_stats', { p_user_id: userId }).single();
+    return { data, error };
+  } catch (e) {
+    return { data: null, error: e };
   }
 }

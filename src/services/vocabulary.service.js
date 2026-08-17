@@ -383,7 +383,7 @@ export async function addWordsToSet(setId, wordSenseIds) {
  * @param {string} wordSenseId
  * @returns {Promise<{ data: any, error: any }>}
  */
-export async function removeFromVocabulary(wordSenseId) {
+export async function removeFromVocabulary(wordSenseId) { // This function was already correct, but I'm confirming it.
   if (!wordSenseId) return { error: { message: 'Thiếu id của từ.' } };
   const { data, error } = await supabase.rpc('remove_from_vocabulary', {
     p_word_sense_id: wordSenseId,
@@ -393,98 +393,26 @@ export async function removeFromVocabulary(wordSenseId) {
 }
 
 /** Lấy danh sách từ trong set kèm tiến trình học (mastery_level). */
-export async function getWordsInSet(setId) {
-  const { data: session } = await supabase.auth.getSession();
-  const userId = session?.session?.user?.id;
+export async function getWordsInSet(setId, userId) {
+  // Lỗi HTTP 400 xảy ra khi danh sách senseIds quá lớn, làm URL request vượt giới hạn.
+  // Giải pháp: Dùng RPC để join và lấy dữ liệu trên server, chỉ cần truyền setId và userId.
+  // RPC `get_words_in_set_with_progress` cần được tạo trong database.
+  // Nếu hàm RPC chưa tồn tại, Supabase sẽ trả lỗi "function does not exist".
+  if (!userId) return { data: [], error: { message: 'User ID is required.' } };
 
-  const { data, error } = await supabase
-    .from('set_words')
-    .select(
-      `set_id,
-       word_senses (
-         id,
-         word_type,
-         meaning,
-         description,
-         example,
-         words (
-           id,
-           word,
-           ipa,
-           cefr_level
-         )
-       )`
-    )
-    .eq('set_id', setId);
-
-  if (error) return { data: null, error };
-
-  const senseIds = (data || []).map((item) => item.word_senses?.id).filter(Boolean);
-  let progressMap = {};
-    if (userId && senseIds.length > 0) {
-    // Try full SRS columns first; if they don't exist, retry with base columns only
-    const BASE_PRO = 'word_sense_id, mastery_level, review_due_at, last_reviewed_at';
-    const SRS_PRO = 'word_sense_id, mastery_level, review_due_at, last_reviewed_at, repetitions, interval_hours, ease_factor, lapses, state, learning_step, flashcard_reviews';
-
-    let { data: progress, error: progressError } = await supabase
-      .from('user_progress')
-      .select(SRS_PRO)
-      .in('word_sense_id', senseIds)
-      .eq('user_id', userId);
-
-    if (progressError) {
-      // Fallback: retry with only base columns that are guaranteed to exist
-      const fallback = await supabase
-        .from('user_progress')
-        .select(BASE_PRO)
-        .in('word_sense_id', senseIds)
-        .eq('user_id', userId);
-      if (fallback.error) {
-        if (import.meta.env.DEV) console.error('[getWordsInSet] progress query error:', fallback.error.message);
-      } else {
-        progress = fallback.data;
-        progressError = null;
-      }
-    }
-
-    if (!progressError) {
-      progressMap = progress.reduce((acc, p) => {
-        acc[p.word_sense_id] = p;
-        return acc;
-      }, {});
-    }
-  }
-
-  const merged = (data || []).map((item, idx) => {
-    const sense = item.word_senses || {};
-    const word = sense.words || {};
-    const progress = progressMap[sense.id];
-    return {
-      id: sense.id,
-      word_id: word.id,
-      word: word.word || '',
-      ipa: word.ipa || '',
-      cefr_level: word.cefr_level || '',
-      word_type: sense.word_type || '',
-      meaning: sense.meaning || '',
-      memory_clue: sense.description || '',
-      example: sense.example || '',
-      set_id: item.set_id,
-      mastery_level: progress?.mastery_level ?? 0,
-      review_due_at: progress?.review_due_at ?? null,
-      last_reviewed_at: progress?.last_reviewed_at ?? null,
-      repetitions: prog?.repetitions ?? 0,
-      interval_hours: prog?.interval_hours ?? 0,
-      ease_factor: prog?.ease_factor ?? 2.5,
-      lapses: prog?.lapses ?? 0,
-      state: prog?.state ?? 'new',
-      learning_step: prog?.learning_step ?? 0,
-      flashcard_reviews: prog?.flashcard_reviews ?? 0,
-      _idx: idx,
-    };
+  const { data, error } = await supabase.rpc('get_words_in_set_with_progress', {
+    p_set_id: setId,
+    p_user_id: userId,
   });
 
-  return { data: merged, error: null };
+  if (error) {
+    // Log chi tiết hơn để dễ debug lỗi RLS, RPC signature, etc.
+    if (import.meta.env.DEV) {
+      console.error('[getWordsInSet] RPC Error:', JSON.stringify(error, null, 2));
+    }
+    return { data: null, error };
+  }
+  return { data, error };
 }
 
 /** Xóa một từ khỏi set (gỡ quan hệ set_words). */
@@ -579,5 +507,71 @@ export async function addWordToSet(setId, wordData) {
   
   // The RPC doesn't return the full word, so we can't return data here.
   // The caller should reload the set to see the new word.
-  return { data: null, error: null };
+    return { data: null, error: null };
+}
+
+/**
+ * Lấy thứ tự học (learn priority) của tất cả bộ từ của user.
+ * Priority thấp = được học trước trong chế độ NEW.
+ * @param {string} userId
+ * @returns {Promise<{ data: Array<{ set_id: string, learn_priority: number }>, error: any }>}
+ */
+export async function getUserSetLearnPriorities(userId) {
+  if (!userId) return { data: [], error: { message: 'Thiếu userId.' } };
+  try {
+    const { data, error } = await supabase.rpc('get_user_set_learn_priorities', {
+      p_user_id: userId,
+    });
+    if (error) return { data: [], error };
+    return { data: data || [], error: null };
+  } catch (e) {
+    return { data: [], error: e };
+  }
+}
+
+/**
+ * Cập nhật learn_priority cho một bộ từ của user.
+ * @param {string} userId
+ * @param {string} setId
+ * @param {number} priority
+ * @returns {Promise<{ error: any }>}
+ */
+export async function updateSetLearnPriority(userId, setId, priority) {
+  if (!userId || !setId) {
+    return { error: { message: 'Thiếu userId hoặc setId.' } };
+  }
+  try {
+    const { error } = await supabase
+      .from('user_set_learn_priority')
+      .upsert({ user_id: userId, set_id: setId, learn_priority: Number(priority) });
+    if (error) return { error };
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+/**
+ * Cập nhật thứ tự học của nhiều bộ từ cùng lúc (dùng cho drag-and-drop).
+ * @param {string} userId
+ * @param {Array<{ set_id: string, learn_priority: number }>} updates
+ * @returns {Promise<{ error: any }>}
+ */
+export async function batchUpdateSetLearnPriority(userId, updates) {
+  if (!userId) return { error: { message: 'Thiếu userId.' } };
+  try {
+    const { error } = await supabase
+      .from('user_set_learn_priority')
+      .upsert(
+        (updates || []).map((u) => ({
+          user_id: userId,
+          set_id: u.set_id,
+          learn_priority: Number(u.learn_priority),
+        }))
+      );
+    if (error) return { error };
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
 }

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { getCefrStats, getVocabularySets } from '../../services/vocabulary.service.js';
 import { getSrsDashboardStats } from '../../services/learning.service.js';
+import { getDailyGoalProgress, getBusinessDateKey } from '../../services/dailyGoal.service.js';
 import { cefrBadgeClass } from '../../utils/cefr.js';
 import Spinner from '../../components/ui/Spinner.jsx';
 
@@ -96,6 +97,46 @@ export default function App() {
     // Re-run when user changes or when reviewCompleted flag toggles
   }, [user?.id, location?.state?.reviewCompleted]);
 
+  // Daily goal progress (per business day VN). Data comes from the
+  // get_daily_goal_progress RPC which filters log_date = today's Vietnam date,
+  // so a brand-new day returns 0 — never yesterday's count.
+  const [dailyGoal, setDailyGoal] = useState(null);
+  const [dailyGoalLoading, setDailyGoalLoading] = useState(true);
+  const lastBusinessDayRef = useRef(getBusinessDateKey());
+
+  useEffect(() => {
+    let mounted = true;
+    if (user?.id) {
+      setDailyGoalLoading(true);
+      getDailyGoalProgress(user.id).then(({ data, error }) => {
+        if (!mounted) return;
+        setDailyGoalLoading(false);
+        if (!error && data) setDailyGoal(data);
+      });
+    }
+    return () => {
+      mounted = false;
+    };
+    // Refetch on mount, user change and after a review session navigates back.
+  }, [user?.id, location?.state?.reviewCompleted]);
+
+  // Khi đồng hồ qua 00:00 Việt Nam (ngày business mới), refetch daily goal để
+  // KHÔNG giữ state 50/50 của ngày hôm trước.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const today = getBusinessDateKey();
+      if (today !== lastBusinessDayRef.current) {
+        lastBusinessDayRef.current = today;
+        if (user?.id) {
+          getDailyGoalProgress(user.id).then(({ data }) => {
+            if (data) setDailyGoal(data);
+          });
+        }
+      }
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, [user?.id]);
+
   const firstName = profile?.username || user?.email?.split('@')[0] || 'bạn';
 
   return (
@@ -109,6 +150,28 @@ export default function App() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard title="Bộ từ" value={vocabStats.sets} />
         <StatCard title="Từ vựng" value={vocabStats.words} />
+        {/* Mục tiêu hôm nay — đọc từ RPC get_daily_goal_progress (ngày VN) */}
+        <div
+          className={`rounded-xl border bg-surface-sidebar p-5 ${
+            dailyGoal?.completed ? 'border-green-500/30 bg-green-500/10' : 'border-border-color'
+          }`}
+        >
+          <p className="text-sm text-text-secondary">Mục tiêu hôm nay</p>
+          <p className="mt-1 text-3xl font-bold text-text-primary">
+            {dailyGoalLoading
+              ? '…'
+              : `${dailyGoal?.words_learned ?? 0} / ${dailyGoal?.daily_goal ?? 0}`}
+          </p>
+          {!dailyGoalLoading && dailyGoal && dailyGoal.daily_goal > 0 && (
+            <p
+              className={`mt-1 text-xs font-medium ${
+                dailyGoal.completed ? 'text-green-400' : 'text-text-secondary'
+              }`}
+            >
+              {dailyGoal.completed ? 'Đã hoàn thành hôm nay ✅' : 'Chưa hoàn thành hôm nay'}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Hôm nay */}

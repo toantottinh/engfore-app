@@ -16,11 +16,27 @@ export default function Profile() {
   const { user, profile } = useAuth();
   const [username, setUsername] = useState(profile?.username || '');
   const [dailyNewLimit, setDailyNewLimit] = useState(DEFAULT_DAILY_NEW_LIMIT);
+  const [dailyGoal, setDailyGoal] = useState(20); // users.daily_goal (mục tiêu hôm nay)
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const displayName = profile?.username || user?.email?.split('@')[0] || 'Người dùng';
+
+  // Load đầy đủ hồ sơ (gồm daily_goal) từ bảng users.
+  useEffect(() => {
+    let mounted = true;
+    if (user?.id) {
+      authService.getProfile(user.id).then(({ data, error }) => {
+        if (!mounted || error || !data) return;
+        setUsername((prev) => prev || data.username || '');
+        setDailyGoal(Number(data.daily_goal) || 20);
+      });
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -33,6 +49,17 @@ export default function Profile() {
     }
     setSaving(true);
     const { error, value } = await updateDailyNewLimit(user.id, dailyNewLimit);
+    if (!error && Number.isFinite(dailyGoal) && dailyGoal > 0) {
+      // Lưu mục tiêu hôm nay (users.daily_goal) — RLS cho phép user tự cập nhật.
+      const profRes = await authService.updateProfile(user.id, {
+        daily_goal: Math.max(1, Math.min(100, Math.round(dailyGoal))),
+      });
+      if (profRes?.error) {
+        setSaving(false);
+        setError(getAuthErrorMessage(profRes.error));
+        return;
+      }
+    }
     setSaving(false);
     if (error) {
       setError(getAuthErrorMessage(error));
@@ -83,6 +110,17 @@ export default function Profile() {
               </option>
             ))}
           </select>
+          <label className="block text-sm font-medium text-zinc-700 mb-1">
+            Mục tiêu hôm nay (daily goal)
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            className="w-full rounded-xl py-2.5 px-3 border border-zinc-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+            value={dailyGoal}
+            onChange={(e) => setDailyGoal(Number(e.target.value))}
+          />
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button type="submit" loading={saving}>
               {saving ? 'Đang lưu...' : 'Lưu thay đổi'}

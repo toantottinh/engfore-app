@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useAuth } from './useAuth.jsx';
 import { getWordsInSet } from '../services/vocabulary.service.js';
-import { recordLearningResult } from '../services/learning.service.js';
+import {
+  getVocabularyStats as fetchVocabularyStats,
+  recordLearningResult,
+} from '../services/learning.service.js';
 
 /**
  * Hook quản lý các hoạt động luyện tập (typing, flashcard).
@@ -51,7 +54,12 @@ export function useLearning() {
     // For practice we do not call recordLearningResult to avoid changing SRS state.
     // Return a neutral response so callers can continue without error.
     return { progress: null, error: null };
-  }, []);
+  }, []); 
 
-  return { loadWords, recordProgress, recordPracticeAnswer, loading };
+  const getVocabularyStats = useCallback(async () => {
+    if (!user) return { data: null, error: { message: 'Bạn cần đăng nhập.' } };
+    return fetchVocabularyStats(user.id);
+  }, [user]);
+
+  return { loadWords, recordProgress, recordPracticeAnswer, getVocabularyStats, loading };
 }
