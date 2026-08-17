@@ -37,8 +37,16 @@ vi.mock("../../../tts.service.js", () => ({
 vi.mock("../services/vocabulary.service.js", () => ({
   getWordsInSet: vi.fn(),
 }));
+vi.mock("../services/auth.service.js", () => ({
+  authService: {
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    getSession: async () => ({ data: { session: null }, error: null }),
+    ensureProfile: async () => ({ data: null, error: null }),
+  },
+}));
 import PracticeSession from "../pages/PracticeSession/index.jsx";
 import { getWordsInSet } from "../services/vocabulary.service.js";
+import { AuthProvider } from "../hooks/useAuth.jsx";
 
 const WORDS = [
   { id: "w1", word: "apple", meaning: "quả táo" },
@@ -364,7 +372,9 @@ describe("keyboard in PracticeSession", () => {
     getWordsInSet.mockResolvedValue({ data: W, error: null });
     render(
       <MemoryRouter initialEntries={["/practice/session?setIds=set-1"]}>
-        <PracticeSession />
+        <AuthProvider initialUser={{ id: "user-1" }}>
+          <PracticeSession />
+        </AuthProvider>
       </MemoryRouter>,
     );
     await screen.findByText(/Flashcard/i);
@@ -379,7 +389,9 @@ describe("keyboard in PracticeSession", () => {
     getWordsInSet.mockResolvedValue({ data: W, error: null });
     render(
       <MemoryRouter initialEntries={["/practice/session?setIds=set-1"]}>
-        <PracticeSession />
+        <AuthProvider initialUser={{ id: "user-1" }}>
+          <PracticeSession />
+        </AuthProvider>
       </MemoryRouter>,
     );
     // Choose typing mode

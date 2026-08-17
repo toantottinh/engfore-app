@@ -406,9 +406,24 @@ export async function getWordsInSet(setId, userId) {
   });
 
   if (error) {
-    // Log chi tiết hơn để dễ debug lỗi RLS, RPC signature, etc.
+    // Log chi tiết response thật từ Supabase (code/message/details/hint) để xác
+    // định chính xác lỗi HTTP 400 do URL/`.in()` quá lớn, RPC thiếu, RLS, v.v.
     if (import.meta.env.DEV) {
-      console.error('[getWordsInSet] RPC Error:', JSON.stringify(error, null, 2));
+      console.error(
+        '[getWordsInSet] RPC Error:',
+        JSON.stringify(
+          {
+            message: error?.message ?? null,
+            code: error?.code ?? null,
+            status: error?.status ?? null,
+            details: error?.details ?? null,
+            hint: error?.hint ?? null,
+            cause: error?.cause ?? null,
+          },
+          null,
+          2
+        )
+      );
     }
     return { data: null, error };
   }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getWordsInSet } from "../../services/vocabulary.service.js";
+import { useAuth } from "../../hooks/useAuth.jsx";
 import {
   usePracticeSession,
   mergePracticeWords,
@@ -18,6 +19,7 @@ import EmptyState from "../../components/ui/EmptyState.jsx";
  * Hỗ trợ nhiều bộ qua URL: /practice/session?setIds=a,b,c
  */
 export default function PracticeSession() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const setIds = useMemo(
     () =>
@@ -44,7 +46,7 @@ export default function PracticeSession() {
         setLoading(false);
         return;
       }
-      const results = await Promise.all(setIds.map((id) => getWordsInSet(id)));
+      const results = await Promise.all(setIds.map((id) => getWordsInSet(id, user?.id)));
       if (!active) return;
       const failed = results.find((r) => r.error);
       if (failed) {
@@ -59,7 +61,7 @@ export default function PracticeSession() {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setIds.join(",")]);
+  }, [setIds.join(","), user?.id]);
 
   const {
     sessionMode,

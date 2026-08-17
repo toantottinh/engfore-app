@@ -355,20 +355,33 @@ export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE
  * @param {string[] | undefined} senseIds - Optional array of sense IDs to filter by.
  * @param {number} limit
  */
-export async function getLearningWords(userId, senseIds, limit = REVIEW_QUEUE_LIMIT) {
+export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT) {
   if (!userId) return { data: [], error: null };
 
   let query = supabase
     .from('user_progress')
     .select(SRS_PROGRESS_SELECT)
     .eq('user_id', userId)
-    .in('state', ['learning', 'relearning'])
     .gt('review_due_at', new Date().toISOString())
     .order('review_due_at', { ascending: true })
     .limit(limit);
 
-  if (senseIds && senseIds.length > 0) {
-    query = query.in('word_sense_id', senseIds);
+  if (setId) {
+    // Set mode: resolve senseIds server-side via set_words so we never
+    // pass a large client-side UUID list to .in() (root cause of HTTP 400
+    // when opening VocabularyDetail with a large word set).
+    const { data: setLinks, error: setError } = await supabase
+      .from('set_words')
+      .select('word_sense_id')
+      .eq('set_id', setId);
+
+    if (setError) return { data: null, error: setError };
+
+            const senseIds = (setLinks || []).map((l) => l.word_sense_id);
+
+    if (senseIds.length > 0) {
+      query = query.in('word_sense_id', senseIds);
+    }
   }
 
   const { data, error } = await query;
@@ -442,22 +455,14 @@ export async function getLearnSessionQueue(userId, options) {
     const currentIds = new Set(finalQueue.map(w => w.id));
     let remainingSize = sessionSize - finalQueue.length;
 
-    // --- Step 2: Fetch LEARNING words ---
+        // --- Step 2: Fetch LEARNING words ---
     if (remainingSize > 0) {
-      // If learning within a set, we need to get all senseIds of that set first
-      let senseIdsInScope = undefined;
-      if (effectiveSetId) { // Use effectiveSetId
-        const { data: links, error: linkError } = await supabase
-          .from('set_words')
-          .select('word_sense_id')
-          .eq('set_id', effectiveSetId); // Use effectiveSetId
-        if (linkError) throw linkError;
-        senseIdsInScope = (links || []).map((l) => l.word_sense_id);
-      }
-
+      // Pass effectiveSetId directly to getLearningWords, which resolves
+      // the set's word_sense_ids server-side via set_words. This avoids
+      // building a large client-side UUID list that triggers HTTP 400.
       const { data: learningWords, error: learningError } = await getLearningWords(
         userId,
-        senseIdsInScope,
+        effectiveSetId,
         remainingSize
       );
       if (learningError) throw learningError;

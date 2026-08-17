@@ -22,11 +22,11 @@ export function useLearning() {
   const loadWords = useCallback(
     async (setId) => {
       setLoading(true);
-      const result = await getWordsInSet(setId);
+      const result = await getWordsInSet(setId, user?.id);
       setLoading(false);
       return result;
     },
-    []
+    [user?.id]
   );
 
   /**

@@ -9,12 +9,14 @@ import {
   removeFromVocabulary as serviceRemoveFromVocabulary,
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
+import { useAuth } from './useAuth.jsx';
 
 /**
  * Hook quản lý chi tiết một bộ từ vựng (thông tin set, danh sách từ, và các thao tác CRUD trên từ).
  * @param {string} setId - ID của bộ từ.
  */
 export function useVocabularyDetail(setId) {
+  const { user } = useAuth();
   const [set, setSet] = useState(null);
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,12 +36,30 @@ export function useVocabularyDetail(setId) {
     try {
       const [setResult, wordsResult] = await Promise.all([
         getVocabularySet(setId),
-        getWordsInSet(setId),
+        getWordsInSet(setId, user?.id),
       ]);
 
       if (setResult.error || wordsResult.error) {
         const err = setResult.error || wordsResult.error;
-        if (import.meta.env.DEV) console.error('[useVocabularyDetail] Load error:', err);
+        // Log đầy đủ response từ Supabase để xác định chính xác nguyên nhân
+        // (HTTP 400 do URL/`.in()` quá lớn, RPC thiếu, RLS, ...) — chỉ khi DEV.
+        if (import.meta.env.DEV) {
+          console.error(
+            '[useVocabularyDetail] Load error:',
+            JSON.stringify(
+              {
+                message: err?.message ?? null,
+                code: err?.code ?? null,
+                status: err?.status ?? null,
+                details: err?.details ?? null,
+                hint: err?.hint ?? null,
+                cause: err?.cause ?? null,
+              },
+              null,
+              2
+            )
+          );
+        }
         setError('Không thể tải dữ liệu bộ từ. Vui lòng thử lại.');
         setSet(null);
         setWords([]);
@@ -52,7 +72,7 @@ export function useVocabularyDetail(setId) {
     } finally {
       setLoading(false);
     }
-  }, [setId]);
+  }, [setId, user?.id]);
 
   useEffect(() => {
     loadSetAndWords();
