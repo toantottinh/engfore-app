@@ -44,7 +44,7 @@ GRANT EXECUTE ON FUNCTION public.ensure_set_learn_priority_on_insert()
 
 COMMENT ON FUNCTION public.ensure_set_learn_priority_on_insert() IS
   'After inserting a vocabulary_set, create a default user_set_learn_priority '
-  'entry at the end of the user'"'"'s ordering so NEW words from the new set are '
+  'entry at the end of the user''s ordering so NEW words from the new set are '
   'not prioritized before sets the user has already ordered.';
 
 -- =====================================================================

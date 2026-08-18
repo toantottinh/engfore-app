@@ -913,6 +913,70 @@ export default function Vocabulary() {
         </p>
       </Modal>
 
+
+      {/* Modal xác nhận xóa từ đơn */}
+      <Modal
+        open={deleteWordOpen}
+        onClose={() => setDeleteWordOpen(false)}
+        title="Xóa từ"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteWordOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleConfirmDeleteWord}
+              loading={deleteWordLoading}
+            >
+              {deleteWordLoading ? 'Đang xóa...' : 'Xóa'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Bạn có chắc muốn xóa từ{' '}
+          <span className="font-semibold">"{deletingWord?.word || deletingWord?.word_sense_id || ''}"</span>?
+          Hành động này không thể hoàn tác.
+        </p>
+        {deleteWordError && <Alert type="error" message={deleteWordError} className="mt-3" />}
+      </Modal>
+
+      {/* Modal xác nhận xóa hàng loạt từ */}
+      <Modal
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        title="Xóa từ đã chọn"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setBulkDeleteOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleConfirmBulkDelete}
+              loading={bulkDeleteLoading}
+            >
+              {bulkDeleteLoading ? 'Đang xóa...' : 'Xóa'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Bạn có chắc muốn xóa <span className="font-semibold">{selectedWordIds.length}</span> từ đã chọn?
+          Hành động này không thể hoàn tác.
+        </p>
+        {bulkDeleteResults && (
+          <div className="mt-3 space-y-1">
+            {bulkDeleteResults.successCount > 0 && (
+              <Alert type="success" message={`Đã xóa thành công ${bulkDeleteResults.successCount} từ.`} />
+            )}
+            {bulkDeleteResults.failCount > 0 && (
+              <Alert type="error" message={`Không thể xóa ${bulkDeleteResults.failCount} từ.`} />
+            )}
+          </div>
+        )}
+      </Modal>
       {/* Modal thêm từ vào bộ từ */}
       <Modal
         open={addToSetModalOpen}
