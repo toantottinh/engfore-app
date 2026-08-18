@@ -359,4 +359,174 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
     const newRpcCall = rpcImpl.mock.calls.find((c) => c[0] === 'get_new_words_for_session');
     expect(newRpcCall[1].p_limit).toBe(20);
   });
+
+  it('NEW order: priorities 0,1,2 map to set order A→B→C (0 = learned first)', async () => {
+    // Spec example: Set A = 0, Set B = 1, Set C = 2.
+    tableData.vocabulary_sets = [
+      { id: 'set-c', user_id: 'user-1', created_at: '2026-08-03T00:00:00.000Z' },
+      { id: 'set-a', user_id: 'user-1', created_at: '2026-08-01T00:00:00.000Z' },
+      { id: 'set-b', user_id: 'user-1', created_at: '2026-08-02T00:00:00.000Z' },
+    ];
+    rpcData['get_user_set_learn_priorities'] = [
+      { set_id: 'set-a', learn_priority: 0 },
+      { set_id: 'set-b', learn_priority: 1 },
+      { set_id: 'set-c', learn_priority: 2 },
+    ];
+    rpcData['get_new_words_for_session'] = [
+      { id: 'wa', word: 'a', meaning: 'A', state: 'new', set_id: 'set-a' },
+      { id: 'wb', word: 'b', meaning: 'B', state: 'new', set_id: 'set-b' },
+      { id: 'wc', word: 'c', meaning: 'C', state: 'new', set_id: 'set-c' },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'UNLIMITED',
+      setId: 'all',
+      dailyNewLimit: 50,
+      introducedTodayCount: 0,
+      sessionSize: 50,
+    });
+
+    expect(error).toBeNull();
+    // New words enter the queue in priority order A (0), B (1), C (2).
+    expect(queue.map((w) => w.id)).toEqual(['wa', 'wb', 'wc']);
+
+    const newRpcCall = rpcImpl.mock.calls.find((c) => c[0] === 'get_new_words_for_session');
+    expect(newRpcCall[1].p_set_ids_prioritized).toEqual(['set-a', 'set-b', 'set-c']);
+  });
+
+  it('falls back to created_at ASC (then id) when priorities are equal/absent', async () => {
+    // Both sets lack a priority entry (999) — the order must stay deterministic:
+    // created_at ASC, then id ASC (never an arbitrary DB ordering).
+    tableData.vocabulary_sets = [
+      { id: 'newer', user_id: 'user-1', created_at: '2026-08-02T00:00:00.000Z' },
+      { id: 'older', user_id: 'user-1', created_at: '2026-08-01T00:00:00.000Z' },
+    ];
+    rpcData['get_user_set_learn_priorities'] = [];
+    rpcData['get_new_words_for_session'] = [
+      { id: 'old-word', word: 'old', meaning: 'old', state: 'new', set_id: 'older' },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'UNLIMITED',
+      setId: 'all',
+      dailyNewLimit: 50,
+      introducedTodayCount: 0,
+      sessionSize: 50,
+    });
+
+    expect(error).toBeNull();
+    const newRpcCall = rpcImpl.mock.calls.find((c) => c[0] === 'get_new_words_for_session');
+    expect(newRpcCall[1].p_set_ids_prioritized).toEqual(['older', 'newer']);
+  });
+
+  it('Rule 4: a word in multiple sets appears ONCE in the queue', async () => {
+    // Even if the RPC returned duplicates (the legacy behaviour before the SQL
+    // DISTINCT ON fix), the queue builder never creates a duplicate item.
+    tableData.vocabulary_sets = [
+      { id: 'set-a', user_id: 'user-1' },
+      { id: 'set-b', user_id: 'user-1' },
+    ];
+    rpcData['get_user_set_learn_priorities'] = [
+      { set_id: 'set-a', learn_priority: 1 },
+      { set_id: 'set-b', learn_priority: 2 },
+    ];
+    // Word X belongs to BOTH set-a and set-b; the pre-fix RPC returned it twice.
+    rpcData['get_new_words_for_session'] = [
+      { id: 'x', word: 'X', meaning: 'X both sets', state: 'new', set_id: 'set-a' },
+      { id: 'x', word: 'X', meaning: 'X both sets', state: 'new', set_id: 'set-b' },
+      { id: 'y', word: 'Y', meaning: 'Y only', state: 'new', set_id: 'set-b' },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'UNLIMITED',
+      setId: 'all',
+      dailyNewLimit: 50,
+      introducedTodayCount: 0,
+      sessionSize: 50,
+    });
+
+    expect(error).toBeNull();
+    const ids = queue.map((w) => w.id);
+    expect(ids).toEqual(['x', 'y']);
+    // Strict uniqueness — no duplicate learning item in the queue.
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('Rule 1: due REVIEW is never pushed back by set priority', async () => {
+    // A due word lives in set-b (priority 2 — "học sau"), while a NEW word
+    // lives in set-a (priority 0 — "học trước").  SRS scheduling must win:
+    // the due review still enters the queue FIRST.
+    const now = Date.now();
+    tableData.user_progress = [
+      {
+        user_id: 'user-1',
+        word_sense_id: 'due-b',
+        state: 'review',
+        review_due_at: new Date(now - 3600 * 1000).toISOString(),
+        mastery_level: 2,
+        word_senses: { id: 'due-b', meaning: 'due in low-priority set', words: { word: 'dueb' } },
+      },
+    ];
+    tableData.vocabulary_sets = [
+      { id: 'set-a', user_id: 'user-1' },
+      { id: 'set-b', user_id: 'user-1' },
+    ];
+    rpcData['get_user_set_learn_priorities'] = [
+      { set_id: 'set-a', learn_priority: 0 },
+      { set_id: 'set-b', learn_priority: 2 },
+    ];
+    rpcData['get_new_words_for_session'] = [
+      { id: 'new-a', word: 'newa', meaning: 'new in high-priority set', state: 'new', set_id: 'set-a' },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'UNLIMITED',
+      setId: 'all',
+      dailyNewLimit: 50,
+      introducedTodayCount: 0,
+      sessionSize: 50,
+    });
+
+    expect(error).toBeNull();
+    expect(queue.map((w) => w.id)).toEqual(['due-b', 'new-a']);
+  });
+
+  it('set-specific learning: only words of the chosen set enter the queue', async () => {
+    const now = Date.now();
+    // set-a owns due-a + learning-a; set-b owns due-b + learning-b.
+    tableData.set_words = [
+      { set_id: 'set-a', word_sense_id: 'due-a' },
+      { set_id: 'set-a', word_sense_id: 'learning-a' },
+      { set_id: 'set-b', word_sense_id: 'due-b' },
+      { set_id: 'set-b', word_sense_id: 'learning-b' },
+    ];
+    tableData.user_progress = [
+      { user_id: 'user-1', word_sense_id: 'due-a', state: 'review', review_due_at: new Date(now - 1000).toISOString(), mastery_level: 2, word_senses: { id: 'due-a', meaning: 'due A', words: { word: 'duea' } } },
+      { user_id: 'user-1', word_sense_id: 'due-b', state: 'review', review_due_at: new Date(now - 1000).toISOString(), mastery_level: 2, word_senses: { id: 'due-b', meaning: 'due B', words: { word: 'dueb' } } },
+      { user_id: 'user-1', word_sense_id: 'learning-a', state: 'learning', review_due_at: new Date(now + 3600 * 1000).toISOString(), mastery_level: 1, word_senses: { id: 'learning-a', meaning: 'learn A', words: { word: 'learna' } } },
+      { user_id: 'user-1', word_sense_id: 'learning-b', state: 'learning', review_due_at: new Date(now + 3600 * 1000).toISOString(), mastery_level: 1, word_senses: { id: 'learning-b', meaning: 'learn B', words: { word: 'learnb' } } },
+    ];
+    tableData.vocabulary_sets = [];
+    // The NEW RPC is scoped to the chosen set (server-side enforcement);
+    // it must never pull set-b candidates.
+    rpcData['get_new_words_for_session'] = [
+      { id: 'new-a', word: 'newa', meaning: 'new A', state: 'new', set_id: 'set-a' },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'UNLIMITED',
+      setId: 'set-a',
+      dailyNewLimit: 50,
+      introducedTodayCount: 0,
+      sessionSize: 50,
+    });
+
+    expect(error).toBeNull();
+    const ids = queue.map((w) => w.id);
+    expect(ids).toEqual(['due-a', 'learning-a', 'new-a']);
+
+    // NEW selection was scoped to the chosen set only (no cross-set leak).
+    const newRpcCall = rpcImpl.mock.calls.find((c) => c[0] === 'get_new_words_for_session');
+    expect(newRpcCall[1].p_set_ids_prioritized).toEqual(['set-a']);
+  });
 });

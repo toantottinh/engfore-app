@@ -10,7 +10,7 @@ import { supabase } from './supabase.js';
  * Sets are ordered by the user-specific `learn_priority` from
  * `user_set_learn_priority` (lower = earlier in NEW selection).  Sets
  * without a priority entry default to 999 so they sink to the end, with a
- * stable fallback to `created_at DESC`.
+ * stable fallback to `created_at ASC` then `id ASC`.
  */
 export async function getVocabularySets(userId) {
   if (!userId) return { data: null, error: { message: 'Thiếu userId.' } };
@@ -44,12 +44,15 @@ export async function getVocabularySets(userId) {
     };
   });
 
-  // Sort by learn_priority (ascending). Stable tiebreak on created_at DESC
-  // so sets without an explicit priority keep their "newest first" fallback.
+  // Sort by learn_priority (ascending, lower = learned first). Stable
+  // tiebreak on created_at ASC then id ASC (documented deterministic order).
   mapped.sort((a, b) => {
     const diff = (a.learn_priority ?? 999) - (b.learn_priority ?? 999);
     if (diff !== 0) return diff;
-    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    const ta = new Date(a.created_at || 0).getTime() || 0;
+    const tb = new Date(b.created_at || 0).getTime() || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.id).localeCompare(String(b.id));
   });
 
   return { data: mapped, error: null };
@@ -623,6 +626,67 @@ export async function batchUpdateSetLearnPriority(userId, updates) {
           learn_priority: Number(u.learn_priority),
         }))
       );
+    if (error) return { error };
+    return { error: null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+/**
+ * Reorder the user's vocabulary sets by a desired priority order (Part B:
+ * Word Set Learning Order).
+ *
+ * `orderedSetIds` is the desired order, first element = learned first.
+ * Priorities are normalized to a contiguous 1..N (no duplicates) and written
+ * in ONE atomic upsert statement so concurrent reorders cannot interleave
+ * half-applied states.
+ *
+ * OWNERSHIP VALIDATION (required):
+ *   Every id in `orderedSetIds` must be one of the user's own sets.  If any
+ *   id belongs to another user (or does not exist), the whole reorder is
+ *   rejected WITHOUT writing anything — a user can never reorder someone
+ *   else's set or silently create a priority row for a foreign set.
+ *
+ * @param {string} userId
+ * @param {string[]} orderedSetIds - desired order (first = highest priority)
+ * @returns {Promise<{ error: any }>}
+ */
+export async function reorderVocabularySets(userId, orderedSetIds) {
+  if (!userId) return { error: { message: 'Thiếu userId.' } };
+  if (!Array.isArray(orderedSetIds) || orderedSetIds.length === 0) {
+    return { error: { message: 'Danh sách bộ từ không hợp lệ.' } };
+  }
+  // A set id must never appear twice (that would corrupt the 1..N ordering).
+  if (new Set(orderedSetIds).size !== orderedSetIds.length) {
+    return { error: { message: 'Danh sách bộ từ bị trùng lặp.' } };
+  }
+
+  try {
+    // 1) Validate ownership: only the user's own sets may be reordered.
+    const { data: ownedSets, error: setsError } = await supabase
+      .from('vocabulary_sets')
+      .select('id')
+      .eq('user_id', userId);
+    if (setsError) return { error: setsError };
+
+    const ownedIds = new Set((ownedSets || []).map((s) => s.id));
+    const foreign = orderedSetIds.filter((id) => !ownedIds.has(id));
+    if (foreign.length > 0) {
+      return { error: { message: 'Không thể thay đổi thứ tự bộ từ không thuộc về bạn.' } };
+    }
+
+    // 2) Normalize to contiguous 1..N priorities (lower = learned first).
+    const updates = orderedSetIds.map((setId, index) => ({
+      user_id: userId,
+      set_id: setId,
+      learn_priority: index + 1,
+    }));
+
+    // 3) Single atomic upsert: all rows are committed or none are.
+    const { error } = await supabase
+      .from('user_set_learn_priority')
+      .upsert(updates, { onConflict: 'user_id,set_id' });
     if (error) return { error };
     return { error: null };
   } catch (e) {

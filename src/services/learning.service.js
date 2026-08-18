@@ -527,13 +527,31 @@ export async function getLearnSessionQueue(userId, options) {
             const { data: priorities, error: prioError } = await supabase.rpc('get_user_set_learn_priorities', { p_user_id: userId });
             if (prioError) console.warn('Could not fetch set priorities, using default order.', prioError);
             
-            // Get all set ids and merge with priorities
-            const { data: allSets, error: setsError } = await supabase.from('vocabulary_sets').select('id').eq('user_id', userId);
+            // Get the user's set ids (created_at ASC keeps the order
+            // deterministic even before priorities are normalized — never
+            // load the set_words/vocabulary themselves, only ids + timestamps).
+            const { data: allSets, error: setsError } = await supabase
+              .from('vocabulary_sets')
+              .select('id, created_at')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: true });
             if(setsError) throw setsError;
 
+            // Merge priorities (missing entry => appended last, priority 999)
+            // and sort deterministically: priority ASC, created_at ASC, id ASC.
             const prioMap = new Map((priorities || []).map(p => [p.set_id, p.learn_priority]));
-            const allSetIdsWithPrio = (allSets || []).map(s => ({ id: s.id, priority: prioMap.get(s.id) ?? 999 }));
-            allSetIdsWithPrio.sort((a,b) => a.priority - b.priority);
+            const allSetIdsWithPrio = (allSets || []).map(s => ({
+              id: s.id,
+              created_at: s.created_at || '',
+              priority: prioMap.get(s.id) ?? 999,
+            }));
+            allSetIdsWithPrio.sort((a, b) => {
+              if (a.priority !== b.priority) return a.priority - b.priority;
+              const ta = new Date(a.created_at || 0).getTime() || 0;
+              const tb = new Date(b.created_at || 0).getTime() || 0;
+              if (ta !== tb) return ta - tb;
+              return String(a.id).localeCompare(String(b.id));
+            });
 
             prioritizedSetIds = allSetIdsWithPrio.map(s => s.id);
         }

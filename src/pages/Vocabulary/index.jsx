@@ -115,6 +115,7 @@ export default function Vocabulary() {
   // Move a set one position up/down in the user's learning order and persist
   // the new priority of every set via reorderSets (batchUpdateSetLearnPriority).
   const [reorderError, setReorderError] = useState('');
+  const [reorderSuccess, setReorderSuccess] = useState('');
   const [reorderLoadingId, setReorderLoadingId] = useState(null);
 
   const moveSet = async (moveId, direction) => {
@@ -127,10 +128,15 @@ export default function Vocabulary() {
     [newOrder[targetIndex], newOrder[nextIndex]] = [newOrder[nextIndex], newOrder[targetIndex]];
 
     setReorderError('');
+    setReorderSuccess('');
     setReorderLoadingId(moveId);
     const { error: err } = await reorderSets(newOrder.map((s) => s.id));
     setReorderLoadingId(null);
-    if (err) setReorderError('Không thể cập nhật thứ tự học. Vui lòng thử lại.');
+    if (err) {
+      setReorderError('Không thể cập nhật thứ tự học. Vui lòng thử lại.');
+    } else {
+      setReorderSuccess('Đã lưu thứ tự học mới.');
+    }
   };
 
   const startPractice = () => {
@@ -242,9 +248,19 @@ export default function Vocabulary() {
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label="Tùy chọn"
-              className="rounded-full p-1.5 text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+              title="Tùy chọn bộ từ"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
             >
-              <i className="bx bx-dots-vertical-rounded text-lg"></i>
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="5" r="1.8" />
+                <circle cx="12" cy="12" r="1.8" />
+                <circle cx="12" cy="19" r="1.8" />
+              </svg>
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full z-10 mt-1 w-40 origin-top-right rounded-md border border-border-color bg-surface-default py-1 shadow-lg">
@@ -293,33 +309,83 @@ export default function Vocabulary() {
           </Link>
         </div>
 
-        {/* Reorder controls (Part B: Word Set Learning Order) */}
+        {/* Reorder controls (Part B: Word Set Learning Order).
+            NOTE: uses inline SVGs (not the boxicons `bx` font) because the
+            boxicons stylesheet is not loaded anywhere in the app — font-based
+            icons render as invisible glyphs. */}
         <div className="mt-3 flex items-center justify-between border-t border-border-color pt-3">
-          <span className="text-xs text-text-secondary/70">
-            <i className="bx bxs-sort-alt mr-1"></i>
+          <span className="inline-flex items-center text-xs font-medium text-text-secondary/80">
+            <svg
+              className="mr-1.5 h-4 w-4 text-text-secondary/70"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m21 16-4 4-4-4" />
+              <path d="M17 20V4" />
+              <path d="m3 8 4-4 4 4" />
+              <path d="M7 4v16" />
+            </svg>
             Thứ tự học
           </span>
-          <div className="flex items-center gap-1">
+          <div
+            className="flex items-center gap-1.5"
+            role="group"
+            aria-label={`Thay đổi thứ tự học của bộ ${set.name}`}
+          >
             <button
               type="button"
               onClick={onMoveUp}
               disabled={isFirst || reorderLoading}
-              aria-label="Di chuyển lên (ưu tiên học trước)"
-              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-surface-hover hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Đưa bộ từ lên"
+              title="Đưa bộ từ lên (ưu tiên học trước)"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border-color bg-surface-default text-text-primary transition-colors hover:bg-surface-hover hover:text-brand-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface-default disabled:hover:text-text-primary"
             >
-              <i className="bx bx-chevron-up text-lg"></i>
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
             </button>
             <button
               type="button"
               onClick={onMoveDown}
               disabled={isLast || reorderLoading}
-              aria-label="Di chuyển xuống (học sau)"
-              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-surface-hover hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Đưa bộ từ xuống"
+              title="Đưa bộ từ xuống (học sau)"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border-color bg-surface-default text-text-primary transition-colors hover:bg-surface-hover hover:text-brand-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface-default disabled:hover:text-text-primary"
             >
-              <i className="bx bx-chevron-down text-lg"></i>
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
             {reorderLoading && (
-              <i className="bx bx-loader-alt bx-spin text-lg text-brand-primary" aria-label="Đang cập nhật thứ tự"></i>
+              <span
+                className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-primary border-t-transparent"
+                role="status"
+                aria-label="Đang cập nhật thứ tự"
+                title="Đang cập nhật thứ tự"
+              />
             )}
           </div>
         </div>
@@ -660,6 +726,7 @@ export default function Vocabulary() {
 
           {setsError && <Alert type="error" message={setsError} className="mb-4" />}
           {reorderError && <Alert type="error" message={reorderError} className="mb-4" />}
+          {reorderSuccess && <Alert type="success" message={reorderSuccess} className="mb-4" />}
 
           {setsLoading ? (
             <Spinner />
