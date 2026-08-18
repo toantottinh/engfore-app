@@ -14,7 +14,7 @@ import Select from '../../components/ui/Select.jsx';
 
 
 export default function Vocabulary() {
-  const { sets, loading: setsLoading, error: setsError, createSet, updateSet, removeSet, mutationLoading } =
+  const { sets, loading: setsLoading, error: setsError, createSet, updateSet, removeSet, reorderSets, mutationLoading } =
     useVocabulary();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -111,6 +111,28 @@ export default function Vocabulary() {
     setSelectedSetIds([]);
   };
 
+  // Reorder helpers (Part B: Word Set Learning Order).
+  // Move a set one position up/down in the user's learning order and persist
+  // the new priority of every set via reorderSets (batchUpdateSetLearnPriority).
+  const [reorderError, setReorderError] = useState('');
+  const [reorderLoadingId, setReorderLoadingId] = useState(null);
+
+  const moveSet = async (moveId, direction) => {
+    // 'up' => move toward the front (higher priority => smaller learn_priority)
+    const targetIndex = sets.findIndex((s) => s.id === moveId);
+    const nextIndex = direction === 'up' ? targetIndex - 1 : targetIndex + 1;
+    if (targetIndex < 0 || nextIndex < 0 || nextIndex >= sets.length) return;
+
+    const newOrder = [...sets];
+    [newOrder[targetIndex], newOrder[nextIndex]] = [newOrder[nextIndex], newOrder[targetIndex]];
+
+    setReorderError('');
+    setReorderLoadingId(moveId);
+    const { error: err } = await reorderSets(newOrder.map((s) => s.id));
+    setReorderLoadingId(null);
+    if (err) setReorderError('Không thể cập nhật thứ tự học. Vui lòng thử lại.');
+  };
+
   const startPractice = () => {
     if (selectedSetIds.length === 0) return;
     navigate(`/practice/session?setIds=${selectedSetIds.join(',')}`);
@@ -181,7 +203,14 @@ export default function Vocabulary() {
   };
 
   // Component con cho card bộ từ
-  const SetCard = ({ set }) => {
+  const SetCard = ({
+    set,
+    isFirst = false,
+    isLast = false,
+    reorderLoading = false,
+    onMoveUp,
+    onMoveDown,
+  }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -262,6 +291,37 @@ export default function Vocabulary() {
           >
             Bắt đầu học
           </Link>
+        </div>
+
+        {/* Reorder controls (Part B: Word Set Learning Order) */}
+        <div className="mt-3 flex items-center justify-between border-t border-border-color pt-3">
+          <span className="text-xs text-text-secondary/70">
+            <i className="bx bxs-sort-alt mr-1"></i>
+            Thứ tự học
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={isFirst || reorderLoading}
+              aria-label="Di chuyển lên (ưu tiên học trước)"
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-surface-hover hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <i className="bx bx-chevron-up text-lg"></i>
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={isLast || reorderLoading}
+              aria-label="Di chuyển xuống (học sau)"
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-surface-hover hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <i className="bx bx-chevron-down text-lg"></i>
+            </button>
+            {reorderLoading && (
+              <i className="bx bx-loader-alt bx-spin text-lg text-brand-primary" aria-label="Đang cập nhật thứ tự"></i>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -599,13 +659,24 @@ export default function Vocabulary() {
           </div>
 
           {setsError && <Alert type="error" message={setsError} className="mb-4" />}
+          {reorderError && <Alert type="error" message={reorderError} className="mb-4" />}
 
           {setsLoading ? (
             <Spinner />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredSets.length > 0 ? (
-                filteredSets.map((set) => <SetCard key={set.id} set={set} />)
+                filteredSets.map((set, idx) => (
+                  <SetCard
+                    key={set.id}
+                    set={set}
+                    isFirst={idx === 0}
+                    isLast={idx === filteredSets.length - 1}
+                    reorderLoading={reorderLoadingId === set.id}
+                    onMoveUp={() => moveSet(set.id, 'up')}
+                    onMoveDown={() => moveSet(set.id, 'down')}
+                  />
+                ))
               ) : searchTerm ? (
                 <EmptyState
                   icon="🔍"

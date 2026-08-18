@@ -5,6 +5,7 @@ import {
   createVocabularySet,
   updateVocabularySet,
   deleteVocabularySet,
+  batchUpdateSetLearnPriority,
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
 
@@ -86,6 +87,38 @@ const { data, error: err } = await getVocabularySets(user.id);
     [load]
   );
 
+  /**
+   * Persist a new learning order for the user's sets (Part B: Word Set
+   * Learning Order).  `orderedSetIds` is the desired order (first = highest
+   * priority).  Priorities are normalized to 1..N and written atomically via
+   * batchUpdateSetLearnPriority so NEW words from the first set are pulled
+   * before later sets.
+   *
+   * @param {Array<string>} orderedSetIds
+   * @returns {Promise<{ error: any }>}
+   */
+  const reorderSets = useCallback(
+    async (orderedSetIds) => {
+      if (!user) return { error: 'Bạn cần đăng nhập.' };
+      setMutationLoading(true);
+      const updates = orderedSetIds.map((setId, index) => ({
+        set_id: setId,
+        learn_priority: index + 1,
+      }));
+      const { error: err } = await batchUpdateSetLearnPriority(user.id, updates);
+      setMutationLoading(false);
+      if (err) {
+        if (import.meta.env.DEV) {
+          console.error('[useVocabulary] reorderSets error:', err);
+        }
+        return { error: getAuthErrorMessage(err) };
+      }
+      await load();
+      return { error: null };
+    },
+    [user, load]
+  );
+
   return {
     sets,
     loading,
@@ -95,5 +128,6 @@ const { data, error: err } = await getVocabularySets(user.id);
     createSet,
     updateSet,
     removeSet,
+    reorderSets,
   };
 }

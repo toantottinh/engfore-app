@@ -358,33 +358,63 @@ export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE
 export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT) {
   if (!userId) return { data: [], error: null };
 
+  // STATE FILTER (Part G: session reload fix)
+  // Only fetch words that are still in an active learning step — 'learning',
+  // 'relearning', or 'new'.  A word that was just rated "Good" graduates to
+  // 'review' state with a future review_due_at (e.g. 72 h out).  Without this
+  // filter those graduated cards are picked up again on the next reload and
+  // reappear in the session, forcing the user to re-study them.
+  const ACTIVE_STATES = ['learning', 'relearning', 'new'];
+
+  // Resolve set-scoped sense IDs first so we never pass a large client-side
+  // UUID list to .in() (root cause of HTTP 400 on VocabularyDetail with large sets).
+  let setSenseIds = null;
+  if (setId) {
+    const { data: setLinks, error: setError } = await supabase
+      .from('set_words')
+      .select('word_sense_id')
+      .eq('set_id', setId);
+    if (setError) return { data: null, error: setError };
+    setSenseIds = (setLinks || []).map((l) => l.word_sense_id);
+  }
+
   let query = supabase
     .from('user_progress')
     .select(SRS_PROGRESS_SELECT)
     .eq('user_id', userId)
     .gt('review_due_at', new Date().toISOString())
+    .in('state', ACTIVE_STATES)
     .order('review_due_at', { ascending: true })
     .limit(limit);
 
-  if (setId) {
-    // Set mode: resolve senseIds server-side via set_words so we never
-    // pass a large client-side UUID list to .in() (root cause of HTTP 400
-    // when opening VocabularyDetail with a large word set).
-    const { data: setLinks, error: setError } = await supabase
-      .from('set_words')
-      .select('word_sense_id')
-      .eq('set_id', setId);
-
-    if (setError) return { data: null, error: setError };
-
-            const senseIds = (setLinks || []).map((l) => l.word_sense_id);
-
-    if (senseIds.length > 0) {
-      query = query.in('word_sense_id', senseIds);
-    }
+  if (setSenseIds && setSenseIds.length > 0) {
+    query = query.in('word_sense_id', setSenseIds);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  // Fallback: if the 'state' column does not yet exist (old DB), retry with the
+  // base column set and apply a client-side filter.  In environments without
+  // the state column the SRS scheduler is also absent, so the state filter is
+  // best-effort here.
+  if (error && isMissingColumn(error, 'state')) {
+    let fallbackQuery = supabase
+      .from('user_progress')
+      .select(BASE_PROGRESS_SELECT)
+      .eq('user_id', userId)
+      .gt('review_due_at', new Date().toISOString())
+      .order('review_due_at', { ascending: true })
+      .limit(limit);
+
+    if (setSenseIds && setSenseIds.length > 0) {
+      fallbackQuery = fallbackQuery.in('word_sense_id', setSenseIds);
+    }
+
+    ({ data, error } = await fallbackQuery);
+    if (error) return { data: null, error };
+    return { data: (data || []).map(mapProgressRow), error: null };
+  }
+
   if (error) return { data: null, error };
 
   return { data: (data || []).map(mapProgressRow), error: null };
@@ -730,8 +760,30 @@ export async function updateDailyNewLimit(userId, value) {
 export async function getVocabularyStats(userId) {
   if (!userId) return { data: null, error: { message: 'Thiếu userId.' } };
   try {
-    const { data, error } = await supabase.rpc('get_user_vocabulary_stats', { p_user_id: userId }).single();
-    return { data, error };
+    // SINGLE SOURCE OF TRUTH — query the SAME tables used by the Learning
+    // Session queue (user_progress) and Vocabulary Library (user_vocabulary)
+    // instead of the separate get_user_vocabulary_stats RPC.  The RPC could
+    // silently return 0/0 when the function was undeployed or lacked
+    // execution privileges, while getLearnSessionQueue still found review
+    // cards from user_progress — causing the "0/50" mismatch.
+    const [vocabRes, progRes] = await Promise.all([
+      supabase
+        .from('user_vocabulary')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      supabase
+        .from('user_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+    ]);
+
+    if (vocabRes.error || progRes.error) {
+      return { data: null, error: vocabRes.error || progRes.error };
+    }
+
+    const total = vocabRes.count ?? 0;
+    const learning = progRes.count ?? 0;
+    return { data: { total_count: total, learning_count: learning }, error: null };
   } catch (e) {
     return { data: null, error: e };
   }

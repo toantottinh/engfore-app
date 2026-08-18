@@ -169,6 +169,9 @@ export function useLearningSession(setId) {
       dailyNewLimit = limitRes?.value ?? DEFAULT_DAILY_NEW_LIMIT;
       setDailyNewLimit(dailyNewLimit);
       const progRes = await getDailyNewProgress(user.id);
+      if (progRes?.error && import.meta.env.DEV) {
+        console.warn('[useLearningSession] getDailyNewProgress error:', progRes.error);
+      }
       introducedTodayIds = progRes?.data ?? [];
       setIntroducedTodaySet(new Set(introducedTodayIds));
     }
@@ -245,15 +248,23 @@ export function useLearningSession(setId) {
           return;
         }
 
-        // Mark the word as introduced today if it's a NEW word.
+                // Mark the word as introduced today if it's a NEW word.
         // This ensures the daily NEW limit is properly tracked via
         // user_settings + daily_new_progress, and selectNewWordsForToday
         // correctly caps the quota. The upsert is idempotent (onConflict:
         // user_id,day,word_sense_id), so calling it multiple times is safe.
         if (currentWord.state === 'new' && user) {
-          markDailyNewIntroduced(user.id, currentWord.word_sense_id ?? currentWord.id).catch(() => {
-            // Non-fatal: daily limit may be slightly generous but won't break.
-          });
+          const senseId = currentWord.word_sense_id ?? currentWord.id;
+          markDailyNewIntroduced(user.id, senseId)
+            .then(() => {
+              // Optimistically update the introduced-today set so the
+              // "Từ mới hôm nay" counter reflects the just-introduced word
+              // WITHOUT requiring a full page reload.
+              setIntroducedTodaySet((prev) => new Set([...prev, senseId]));
+            })
+            .catch(() => {
+              // Non-fatal: daily limit may be slightly generous but won't break.
+            });
           // Một từ NEW đã được đưa vào user_progress → Đang học +1, Từ mới -1.
           refreshVocabularyStats();
         }

@@ -5,8 +5,16 @@ import { supabase } from './supabase.js';
  * Bảng dùng chung: vocabulary_sets, set_words, word_senses, words, users.
  */
 
-/** Lấy danh sách bộ từ của user kèm số lượng từ và độ thành thạo trung bình. */
+/** Lấy danh sách bộ từ của user kèm số lượng từ và độ thành thạo trung bình.
+ *
+ * Sets are ordered by the user-specific `learn_priority` from
+ * `user_set_learn_priority` (lower = earlier in NEW selection).  Sets
+ * without a priority entry default to 999 so they sink to the end, with a
+ * stable fallback to `created_at DESC`.
+ */
 export async function getVocabularySets(userId) {
+  if (!userId) return { data: null, error: { message: 'Thiếu userId.' } };
+
   const { data, error } = await supabase
     .from('vocabulary_sets')
     .select(
@@ -14,15 +22,34 @@ export async function getVocabularySets(userId) {
        set_words(count)
       `
     )
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .eq('user_id', userId);
 
   if (error) return { data: null, error };
+
+  // Fetch user-specific learn priorities (lower = earlier in NEW selection).
+  // Non-fatal: if the RPC/table is unavailable, every set defaults to
+  // priority 999 and falls back to created_at ordering below.
+  const { data: priorities } = await getUserSetLearnPriorities(userId);
+  const prioMap = new Map(
+    (priorities || []).map((p) => [p.set_id, Number(p.learn_priority)])
+  );
 
   const mapped = (data || []).map((set) => {
     const count = set.set_words?.[0]?.count ?? 0;
     const { set_words: _sw, ...rest } = set;
-    return { ...rest, word_count: count };
+    return {
+      ...rest,
+      word_count: count,
+      learn_priority: prioMap.get(set.id) ?? 999,
+    };
+  });
+
+  // Sort by learn_priority (ascending). Stable tiebreak on created_at DESC
+  // so sets without an explicit priority keep their "newest first" fallback.
+  mapped.sort((a, b) => {
+    const diff = (a.learn_priority ?? 999) - (b.learn_priority ?? 999);
+    if (diff !== 0) return diff;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
   });
 
   return { data: mapped, error: null };
@@ -75,6 +102,18 @@ export async function createVocabularySet({ name, description, userId }) {
     .insert([{ name, description: description || null, user_id: userId }])
     .select()
     .maybeSingle();
+
+  // Create a default learn_priority entry so the new set appears in the
+  // user's set ordering (Part B: Word Set Learning Order).  Non-fatal — if
+  // the user_set_learn_priority table is unavailable the set simply gets a
+  // default priority of 999 in getVocabularySets.
+  if (data?.id && !error) {
+    await supabase
+      .from('user_set_learn_priority')
+      .upsert({ user_id: userId, set_id: data.id, learn_priority: 999 })
+      .catch(() => {});
+  }
+
   return { data, error };
 }
 
