@@ -22,6 +22,54 @@ const RATING_MAP = {
   easy: RATING.EASY,   // 4
 };
 
+// Session display states (per unique word). One word is always in exactly one.
+export const SESSION_STATE = {
+  NEW: 'new',      // 🟢 Mới
+  REVIEW: 'review', // 🟠 Ôn
+  AGAIN: 'again',  // 🔴 Again
+  DONE: 'done',    // left the counters
+};
+
+/**
+ * Resolve the next session display state for a word after a rating.
+ * Pure (no I/O) so the transition matrix can be unit-tested directly.
+ *
+ * Rules:
+ *  - rating === 'again' (NEW→AGAIN / REVIEW→AGAIN / AGAIN→AGAIN):
+ *    the word lands / stays in the red bucket exactly once. A repeated Again
+ *    NEVER increments the Again count for the same word.
+ *  - An Again word answered correctly (Hard/Good/Easy) leaves the red bucket
+ *    ('done'); it is not moved into 🟢 Mới or 🟠 Ôn.
+ *  - A NEW/REVIEW word answered correctly stays in its current bucket.
+ *
+ * @param {string} currentState 'new' | 'review' | 'again' | 'done' (may be empty)
+ * @param {string} rating UI rating key: 'again' | 'hard' | 'good' | 'easy'
+ * @param {string} fallbackState state to use when currentState is unknown
+ * @returns {string} next state
+ */
+export function resolveSessionWordState(currentState, rating, fallbackState = SESSION_STATE.REVIEW) {
+  const base = currentState || fallbackState;
+  if (rating === 'again') return SESSION_STATE.AGAIN;
+  if (base === SESSION_STATE.AGAIN) return SESSION_STATE.DONE;
+  return base;
+}
+
+/**
+ * Aggregate a per-word display-state map into the three display counters
+ * (🟢 Mới / 🔴 Again / 🟠 Ôn). Words in the 'done' state fall out entirely.
+ * @param {Record<string,string>} states map of wordState (word id -> state)
+ * @returns {{new:number, again:number, review:number}}
+ */
+export function countSessionStates(states) {
+  const counts = { new: 0, again: 0, review: 0 };
+  for (const state of Object.values(states)) {
+    if (state === SESSION_STATE.AGAIN) counts.again += 1;
+    else if (state === SESSION_STATE.REVIEW) counts.review += 1;
+    else if (state === SESSION_STATE.NEW) counts.new += 1;
+  }
+  return counts;
+}
+
 /**
  * Hook quản lý logic của một phiên học từ vựng.
  * @param {string|undefined} setId - ID của bộ từ (có thể undefined khi học qua review queue).
@@ -71,6 +119,17 @@ export function useLearningSession(setId) {
     againCount: 0,
     attemptedWords: new Set(),
   });
+
+  // Session display-state per product word (key = word id). This is the
+  // SINGLE SOURCE OF TRUTH for the 🟢 Mới / 🔴 Again / 🟠 Ôn counters. One
+  // unique word is always in exactly one state:
+  //   'new'    -> 🟢 Mới (never moved to Again this session)
+  //   'review' -> 🟠 Ôn (review group)
+  //   'again'  -> 🔴 Again (currently needs an in-session retry)
+  //   'done'   -> left the counters (e.g. an Again word answered correctly).
+  // This is SEPARATE from the per-instance `sessionStatus` on the queue,
+  // which only drives requeue + completion detection (duplicates allowed).
+  const [sessionWordStates, setSessionWordStates] = useState({});
 
   const currentWord = useMemo(() => {
     if (sessionQueue.length === 0 || currentIndex >= sessionQueue.length) {
@@ -192,6 +251,7 @@ export function useLearningSession(setId) {
         setError(setId ? 'Bộ từ này chưa có từ nào để học.' : 'Hiện tại không có từ nào cần ôn tập. Quay lại sau nhé!');
         setSessionQueue([]);
         setAllWords([]);
+        setSessionWordStates({});
         setLoading(false);
         return;
       }
@@ -203,6 +263,13 @@ export function useLearningSession(setId) {
         againCount: 0,
         sessionStatus: word.state === 'new' ? 'new' : 'review',
       }));
+
+      // Build the initial per-word display-state map used by the counters.
+      const initialStates = {};
+      initialQueue.forEach((word) => {
+        initialStates[word.id] = word.state === 'new' ? 'new' : 'review';
+      });
+      setSessionWordStates(initialStates);
 
       setAllWords(initialQueue); // allWords is now the session queue
       setSessionQueue(initialQueue);
@@ -280,6 +347,19 @@ export function useLearningSession(setId) {
             needsReview: prev.needsReview + (correct ? 0 : 1),
             attemptedWords: newAttempted,
           };
+        });
+
+        // Update the per-word display state (independent of queue requeue).
+        // rating === 'again' covers every path with the semantic
+        // "current word -> Again" (Flashcard Again button, Typing wrong +
+        // Again, keyboard 1, ...). Non-again ratings on an Again word mean
+        // the retry succeeded -> it leaves the red bucket ('done').
+        setSessionWordStates((prev) => {
+          const initialForWord = currentWord.state === 'new' ? 'new' : 'review';
+          const currentState = prev[currentWord.id] ?? initialForWord;
+          const nextState = resolveSessionWordState(currentState, rating, initialForWord);
+          if (nextState === currentState) return prev;
+          return { ...prev, [currentWord.id]: nextState };
         });
 
         // Keep the same word in the local queue until it has completed both
@@ -396,20 +476,11 @@ export function useLearningSession(setId) {
     return sessionQueue.length - currentIndex;
   }, [currentIndex, sessionQueue.length]);
 
-  // Count only cards still to be answered (from currentIndex onward), grouped
-  // by color: 🟢 new / 🟡 review / 🔴 again.
-  const sessionStatusCounts = useMemo(() => {
-    const remaining = sessionQueue.slice(currentIndex);
-    return remaining.reduce(
-      (counts, word) => {
-        if (word.sessionStatus === 'again') counts.again += 1;
-        else if (word.sessionStatus === 'review') counts.review += 1;
-        else counts.new += 1;
-        return counts;
-      },
-      { new: 0, again: 0, review: 0 }
-    );
-  }, [sessionQueue, currentIndex]);
+  // Session display counters — number of UNIQUE words currently in each state
+  // (🟢 Mới / 🔴 Again / 🟠 Ôn). Derived from the per-word map so a word that
+  // is requeued (duplicated in the queue) is still counted exactly once.
+  // 'done' words intentionally fall out of all three buckets.
+  const sessionStatusCounts = useMemo(() => countSessionStates(sessionWordStates), [sessionWordStates]);
 
   return {
     loading,
