@@ -6,10 +6,13 @@
 -- user_vocabulary. Hàm này là SECURITY DEFINER -> chạy với quyền owner, nhưng
 -- BẮT BUỘC kiểm tra quyền sở hữu (user phải có dòng user_vocabulary trỏ tới
 -- sense đó) trước khi UPDATE -> KHÔNG bypass RLS, không cho sửa từ của người khác.
+-- Lưu ý: PostgreSQL yêu cầu "input parameters after one with a default value
+-- must also have defaults" (SQLSTATE 42P13) -> p_word_data cũng phải có DEFAULT.
+-- '{}' an toàn vì toàn bộ các field bên dưới dùng ->>'...' + nullif/coalesce.
 CREATE OR REPLACE FUNCTION public.update_user_word(
   p_sense_id uuid,
   p_word_id uuid DEFAULT NULL,
-  p_word_data jsonb
+  p_word_data jsonb DEFAULT '{}'::jsonb
 )
 RETURNS void
 LANGUAGE plpgsql
