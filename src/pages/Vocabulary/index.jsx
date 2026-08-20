@@ -2,8 +2,15 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVocabulary } from '../../hooks/useVocabulary.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
-import { getUserVocabulary, addWordsToSet, removeFromVocabulary } from '../../services/vocabulary.service.js';
+import {
+  getUserVocabulary,
+  addWordsToSet,
+  removeFromVocabulary,
+  updateUserWord,
+} from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
+import { VALID_WORD_TYPES } from '../../utils/vocabulary-importer.js';
+import { CEFR_LEVELS } from '../../utils/cefr.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
@@ -12,6 +19,15 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import Select from '../../components/ui/Select.jsx';
 
+const WORD_TYPE_OPTIONS = [
+  { value: '', label: 'Chọn loại từ' },
+  ...Array.from(VALID_WORD_TYPES).map((type) => ({ value: type, label: type.replace(/_/g, ' ') })),
+];
+
+const CEFR_OPTIONS = [
+  { value: '', label: 'Chọn cấp độ CEFR' },
+  ...CEFR_LEVELS.map((level) => ({ value: level, label: level })),
+];
 
 export default function Vocabulary() {
   const { sets, loading: setsLoading, error: setsError, createSet, updateSet, removeSet, reorderSets, mutationLoading } =
@@ -31,6 +47,21 @@ export default function Vocabulary() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [formError, setFormError] = useState('');
+
+  // --- Edit Word modal state ---
+  const [editWordOpen, setEditWordOpen] = useState(false);
+  const [editingWord, setEditingWord] = useState(null);
+  const [editWordSaving, setEditWordSaving] = useState(false);
+  const [editWordError, setEditWordError] = useState('');
+  const [editWordForm, setEditWordForm] = useState({
+    word: '',
+    ipa: '',
+    word_type: '',
+    meaning: '',
+    example: '',
+    memory_clue: '',
+    cefr_level: '',
+  });
 
   // --- Add to set modal state ---
   const [addToSetModalOpen, setAddToSetModalOpen] = useState(false);
@@ -477,6 +508,81 @@ export default function Vocabulary() {
     setDeleteWordLoading(false);
   };
 
+  // --- Edit Word modal handlers ---
+  const openEditWord = (word) => {
+    setEditWordError('');
+    setEditingWord(word);
+    setEditWordForm({
+      word: word.word || '',
+      ipa: word.ipa || '',
+      word_type: word.word_type || '',
+      meaning: word.meaning || '',
+      example: word.example || '',
+      memory_clue: word.memory_clue || '',
+      cefr_level: word.cefr_level || '',
+    });
+    setEditWordOpen(true);
+  };
+
+  const closeEditWord = () => {
+    setEditWordOpen(false);
+    setEditingWord(null);
+    setEditWordError('');
+  };
+
+  const handleSaveEditWord = async (e) => {
+    e.preventDefault();
+    if (!editingWord) return;
+    setEditWordError('');
+    if (!editWordForm.word.trim() || !editWordForm.meaning.trim()) {
+      setEditWordError('Từ tiếng Anh và nghĩa tiếng Việt là bắt buộc.');
+      return;
+    }
+
+    const senseId = editingWord.id ?? editingWord.word_sense_id;
+    const wordId = editingWord.word_id || editingWord.wordId || null;
+    if (!senseId) {
+      setEditWordError('Không thể xác định từ cần sửa.');
+      return;
+    }
+
+    setEditWordSaving(true);
+    const { error: err } = await updateUserWord(senseId, wordId, {
+      word: editWordForm.word.trim(),
+      ipa: editWordForm.ipa.trim(),
+      word_type: editWordForm.word_type,
+      meaning: editWordForm.meaning.trim(),
+      example: editWordForm.example.trim(),
+      memory_clue: editWordForm.memory_clue.trim(),
+      cefr_level: editWordForm.cefr_level,
+    });
+    setEditWordSaving(false);
+
+    if (err) {
+      setEditWordError(getAuthErrorMessage(err));
+      return;
+    }
+
+    // Cập nhật ngay trên danh sách đang hiển thị.
+    setWords((prev) =>
+      prev.map((w) =>
+        (w.id ?? w.word_sense_id) === senseId
+          ? {
+              ...w,
+              word: editWordForm.word.trim(),
+              ipa: editWordForm.ipa.trim(),
+              word_type: editWordForm.word_type,
+              meaning: editWordForm.meaning.trim(),
+              example: editWordForm.example.trim(),
+              memory_clue: editWordForm.memory_clue.trim(),
+              cefr_level: editWordForm.cefr_level,
+            }
+          : w
+      )
+    );
+    closeEditWord();
+  };
+
   // Bulk delete: open confirmation modal
   const openBulkDeleteModal = () => {
     if (selectedWordIds.length === 0) return;
@@ -584,8 +690,18 @@ export default function Vocabulary() {
                   return (
                     <div
                       key={wordId}
-                      className="p-4 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors cursor-pointer"
-                      onClick={() => navigate('/learn/session')}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Sửa từ ${word.word || ''}`}
+                      title="Chỉnh sửa từ"
+                      className="p-4 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+                      onClick={() => openEditWord(word)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openEditWord(word);
+                        }
+                      }}
                     >
                       <div className="flex items-start gap-3">
                         <span className="flex-1 truncate font-medium text-zinc-800">
@@ -977,6 +1093,78 @@ export default function Vocabulary() {
           </div>
         )}
       </Modal>
+      {/* Modal chỉnh sửa từ */}
+      <Modal
+        open={editWordOpen}
+        onClose={closeEditWord}
+        title="Chỉnh sửa từ"
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeEditWord}>
+              Hủy
+            </Button>
+            <Button type="submit" form="edit-word-form" loading={editWordSaving}>
+              {editWordSaving ? 'Đang lưu...' : 'Lưu từ'}
+            </Button>
+          </>
+        }
+      >
+        <form id="edit-word-form" onSubmit={handleSaveEditWord} className="space-y-4">
+          {editWordError && <Alert type="error" message={editWordError} />}
+          <Input
+            label="Từ tiếng Anh"
+            name="edit-word-word"
+            value={editWordForm.word}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, word: e.target.value }))}
+            required
+            autoFocus
+          />
+          <Input
+            label="IPA"
+            name="edit-word-ipa"
+            value={editWordForm.ipa}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, ipa: e.target.value }))}
+            placeholder="/həˈloʊ/"
+          />
+          <Select
+            label="Loại từ"
+            name="edit-word-type"
+            value={editWordForm.word_type}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, word_type: e.target.value }))}
+            options={WORD_TYPE_OPTIONS}
+          />
+          <Textarea
+            label="Nghĩa tiếng Việt"
+            name="edit-word-meaning"
+            value={editWordForm.meaning}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, meaning: e.target.value }))}
+            rows={2}
+            required
+          />
+          <Textarea
+            label="Ví dụ"
+            name="edit-word-example"
+            value={editWordForm.example}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, example: e.target.value }))}
+            rows={2}
+          />
+          <Textarea
+            label="Ghi chú"
+            name="edit-word-clue"
+            value={editWordForm.memory_clue}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, memory_clue: e.target.value }))}
+            rows={2}
+          />
+          <Select
+            label="Cấp độ CEFR"
+            name="edit-word-cefr"
+            value={editWordForm.cefr_level}
+            onChange={(e) => setEditWordForm((f) => ({ ...f, cefr_level: e.target.value }))}
+            options={CEFR_OPTIONS}
+          />
+        </form>
+      </Modal>
+
       {/* Modal thêm từ vào bộ từ */}
       <Modal
         open={addToSetModalOpen}

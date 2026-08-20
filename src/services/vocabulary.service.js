@@ -295,6 +295,44 @@ export async function deleteTopic(topicId) {
 }
 
 /**
+ * Cập nhật nội dung của một từ nằm trong vocabulary của user.
+ *
+ * Chạy qua RPC `update_user_word` (SECURITY DEFINER): hàm tự kiểm tra quyền sở
+ * hữu — user phải có dòng `user_vocabulary` trỏ tới sense đó — rồi mới UPDATE
+ * `word_senses` / `words`. Nhờ đó KHÔNG bypass RLS và không cho sửa từ của
+ * người khác (RLS hiện tại chặn mọi UPDATE trực tiếp lên word_senses/words
+ * của user thường, vì vậy cần RPC này để "sửa & lưu từ" hoạt động cho đúng).
+ *
+ * @param {string} senseId - word_sense_id của từ cần sửa (id của từ trong library).
+ * @param {string|null} wordId - words.id tương ứng (nullable).
+ * @param {object} updates - { word, ipa, word_type, meaning, example, memory_clue, cefr_level }
+ * @returns {Promise<{ error: any }>}
+ */
+export async function updateUserWord(senseId, wordId, updates = {}) {
+  if (!senseId) {
+    return { error: new Error('Thiếu ID từ cần sửa.') };
+  }
+  try {
+    const { error } = await supabase.rpc('update_user_word', {
+      p_sense_id: senseId,
+      p_word_id: wordId || null,
+      p_word_data: {
+        word: updates.word ?? null,
+        ipa: updates.ipa ?? null,
+        word_type: updates.word_type ?? null,
+        meaning: updates.meaning ?? null,
+        example: updates.example ?? null,
+        memory_clue: updates.memory_clue ?? null,
+        cefr_level: updates.cefr_level ?? null,
+      },
+    });
+    return { error: error ?? null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+/**
  * Toàn bộ Vocabulary của user: các sense thuộc (user, sense) qua user_vocabulary,
  * kèm tiến trình học (user_progress) và các Word Set chứa sense (để hiển thị).
  * @param {string} userId
