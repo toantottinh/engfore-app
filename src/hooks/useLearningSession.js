@@ -84,6 +84,11 @@ export function useLearningSession(setId) {
   const [currentIndex, setCurrentIndex] = useState(0); // Vị trí hiện tại trong sessionQueue
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // `noWords` = recoverable "queue empty, NO hard error" (e.g. LIMITED daily NEW
+  // quota exhausted while NEW words still exist). Shown TOGETHER with the mode
+  // toggle so the user can switch to UNLIMITED. Genuine RPC/network failures
+  // still go through `error` (renders the hard-error Alert).
+  const [noWords, setNoWords] = useState(null);
   const [ratingError, setRatingError] = useState(null);
   const [isSessionComplete, setIsSessionComplete] = useState(false);
   const [isRating, setIsRating] = useState(false); // Đang gửi rating lên server
@@ -105,7 +110,30 @@ export function useLearningSession(setId) {
   // Learn mode: LIMITED (NEW capped by daily quota) | UNLIMITED (no NEW cap).
   // This is the user-facing mode selector, separate from the internal
   // flashcard/typing `mode` below.
-  const [learnMode, setLearnMode] = useState('LIMITED');
+  // Persist learnMode across remounts (/learn -> /learn/session/:setId or a
+  // refresh) so the chosen mode is NEVER lost between navigations. Stored in
+  // sessionStorage (per-tab, cleared on browser close); defaults to LIMITED.
+  const [learnMode, setLearnModeState] = useState(() => {
+    try {
+      const saved =
+        typeof window !== 'undefined'
+          ? window.sessionStorage.getItem('engfore.learnMode')
+          : null;
+      return saved === 'UNLIMITED' ? 'UNLIMITED' : 'LIMITED';
+    } catch {
+      return 'LIMITED';
+    }
+  });
+  // Keep the same call signature the component already uses:
+  // setLearnMode('LIMITED' | 'UNLIMITED'). Writes persist + notify state.
+  const setLearnMode = useCallback((next) => {
+    setLearnModeState(next);
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('engfore.learnMode', next);
+      }
+    } catch {}
+  }, []);
 
   // Thống kê vốn từ của user — Tổng cộng / Đang học / Từ mới.
   // Lấy từ RPC get_user_vocabulary_stats (đếm ở DB, không tải toàn bộ từ về client).
@@ -248,7 +276,8 @@ export function useLearningSession(setId) {
       }
 
       if (!queue || queue.length === 0) {
-        setError(setId ? 'Bộ từ này chưa có từ nào để học.' : 'Hiện tại không có từ nào cần ôn tập. Quay lại sau nhé!');
+        setError(null);
+        setNoWords(setId ? 'Bộ từ này chưa có từ nào để học.' : 'Hiện tại không có từ nào cần ôn tập. Quay lại sau nhé!');
         setSessionQueue([]);
         setAllWords([]);
         setSessionWordStates({});
@@ -273,9 +302,12 @@ export function useLearningSession(setId) {
 
       setAllWords(initialQueue); // allWords is now the session queue
       setSessionQueue(initialQueue);
+      setNoWords(null);
+      setError(null);
       setStats((prev) => ({ ...prev, totalWords: initialQueue.length }));
       setLoading(false);
     } catch (e) {
+      setNoWords(null);
       setError('Đã xảy ra lỗi khi tải phiên học. Vui lòng thử lại.');
       setLoading(false);
     }
@@ -485,6 +517,7 @@ export function useLearningSession(setId) {
   return {
     loading,
     error,
+    noWords,
     ratingError,
     currentWord,
     userInput,

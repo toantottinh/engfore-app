@@ -167,7 +167,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
     expect(newRpcCall[1]).toEqual({
       p_user_id: 'user-1',
       p_set_ids_prioritized: ['set-a', 'set-b'],
-      p_limit: 50,
+      p_limit: null,
       p_excluded_sense_ids: [],
     });
   });

@@ -69,6 +69,7 @@ const LearningSession = () => {
     proceedToNext,
     restartSession,
     sessionQueueLength,
+    noWords,
   } = useLearningSession(setId);
 
   const [exitModalOpen, setExitModalOpen] = useState(false);
@@ -263,7 +264,11 @@ const LearningSession = () => {
     );
   }
 
-  if (!currentWord) {
+  // Recoverable empty queue (e.g. LIMITED daily quota exhausted on the global
+  // /learn scope) must fall through to the main render so the UNLIMITED toggle
+  // + noWords notice stay visible instead of short-circuiting to a dead-end alert.
+  const isGlobalRecoverableEmpty = Boolean(noWords) && (!setId || setId === 'all');
+  if (!currentWord && !isGlobalRecoverableEmpty) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Alert type="info" message="Không có từ nào trong bộ từ này để học." className="max-w-md" />
@@ -355,7 +360,7 @@ const LearningSession = () => {
           <span>Thoát</span>
         </button>
         <h2 className="truncate px-2 text-base font-semibold text-text-primary">
-          {currentWord.set_name || 'Phiên học'}
+          {currentWord?.set_name || 'Phiên học'}
         </h2>
         <div className="flex w-16 items-center justify-end text-sm font-semibold text-text-secondary">
           {wordsRemaining > 0 && `${wordsRemaining}`}
@@ -433,6 +438,19 @@ const LearningSession = () => {
         </div>
       </div>
 
+      {noWords ? (
+        <div className="py-10 text-center">
+          <i className="bx bx-info-circle text-3xl text-text-secondary"></i>
+          <p className="mt-3 text-sm text-text-secondary">{noWords}</p>
+          {(setId == null || setId === 'all') && learnMode === 'LIMITED' && (
+            <p className="mt-3 text-xs text-text-secondary">
+              Đã hết hạn mức từ mới hôm nay. Chuyển sang{' '}
+              <span className="font-semibold text-brand-primary">Không giới hạn</span>{' '}
+              để học tất cả từ mới còn lại.
+            </p>
+          )}
+        </div>
+      ) : (
       <div className="flex flex-1 flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-5 py-4">
                     {/* Status counts (small, non-intrusive) */}
@@ -585,6 +603,7 @@ const LearningSession = () => {
           )}
         </div>
       </div>
+      )}
 
       {/* Exit Confirmation Modal */}
       <Modal

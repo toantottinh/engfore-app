@@ -94,6 +94,9 @@ describe('Unified Learn Engine', () => {
     mockQueue = [];
     mockDailyProgress = [];
     mockDailyLimit = 3;
+    // Reset learnMode persistence so tests never inherit UNLIMITED/LIMITED
+    // across cases (each jsdom window starts clean with the LIMITED default).
+    window.sessionStorage.removeItem('engfore.learnMode');
   });
 
   it('Queue Order: shows DUE > LEARNING > NEW', async () => {
@@ -241,6 +244,103 @@ describe('Unified Learn Engine', () => {
     // (so Đang học +1 and Từ mới -1 reflect the write to user_progress).
     await waitFor(() =>
       expect(getVocabularyStatsMock.mock.calls.length).toBeGreaterThan(callsBefore)
+    );
+  });
+
+  it('empty queue under /learn still shows BOTH mode choices + an UNLIMITED rescue hint (no dead-end Alert)', async () => {
+    // The bug being guarded: when LIMITED has burned its full daily NEW quota
+    // (queue comes back empty), the page used to bail to a hard dead-end BEFORE
+    // the mode toggle rendered. It must now keep the toggle visible.
+    mockQueue = []; // engine returns "nothing to learn" under the current mode
+    mockDailyLimit = 10;
+    mockDailyProgress = Array.from({ length: 10 }, (_, i) => ({ word_sense_id: `intro-${i}` })); // quota full
+
+    // Mount the REAL /learn entry (no :setId URL param → global scope) — this is
+    // the exact page from the bug report.
+    cleanup();
+    getLearnSessionQueueMock.mockImplementation(async () => ({ queue: mockQueue, error: null }));
+    render(
+      <MemoryRouter initialEntries={['/learn']}>
+        <AuthProvider initialUser={{ id: 'user-1' }}>
+          <Routes>
+            <Route path="/learn" element={<LearningSession />} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(getLearnSessionQueueMock).toHaveBeenCalled());
+
+    // The recoverable notice is shown (not a hard Alert) ...
+    await screen.findByText('Hiện tại không có từ nào cần ôn tập. Quay lại sau nhé!');
+    // ... the dead-end per-set Alert is NOT rendered ...
+    expect(screen.queryByText(/Không có từ nào trong bộ từ này/)).not.toBeInTheDocument();
+    // ... and BOTH mode choices stay visible (scope to the toggle button, since
+    // the rescue-hint <span> also contains "Không giới hạn").
+    expect(screen.getByRole('button', { name: 'Theo giới hạn' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Không giới hạn' })).toBeInTheDocument();
+    expect(screen.getByText(/Đã hết hạn mức từ mới hôm nay/)).toBeInTheDocument();
+
+    // Switching to UNLIMITED re-asks the engine with UNLIMITED (skips the quota).
+    await userEvent.click(screen.getByRole('button', { name: 'Không giới hạn' }));
+    await waitFor(() =>
+      expect(getLearnSessionQueueMock).toHaveBeenLastCalledWith(
+        'user-1',
+        expect.objectContaining({ learnMode: 'UNLIMITED' })
+      )
+    );
+  });
+
+  it('learning mode persists (sessionStorage) across session remounts', async () => {
+    mockQueue = [makeWord('n1', 'persist 1', 'new', null)];
+    await mountSession();
+
+    await screen.findByText('meaning for persist 1');
+    await userEvent.click(screen.getByText('Không giới hạn'));
+
+    // Mode write is persisted for the /learn -> /learn/session navigation.
+    await waitFor(() =>
+      expect(window.sessionStorage.getItem('engfore.learnMode')).toBe('UNLIMITED')
+    );
+
+    // A fresh mount (equivalent to leaving and re-entering the session page)
+    // must pick up UNLIMITED from storage WITHOUT the user re-selecting it.
+    cleanup();
+    getLearnSessionQueueMock.mockClear();
+    mockQueue = [makeWord('n2', 'new 2 after remount', 'new', null)];
+    render(
+      <MemoryRouter initialEntries={['/learn/session/all']}>
+        <AuthProvider initialUser={{ id: 'user-1' }}>
+          <Routes>
+            <Route path="/learn/session/:setId" element={<LearningSession />} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(getLearnSessionQueueMock).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ learnMode: 'UNLIMITED' })
+      )
+    );
+  });
+
+  it('UNLIMITED with a queue still keeps DUE first (toggle is a no-op on the returned order)', async () => {
+    mockQueue = [
+      makeWord('d1', 'due word', 'review', YESTERDAY),
+      makeWord('n1', 'new word', 'new', null),
+    ];
+
+    await mountSession();
+    await screen.findByText('meaning for due word');
+
+    // The toggle itself doesn't reorder — it only changes the quota passed to
+    // the engine; DUE still comes first.
+    await userEvent.click(screen.getByText('Không giới hạn'));
+    await waitFor(() =>
+      expect(getLearnSessionQueueMock).toHaveBeenLastCalledWith(
+        'user-1',
+        expect.objectContaining({ learnMode: 'UNLIMITED' })
+      )
     );
   });
 });
