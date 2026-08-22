@@ -171,4 +171,37 @@ describe('LearningSession — session counters reflect per-word state, not butto
     await waitFor(() => getCounts().again === 1);
     expect(getCounts()).toEqual({ new: 0, again: 1, review: 0 });
   });
+  it('REVIEW→HARD: Ôn -1 / Again unchanged / Mới unchanged via the rendered UI', async () => {
+    await mountSession([REVIEW_WORD]);
+    await waitFor(() => screen.getByText('quả nâu'));
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 1 });
+
+    await typeAndReveal('orange'); // correct
+    await userEvent.click(screen.getByRole('button', { name: /^Hard/ }));
+    await waitFor(() => getCounts().review === 0);
+    // Bug fix: the REVIEW card leaves the yellow bucket. Again untouched.
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
+  });
+
+  it('REVIEW→GOOD: Ôn -1 / Again unchanged / Mới unchanged via the rendered UI', async () => {
+    await mountSession([REVIEW_WORD]);
+    await waitFor(() => screen.getByText('quả nâu'));
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 1 });
+
+    await typeAndReveal('orange'); // correct
+    await userEvent.click(screen.getByRole('button', { name: /^Good/ }));
+    await waitFor(() => getCounts().review === 0);
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
+  });
+
+  it('REVIEW→EASY: Ôn -1 / Again unchanged / Mới unchanged via the rendered UI', async () => {
+    await mountSession([REVIEW_WORD]);
+    await waitFor(() => screen.getByText('quả nâu'));
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 1 });
+
+    await typeAndReveal('orange'); // correct
+    await userEvent.click(screen.getByRole('button', { name: /^Easy/ }));
+    await waitFor(() => getCounts().review === 0);
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
+  });
 });

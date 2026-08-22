@@ -38,9 +38,14 @@ export const SESSION_STATE = {
  *  - rating === 'again' (NEW→AGAIN / REVIEW→AGAIN / AGAIN→AGAIN):
  *    the word lands / stays in the red bucket exactly once. A repeated Again
  *    NEVER increments the Again count for the same word.
+ *  - A REVIEW (🟠 Ôn) word answered correctly (Hard/Good/Easy) has been
+ *    successfully reviewed and is no longer pending this session, so it leaves
+ *    the yellow bucket ('done'). This mirrors the REVIEW→AGAIN path (Ôn -1,
+ *    Again +1) for success ratings (Ôn -1, Again untouched).
  *  - An Again word answered correctly (Hard/Good/Easy) leaves the red bucket
  *    ('done'); it is not moved into 🟢 Mới or 🟠 Ôn.
- *  - A NEW/REVIEW word answered correctly stays in its current bucket.
+ *  - A NEW word answered correctly stays 🟢 Mới (still part of the new batch).
+ *    Non-REVIEW cards are never decremented from the Ôn counter.
  *
  * @param {string} currentState 'new' | 'review' | 'again' | 'done' (may be empty)
  * @param {string} rating UI rating key: 'again' | 'hard' | 'good' | 'easy'
@@ -51,6 +56,8 @@ export function resolveSessionWordState(currentState, rating, fallbackState = SE
   const base = currentState || fallbackState;
   if (rating === 'again') return SESSION_STATE.AGAIN;
   if (base === SESSION_STATE.AGAIN) return SESSION_STATE.DONE;
+  // REVIEW answered correctly → successfully reviewed → leaves the yellow bucket.
+  if (base === SESSION_STATE.REVIEW) return SESSION_STATE.DONE;
   return base;
 }
 
@@ -385,7 +392,9 @@ export function useLearningSession(setId) {
         // rating === 'again' covers every path with the semantic
         // "current word -> Again" (Flashcard Again button, Typing wrong +
         // Again, keyboard 1, ...). Non-again ratings on an Again word mean
-        // the retry succeeded -> it leaves the red bucket ('done').
+        // the retry succeeded -> it leaves the red bucket ('done'). A REVIEW
+        // word answered with Hard/Good/Easy was successfully reviewed -> it
+        // leaves the yellow bucket so the Ôn counter decrements by 1.
         setSessionWordStates((prev) => {
           const initialForWord = currentWord.state === 'new' ? 'new' : 'review';
           const currentState = prev[currentWord.id] ?? initialForWord;
