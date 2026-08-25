@@ -428,12 +428,17 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
  * @param {string[]} excludedIds - Các sense ID đã có trong queue (due, learning)
  */
 export async function getNewWords(userId, prioritizedSetIds, limit, excludedIds = []) {
-  if (!userId || limit <= 0) return { data: [], error: null };
+  // `limit === null` is the UNLIMITED sentinel for NEW words: fetch every
+  // remaining candidate (no daily cap, no session-batch cap). `null` is
+  // resolved at the query layer by the RPC as `LIMIT NULL` (≡ return all rows),
+  // so it is NEVER a fake "huge number" on the client. A finite limit <= 0
+  // means "no NEW capacity today" (e.g. LIMITED quota exhausted).
+  if (!userId || (limit != null && limit <= 0)) return { data: [], error: null };
 
   const { data, error } = await supabase.rpc('get_new_words_for_session', {
     p_user_id: userId,
     p_set_ids_prioritized: prioritizedSetIds,
-    p_limit: limit,
+    p_limit: limit ?? null,
     p_excluded_sense_ids: excludedIds,
   });
 
@@ -507,18 +512,29 @@ export async function getLearnSessionQueue(userId, options) {
 
     remainingSize = sessionSize - finalQueue.length;
 
-    // --- Step 3: Fetch NEW words ---
-    if (remainingSize > 0) {
-      let newWordLimit = 0;
-      if (learnMode === 'LIMITED') {
-        newWordLimit = Math.max(0, dailyNewLimit - introducedTodayCount);
-      } else {
-        newWordLimit = sessionSize; // For UNLIMITED, fetch up to a full batch
-      }
+        // --- Step 3: Fetch NEW words ---
+    // The SRS pipeline (FSRS scheduling, learning steps, answer handler, and the
+    // queue order DUE → LEARNING → NEW) is shared 100% between LIMITED and
+    // UNLIMITED. This is the ONLY divergence: the NEW quota.
+    //   • LIMITED   — NEW is capped by the daily quota (dailyNewLimit minus the
+    //                 words already introduced today) AND by the remaining
+    //                 session-batch slots (sessionSize). Words still eligible
+    //                 after the quota is exhausted stay in the DB as NEW and only
+    //                 surface on later days.
+    //   • UNLIMITED — NEW is capped by NEITHER. `null` is the query-layer sentinel
+    //                 for "no limit": the get_new_words_for_session RPC resolves it
+    //                 as `LIMIT NULL` (≡ return every row), so every remaining NEW
+    //                 candidate enters the session. A NEW word rated here goes
+    //                 through the exact same scheduling as LIMITED
+    //                 (computeSrsUpdate → NEW→learning→review) and is then
+    //                 re-served via LEARNING/DUE on later reloads — it never
+    //                 "disappears" from SRS.
+    const unlimited = learnMode !== 'LIMITED';
+    const finalNewLimit = unlimited
+      ? null
+      : Math.min(remainingSize, Math.max(0, dailyNewLimit - introducedTodayCount));
 
-      const finalNewLimit = Math.min(remainingSize, newWordLimit);
-
-      if (finalNewLimit > 0) {
+    if (unlimited || (remainingSize > 0 && finalNewLimit > 0)) {
         let prioritizedSetIds = [];
         if (effectiveSetId) { // Use effectiveSetId
             prioritizedSetIds = [effectiveSetId]; // Use effectiveSetId
@@ -565,14 +581,13 @@ export async function getLearnSessionQueue(userId, options) {
             );
             if (newWordsError) throw newWordsError;
 
-             (newWords || []).forEach(word => {
+            (newWords || []).forEach((word) => {
                 if (!currentIds.has(word.id)) {
                     finalQueue.push(word);
                     currentIds.add(word.id);
                 }
             });
         }
-      }
     }
 
     return { queue: finalQueue, error: null };

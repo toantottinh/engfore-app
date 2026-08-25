@@ -132,6 +132,9 @@ describe('LearningSession — session counters reflect per-word state, not butto
   afterEach(() => cleanup());
 
   it('NEW→AGAIN / AGAIN→AGAIN no double count / AGAIN→CORRECT via the rendered UI', async () => {
+    // Test dài (3 chu kỳ answer tuần tự với real timers) — chạy thật ca. 2.4s
+    // khi đơn lẻ nhưng dễ chạm timeout 5s mặc định khi full suite chạy song
+    // song. Nới timeout CHO RIÊNG test này (không đổi global config/behavior).
     await mountSession([NEW_WORD]);
     await waitFor(() => screen.getByText('quả táo'));
     expect(getCounts()).toEqual({ new: 1, again: 0, review: 0 });
@@ -159,7 +162,7 @@ describe('LearningSession — session counters reflect per-word state, not butto
     await userEvent.click(screen.getByRole('button', { name: /^Good/ }));
     await waitFor(() => getCounts().again === 0);
     expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
-  });
+  }, 15000);
 
   it('REVIEW→Again: Ôn -1 / Again +1 / Mói unchanged', async () => {
     await mountSession([REVIEW_WORD]);

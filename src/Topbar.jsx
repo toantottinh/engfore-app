@@ -144,6 +144,11 @@ export default function Topbar() {
         <ul className="flex items-center gap-2">
           <NavItem to="/app">Trang chủ</NavItem>
           <NavItem to="/vocabulary" end={false}>Từ vựng</NavItem>
+          <NavItem to="/structures" end={false}>
+            <span className="flex items-center gap-2">
+              <span>Cấu trúc câu</span>
+            </span>
+          </NavItem>
           <NavItem to="/learn" end={false}>
             <div className="relative flex items-center gap-2">
               <span>Học ngắt quãng</span>

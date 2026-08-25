@@ -19,6 +19,13 @@ import PracticeSession from './pages/PracticeSession/index.jsx';
 import TypingPractice from './pages/TypingPractice/index.jsx';
 import FlashcardPractice from './pages/FlashcardPractice/index.jsx';
 import LearningSession from './pages/LearningSession/index.jsx';
+import LearnStructures from './pages/LearnStructures/index.jsx';
+import StructureReview from './pages/StructureReview/index.jsx';
+import StructureImport from './pages/StructureImport/index.jsx';
+import ExerciseImport from './pages/ExerciseImport/index.jsx';
+import Structures from './pages/Structures/index.jsx';
+import StructureDetail from './pages/Structures/StructureDetail.jsx';
+import StructureSession from './pages/StructureSession/index.jsx';
 import Profile from './pages/Profile/index.jsx';
 
 import AdminRoute from './components/AdminRoute.jsx';
@@ -60,7 +67,23 @@ export default function AppRoutes() {
           {/* Khu vực "Học" với sub-navigation */}
           <Route path="/learn" element={<LearnLayout />}>
             <Route index element={<LearningSession />} />
+            {/* CK7 — Structure SRS Queue (user_structures) trong khu học ngắt quãng */}
+            <Route path="structures" element={<LearnStructures />} />
+            {/* CK10 — Structure Review Session: system tự chọn structure theo queue */}
+            <Route path="structures/session" element={<StructureReview />} />
           </Route>
+
+          {/* Sentence Structures — global content, chỉ admin được import */}
+          <Route element={<AdminRoute />}>
+            <Route path="/structures/import" element={<StructureImport />} />
+            <Route path="/structures/exercises/import" element={<ExerciseImport />} />
+          </Route>
+
+          {/* Structure Library (cho mọi user đăng nhập) */}
+          <Route path="/structures" element={<Structures />} />
+          <Route path="/structures/:structureId" element={<StructureDetail />} />
+          <Route path="/structures/session/:structureId" element={<StructureSession />} />
+
           <Route path="/profile" element={<Profile />} />
         </Route>
         
