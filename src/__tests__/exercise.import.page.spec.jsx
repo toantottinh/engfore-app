@@ -60,6 +60,14 @@ const FIVE_COL = [
   'fill_blank | I want to ___ English. | learn | learn ;; learning ;; learned | E2',
 ].join('\n');
 
+// Format 6 cột canonical: Type | Structure | Question | Answer | Options | Explanation
+const MULTI_COL = [
+  // -> s1 (I want to + V)
+  'multiple_choice | I want to + V | Which sentence is correct? | I want to learn English. | I want learn English. ;; I want learning English. ;; I want to learn English. | Sau want to dùng V.',
+  // -> s2 (There is / There are)
+  'fill_blank | There is / There are | There ___ a book. | is | is ;; are | Diễn tả sự tồn tại.',
+].join('\n');
+
 function mount() {
   return render(
     <MemoryRouter initialEntries={['/structures/exercises/import']}>
@@ -97,20 +105,29 @@ describe('ExerciseImport — chọn Structure/Knowledge trước khi nhập', ()
     });
   }, 15000);
 
-  it('CHƯA chọn structure: nút Kiểm tra bị disable + có thông báo yêu cầu chọn', async () => {
+  it('5 cột KHÔNG chọn dropdown -> rows lỗi rõ ràng, Import bị chặn (không gọi RPC)', async () => {
     const user = userEvent.setup();
     const view = mount();
-    const select = await screen.findByRole('combobox', { name: /Cấu trúc kiến thức/ });
-    await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+    await screen.findByRole('combobox', { name: /Cấu trúc kiến thức/ });
 
     const area = view.container.querySelector('textarea');
     expect(area).toBeTruthy();
     await user.type(area, FIVE_COL);
+    // Dropdown không còn là dependency bắt buộc -> nút parse BẬT.
     const parseBtn = screen.getByRole('button', { name: /Kiểm tra & xem trước/ });
-    expect(parseBtn.disabled).toBe(true);
-    expect(screen.getByText(/Hãy chọn một cấu trúc/i)).toBeTruthy();
-    // Preview/Import chưa xuất hiện:
+    expect(parseBtn.disabled).toBe(false);
+    await user.click(parseBtn);
+
+    // Mỗi dòng 5 cột thiếu Structure -> lỗi rõ ràng cho từng dòng (no silent failure).
+    const noSelErrs = await screen.findAllByText(/chưa chọn "Cấu trúc kiến thức"/);
+    expect(noSelErrs.length).toBeGreaterThan(0);
+    expect(noSelErrs[0].textContent).toContain('Dòng 1:');
+    // Import bị chặn hoàn toàn khi còn lỗi:
     expect(screen.queryByRole('button', { name: /Nhập \d+ bài tập/ })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Sửa lỗi trước khi import/ }).disabled
+    ).toBe(true);
+    expect(importStructureExercisesMock).not.toHaveBeenCalled();
   }, 15000);
 
   it('chọn structure -> parse -> IMPORT gọi RPC với MỖI row mang ĐÚNG structure đã chọn', async () => {
@@ -171,5 +188,64 @@ describe('ExerciseImport — chọn Structure/Knowledge trước khi nhập', ()
     await user.click(screen.getByRole('button', { name: /Nhập 2 bài tập/ }));
 
     expect(await screen.findByText(/Không thể nhập bài tập/)).toBeTruthy();
+  }, 15000);
+
+  it('BULK multi-structure: 1 paste nhieu Structure, khong can chon dropdown -> import tat ca', async () => {
+    const user = userEvent.setup();
+    const view = mount();
+    // Dropdown van hien nhung KHONG bat buoc chon:
+    await screen.findByRole('combobox', { name: /Cấu trúc kiến thức/ });
+
+    const area = view.container.querySelector('textarea');
+    expect(area).toBeTruthy();
+    await user.type(area, MULTI_COL);
+    await user.click(screen.getByRole('button', { name: /Kiểm tra & xem trước/ }));
+
+    // Ca 2 dong hop le -> co nut Import:
+    const importBtn = await screen.findByRole('button', { name: /Nhập 2 bài tập/ });
+    expect(importBtn.disabled).toBe(false);
+
+    await user.click(importBtn);
+
+    expect(importStructureExercisesMock).toHaveBeenCalledTimes(1);
+    const callArg = importStructureExercisesMock.mock.calls[0][0];
+    expect(callArg.exercises).toHaveLength(2);
+    // Moi row tro dung structure cua NO (multi-structure trong 1 paste):
+    expect(new Set(callArg.exercises.map((e) => e.pattern))).toEqual(
+      new Set(['I want to + V', 'There is / There are'])
+    );
+    // Exercise khong phai SRS item — payload khong co exercise_id:
+    expect(callArg.exercises.every((e) => !('exercise_id' in e))).toBe(true);
+
+    expect(await screen.findByText(/Created: 2 · Errored: 0/)).toBeTruthy();
+  }, 15000);
+
+  it('Mixed batch co dong UNKNOWN structure -> chan import + bao loi dung dong', async () => {
+    const user = userEvent.setup();
+    const view = mount();
+    await screen.findByRole('combobox', { name: /Cấu trúc kiến thức/ });
+
+    const text = [
+      // Hop le -> s1:
+      'multiple_choice | I want to + V | Q1 hop le? | I want to learn English. | X ;; Y ;; I want to learn English. | E1',
+      // UNKNOWN structure -> INVALID:
+      'fill_blank | Ghost Pattern | I ___ to learn English every day. | want | want ;; study | E2',
+    ].join('\n');
+
+    const area = view.container.querySelector('textarea');
+    await user.type(area, text);
+    await user.click(screen.getByRole('button', { name: /Kiểm tra & xem trước/ }));
+
+    // Bao loi CHINH XAC theo dong (no silent failure):
+    const errTexts = await screen.findAllByText(/Không tìm thấy cấu trúc "Ghost Pattern"/);
+    expect(errTexts.length).toBeGreaterThan(0);
+    // Loi mang so dong chinh xac:
+    expect(errTexts[0].textContent).toContain('Dòng 2:');
+    // Import bi CHAN khi con dong loi:
+    expect(screen.queryByRole('button', { name: /Nhập \d+ bài tập/ })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Sửa lỗi trước khi import/ }).disabled
+    ).toBe(true);
+    expect(importStructureExercisesMock).not.toHaveBeenCalled();
   }, 15000);
 });

@@ -1,12 +1,19 @@
 /**
  * Exercise Importer / Parser (KHÔNG tích hợp AI API).
  *
- * Format import chính thức (mỗi dòng một exercise, 6 cột phân cách bằng "|"):
+ * Format import (mỗi dòng một exercise, phân cách bằng "|"):
  *
- *   Structure | Type | Question | Answer | Options | Explanation
- *   I want to + V | multiple_choice | Which sentence is correct? | I want to learn English. | I want learn English. ;; I want learning English. ;; I want to learn English. | Sau want to dùng động từ nguyên mẫu.
+ *   6 cột canonical (MỚI):   Type | Structure | Question | Answer | Options | Explanation
+ *     multiple_choice | I want to + V | Which sentence is correct? | I want to learn English. | I want learn English. ;; I want learning English. ;; I want to learn English. | Sau want to dùng động từ nguyên mẫu.
+ *   6 cột legacy:            Structure | Type | Question | Answer | Options | Explanation
+ *   5 cột (backward compat): Type | Question | Answer | Options | Explanation —— structure
+ *                             lấy từ dropdown UI (bắt buộc khi chọn format này,
+ *                             KHÔNG tự đoán Structure).
  *
+ * - Layout 6 cột được nhận diện tự động: cột đầu là type hợp lệ -> Type-first,
+ *   ngược lại -> Structure-first.
  * - `;;` là delimiter cho Options (và tokens của rearrange ở cột Question).
+ * - `||` là delimiter cho NHIỀU accepted answers trong Answer (splitPipeLine bảo vệ).
  * - Chỉ hỗ trợ đúng 6 type: multiple_choice, fill_blank, translation,
  *   correction, rearrange, production.
  * - Production KHÔNG phải deterministic exercise: Answer tùy chọn, nếu có chỉ
@@ -99,10 +106,13 @@ function normalizeHeaderCell(cell) {
 }
 
 /**
- * Nhận diện header — hỗ trợ cả 2 layout:
- *   6 cột (legacy): cột đầu PHẢI khớp alias structure/pattern.
- *   5 cột (đã chọn structure trên UI): cột đầu khớp alias 'type'.
- * Tổng khớp >= 4 (6-cột) hoặc tỉ lệ >= 0.8 (5-cột).
+ * Nhận diện header — hỗ trợ cả 3 layout:
+ *   6 cột Type-first (mới):   cột đầu khớp alias 'type'.
+ *   6 cột Structure-first:    cột đầu khớp alias 'structure'/'pattern'.
+ *   5 cột (backward compat):  cột đầu khớp alias 'type'.
+ * Chỉ nhận header khi cột ĐẦU là alias của structure hoặc type (chống ăn nhầm
+ * dòng dữ liệu thật, vốn luôn bắt đầu bằng pattern hay type value) + tổng khớp
+ * >= 4 với tỉ lệ >= 0.5 (cùng luật vocabulary/structure importer).
  */
 function isHeaderRow(cells) {
   if (cells.length < 2) return false;
@@ -111,13 +121,8 @@ function isHeaderRow(cells) {
     if (HEADER_ALIASES[normalizeHeaderCell(cell)]) matched += 1;
   }
   const firstKey = HEADER_ALIASES[normalizeHeaderCell(cells[0])];
-  const firstIsStructure =
-    firstKey === 'structure' && matched >= 4 && matched / cells.length >= 0.5;
-  const firstIsType =
-    firstKey === 'type' &&
-    cells.length === EXERCISE_COLUMNS.length - 1 &&
-    matched / cells.length >= 0.8;
-  return firstIsStructure || firstIsType;
+  if (firstKey !== 'structure' && firstKey !== 'type') return false;
+  return matched >= 4 && matched / cells.length >= 0.5;
 }
 
 function splitPipeLine(line) {
@@ -155,6 +160,31 @@ export function normalizeExerciseType(value) {
   return { value: raw, changed: false };
 }
 
+/**
+ * Nhận diện dòng 6 cột trỏ về đúng layout:
+ *   - canonical mới: Type | Structure | Question | Answer | Options | Explanation
+ *   - legacy       : Structure | Type | Question | Answer | Options | Explanation
+ * Chỉ dựa vào cột đầu: cột đầu là type hợp lệ (hoặc alias) -> Type-first,
+ * ngược lại -> Structure-first. Cả 2 layout đều trả về
+ * `fields = [type, question, answer, options, explanation]` (các cột còn lại
+ * luôn cùng vị trí: question@2, answer@3, options@4, explanation@5).
+ * @returns {{ structure: string, fields: string[] }}
+ */
+function sixColumnLayout(cells) {
+  if (TYPE_SET.has(normalizeExerciseType(cells[0]).value)) {
+    // Type | Structure | Question | Answer | Options | Explanation
+    return {
+      structure: cells[1],
+      fields: [cells[0], cells[2], cells[3], cells[4], cells[5]],
+    };
+  }
+  // Structure | Type | Question | Answer | Options | Explanation
+  return {
+    structure: cells[0],
+    fields: [cells[1], cells[2], cells[3], cells[4], cells[5]],
+  };
+}
+
 function createEmptyExerciseRow() {
   return {
     structure: '',
@@ -163,6 +193,10 @@ function createEmptyExerciseRow() {
     answer: '',
     options: [],
     explanation: '',
+    _line: null, // số dòng gốc trong văn bản dán (để báo chỉ chính xác)
+    _formatError: false, // row parse-sai format —— không cascade lỗi cấu trúc lên nó
+    _structureId: null, // structure_id resolve được (chỉ admin hiện tại, user-scoped)
+    _structureResolved: null,
     _warnings: [],
     _errors: [],
   };
@@ -187,7 +221,7 @@ export function validateExerciseRow(row, lineNumber = null) {
 
   if (!TYPE_SET.has(row.type)) {
     row._errors.push(
-      `Type không hợp lệ "${row.type || '(rỗng)'}" — phải là một trong: ${VALID_EXERCISE_TYPES.join(', ')}.`
+      `Type không hợp lệ: ${row.type || '(rỗng)'} — phải là một trong: ${VALID_EXERCISE_TYPES.join(', ')}.`
     );
   }
 
@@ -297,17 +331,22 @@ export function isValidExerciseRow(row) {
 /**
  * Parse văn bản nhập vào thành các row exercise đã chuẩn hóa + validate.
  *
- * Hỗ trợ 2 format (tự nhận theo số cột của từng dòng):
- *   1) Legacy 6 cột: Structure | Type | Question | Answer | Options | Explanation
- *      -> khi `opts.selectedPattern` được cung cấp, dòng nào trỏ structure KHÁC
- *         sẽ bị đánh dấu lỗi (không cho row lệch khỏi knowledge đã chọn).
- *   2) Mới 5 cột (UI đã chọn structure): Type | Question | Answer | Options | Explanation
- *      -> structure = opts.selectedPattern; chưa chọn -> mỗi dòng báo lỗi.
+ * Hỗ trợ 3 format (nhận diện theo số cột + layout của TỪNG dòng):
+ *   1) 6 cột canonical (MỚI):  Type | Structure | Question | Answer | Options | Explanation
+ *      -> structure lấy ngay trên dòng (MULTI-STRUCTURE / BULK root).
+ *   2) 6 cột legacy:           Structure | Type | Question | Answer | Options | Explanation
+ *   3) 5 cột (backward compat): Type | Question | Answer | Options | Explanation
+ *      -> structure = opts.selectedPattern (từ dropdown UI); chưa chọn -> row báo lỗi.
+ *
+ * Khi `opts.selectedPattern` được cung cấp, dòng 6 cột nào trỏ structure KHÁC
+ * sẽ bị đánh dấu lỗi (không cho row lệch khỏi knowledge đã chọn khi user vẫn
+ * chủ động chọn đích trên UI).
  *
  * @param {string} text
- * @param {{ selectedPattern?: string }} [opts] - pattern của structure đã chọn trên UI.
+ * @param {{ selectedPattern?: string }} [opts] - pattern của structure đã chọn trên UI (optional).
  * @returns {{
  *   rows: Array<{ structure, type, question, answer, options: string[], explanation,
+ *                 _line: number|null, _formatError: boolean,
  *                 _warnings: string[], _errors: string[] }>,
  *   warnings: string[],
  *   hadHeader: boolean,
@@ -345,6 +384,8 @@ export function parseExerciseText(text, opts = {}) {
 
     if (!line.includes(PIPE_DELIMITER)) {
       const row = createEmptyExerciseRow();
+      row._line = lineNumber;
+      row._formatError = true;
       row._errors.push(`Dòng ${lineNumber}: không có dấu "${PIPE_DELIMITER}" phân cách cột.`);
       rows.push(row);
       warnings.push(`Dòng ${lineNumber}: bị bỏ qua vì thiếu dấu "|".`);
@@ -353,17 +394,19 @@ export function parseExerciseText(text, opts = {}) {
 
     const cells = splitPipeLine(line);
 
-    let structureCell;
-    let fieldCells;
+    let structure;
+    let fields;
 
     if (cells.length === EXERCISE_COLUMNS.length) {
-      // Legacy format: Structure | Type | Question | Answer | Options | Explanation
-      structureCell = cells[0];
-      fieldCells = cells.slice(1);
+      // 6 cột: canonical Type-first (mới) HOẶC legacy Structure-first.
+      ({ structure, fields } = sixColumnLayout(cells));
     } else if (cells.length === EXERCISE_COLUMNS.length - 1) {
-      // Format mới khi ĐÃ chọn Structure trên UI.
+      // 5 cột: Type | Question | Answer | Options | Explanation
+      //        structure = selectedPattern (backward compat — KHÔNG tự đoán).
       if (!selectedPattern) {
         const row = createEmptyExerciseRow();
+        row._line = lineNumber;
+        row._formatError = true;
         row._errors.push(
           `Dòng ${lineNumber}: chưa chọn "Cấu trúc kiến thức" — hãy chọn ở dropdown phía trên.`
         );
@@ -371,10 +414,12 @@ export function parseExerciseText(text, opts = {}) {
         warnings.push(`Dòng ${lineNumber}: bị bỏ qua vì chưa chọn cấu trúc.`);
         return;
       }
-      structureCell = selectedPattern;
-      fieldCells = cells;
+      structure = selectedPattern;
+      fields = cells;
     } else {
       const row = createEmptyExerciseRow();
+      row._line = lineNumber;
+      row._formatError = true;
       row._errors.push(
         `Dòng ${lineNumber}: sai số cột (cần ${EXERCISE_COLUMNS.length - 1} hoặc ${EXERCISE_COLUMNS.length}, thấy ${cells.length}).`
       );
@@ -386,21 +431,22 @@ export function parseExerciseText(text, opts = {}) {
     }
 
     const row = createEmptyExerciseRow();
-    row.structure = normalizePattern(structureCell);
+    row._line = lineNumber;
+    row.structure = normalizePattern(structure);
 
-    const normalizedType = normalizeExerciseType(fieldCells[0]);
+    const normalizedType = normalizeExerciseType(fields[0]);
     row.type = normalizedType.value;
     if (normalizedType.changed && TYPE_SET.has(normalizedType.value)) {
-      row._warnings.push(`Type "${fieldCells[0]}" đã được chuẩn hóa thành "${normalizedType.value}".`);
-      warnings.push(`Dòng ${lineNumber}: type "${fieldCells[0]}" -> "${normalizedType.value}".`);
+      row._warnings.push(`Type "${fields[0]}" đã được chuẩn hóa thành "${normalizedType.value}".`);
+      warnings.push(`Dòng ${lineNumber}: type "${fields[0]}" -> "${normalizedType.value}".`);
     }
-    row.question = fieldCells[1];
-    row.answer = fieldCells[2];
-    row.options = String(fieldCells[3] || '')
+    row.question = fields[1];
+    row.answer = fields[2];
+    row.options = String(fields[3] || '')
       .split(EXAMPLES_DELIMITER)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    row.explanation = fieldCells[4];
+    row.explanation = fields[4];
 
     // Validate type-specific TRƯỚC, rồi mới gắn lỗi mismatch (validate reset
     // _errors nên thứ tự này đảm bảo cả hai loại lỗi cùng hiển thị đúng).
@@ -483,6 +529,63 @@ export function markMissingStructures(rows, existingPatterns = []) {
       row._errors.push('Structure chưa tồn tại — hãy Import Knowledge trước.');
     }
   });
+  return rows;
+}
+
+/**
+ * Resolve Structure (pattern text từ dòng nhập) -> structure_id theo đúng
+ * user context HIỆN TẠI.
+ *
+ * - `structures` PHẢI là danh sách { id, pattern } của người dùng đang đăng
+ *   nhập (page dùng useStructures() = getStructuresForUser(user.id), RLS owner
+ *   only) — do đó KHÔNG bao giờ resolve chéo sang structure của user khác.
+ * - Row đã parse-sai format (`_formatError`) được BỎ QUA — không cascade thêm
+ *   lỗi cấu trúc (chỉ giữ lỗi gốc "sai số cột", không nhiễu).
+ * - Structure rỗng      -> "Dòng N: Structure không được để trống." (thay message
+ *                           field-level chung "Thiếu cấu trúc" cho rõ ràng).
+ * - Structure tồn tại    -> gắn `_structureId` + `_structureResolved`.
+ * - Structure chưa có   -> "Dòng N: Không tìm thấy cấu trúc \"...\"." — row
+ *                           INVALID, KHÔNG vào payload (không tự tạo Structure).
+ * Idempotent khi gọi lại (sau khi admin sửa ô trong preview).
+ *
+ * @returns {Array} chính rows đã được resolve / đánh dấu.
+ */
+export function resolveExerciseStructures(rows, structures = []) {
+  const byKey = new Map();
+  (structures || []).forEach((s) => {
+    if (!s || !s.id) return;
+    const k = structureKey(s.pattern);
+    if (k && !byKey.has(k)) byKey.set(k, s);
+  });
+
+  (rows || []).forEach((row) => {
+    if (!row || row._formatError) return;
+
+    // Gỡ các message cũ của bước resolve (nếu gọi lại sau khi user sửa ô).
+    row._errors = (row._errors || []).filter(
+      (m) => !/Không tìm thấy cấu trúc|Structure không được để trống|Thiếu cấu trúc/.test(m)
+    );
+    row._structureId = null;
+    row._structureResolved = null;
+
+    const tag = row._line != null ? `Dòng ${row._line}: ` : '';
+    const s = normalizePattern(row.structure);
+
+    if (!s) {
+      row._errors.push(`${tag}Structure không được để trống.`);
+      return;
+    }
+
+    const target = byKey.get(structureKey(s));
+    if (!target) {
+      row._errors.push(`${tag}Không tìm thấy cấu trúc "${s}".`);
+      return;
+    }
+
+    row._structureId = target.id;
+    row._structureResolved = target;
+  });
+
   return rows;
 }
 

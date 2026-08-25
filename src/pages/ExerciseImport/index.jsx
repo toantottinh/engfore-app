@@ -1,16 +1,13 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useStructures } from '../../hooks/useStructures.js';
-import {
-  importStructureExercises,
-  getStructurePatterns,
-} from '../../services/structure.service.js';
+import { importStructureExercises } from '../../services/structure.service.js';
 import {
   parseExerciseText,
   isValidExerciseRow,
   validateExerciseRow,
+  resolveExerciseStructures,
   dedupeExerciseRows,
-  markMissingStructures,
   toExerciseImportPayload,
   VALID_EXERCISE_TYPES,
 } from '../../utils/exercise-importer.js';
@@ -19,15 +16,20 @@ import Button from '../../components/ui/Button.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 
+// Format 6 cột canonical (MỚI): Type | Structure | Question | Answer | Options | Explanation.
+// Mỗi dòng tự khai báo Structure của nó -> BULK nhập nhiều Structure trong 1 paste.
 const SAMPLE_LINES = [
-  'multiple_choice | Which sentence is correct? | I want to learn English. | I want learn English. ;; I want learning English. ;; I want to learn English. | Sau want to dùng động từ nguyên mẫu.',
-  'fill_blank | I want to ___ English. | learn | learn ;; learning ;; learned | Sau want to dùng động từ nguyên mẫu.',
+  'multiple_choice | I want to + V | Which sentence is correct? | I want to learn English. | I want learn English. ;; I want learning English. ;; I want to learn English. | Sau want to dùng V nguyên mẫu.',
+  'fill_blank | I need to + V | I need to ___ English. | learn | learn ;; learning ;; learned | Sau need to dùng to + V.',
+  'translation | I have to + V | Tôi phải đi làm hôm nay. | I have to go to work today. | | Dùng have to để nói nghĩa vụ.',
+  'multiple_choice | I like + V-ing | Which sentence is correct? | I like playing football. | I like play football. ;; I like to playing football. ;; I like playing football. | Sau like có thể dùng V-ing.',
 ].join('\n');
 
-// Preview KHÔNG có cột structure — structure là selection ở dropdown phía trên,
-// mọi row được gắn vào ĐÚNG knowledge đã chọn (structure_exercises.structure_id).
+// Preview hiển thị rõ từng cột: Type | Structure | Question | Answer | Status.
+// (KHÔNG hiển thị UUID cho admin.)
 const COLUMN_HEADERS = [
   { key: 'type', label: 'Type', required: true },
+  { key: 'structure', label: 'Structure', required: true },
   { key: 'question', label: 'Câu hỏi', required: true },
   { key: 'answer', label: 'Đáp án', required: false },
   { key: 'options', label: `Options ("${EXAMPLES_DELIMITER}")`, required: false },
@@ -57,7 +59,6 @@ export default function ExerciseImport() {
   // { found, invalid, dupBatch, missingStructure, valid } + typeCounts
   const [summary, setSummary] = useState(null);
 
-  const [patternsLoading, setPatternsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [importing, setImporting] = useState(false);
@@ -70,45 +71,27 @@ export default function ExerciseImport() {
       setError('Chỉ admin mới được import bài tập.');
       return;
     }
-    if (!selectedStructure) {
-      setError('Hãy chọn một "Cấu trúc kiến thức" ở dropdown trước khi nhập bài tập.');
+    if (!text.trim()) {
+      setError('Hãy dán nội dung bài tập trước.');
       return;
     }
 
     const result = parseExerciseText(text, {
-      selectedPattern: selectedStructure.pattern,
+      // Tuỳ chọn: chỉ cần cho format 5 cột (legacy). Format 6 cột (canonical)
+      // tự khai báo Structure ngay trên dòng nên KHÔNG bắt buộc phải chọn dropdown.
+      selectedPattern: selectedStructure ? selectedStructure.pattern : '',
     });
     const parsed = result.rows || [];
 
-    // Structure existence: exercise phải tham chiếu structure ĐÃ import.
-    // Không tự tạo structure tại đây (Knowledge phải đi trước).
-    setPatternsLoading(true);
-    let existingPatterns = [];
-    try {
-      const { data, error: patternsError } = await getStructurePatterns();
-      if (patternsError) throw patternsError;
-      existingPatterns = data || [];
-    } catch (e) {
-      // Không chặn preview nếu không đọc được patterns; thiếu check này chỉ mất
-      // cảnh báo sớm — RPC vẫn chốt chặn ở bước import.
-      if (import.meta.env.DEV) {
-        console.error('[ExerciseImport] load patterns error:', e);
-      }
-    } finally {
-      setPatternsLoading(false);
-    }
+    // Resolve Structure (pattern text) -> structure_id theo đúng USER HIỆN TẠI.
+    // `structures` từ useStructures() đã được getStructuresForUser(user.id) scope
+    // lại đúng user (RLS owner-only) — không bao giờ resolve chéo user khác.
+    resolveExerciseStructures(parsed, structures);
 
-    markMissingStructures(parsed, existingPatterns);
     const invalidCount = parsed.filter((r) => !isValidExerciseRow(r)).length;
-    const missingCount = parsed.filter((r) =>
-      (r._errors || []).some((m) => m.includes('chưa tồn tại'))
-    ).length;
-    // Row legacy trỏ sang structure KHÁC selection -> bị chặn.
-    const mismatchCount = parsed.filter((r) =>
-      (r._errors || []).some((m) => m.includes('không khớp cấu trúc đã chọn'))
-    ).length;
 
-    // Dedupe trong batch: structure + type + question (giữ dòng đầu).
+    // Dedupe TRONG batch theo business rule: structure + type + question (giữ dòng đầu).
+    // KHÔNG dedupe theo type đơn lẻ — nhiều exercise cùng structure & type hợp lệ.
     const { rows: deduped, duplicates } = dedupeExerciseRows(parsed);
     const valid = deduped.filter(isValidExerciseRow);
 
@@ -120,22 +103,25 @@ export default function ExerciseImport() {
     setParseInfo({ hadHeader: result.hadHeader, warnings: result.warnings });
     setPreviewRows(deduped); // giữ cả row lỗi để admin thấy và sửa/xóa
     setSummary({
-      found: parsed.length,
+      total: parsed.length,
       invalid: invalidCount,
       dupBatch: duplicates.length,
-      missingStructure: missingCount,
-      mismatch: mismatchCount,
       valid: valid.length,
       typeCounts,
     });
     setPreviewed(true);
-  }, [text, user, isAdmin, selectedStructure]);
+  }, [text, user, isAdmin, selectedStructure, structures]);
 
-  // Mọi edit đều REVALIDATE row ngay lập tức (yêu cầu CP3).
+  // Mọi edit đều REVALIDATE row ngay lập tức (yêu cầu CP3) + RE-RESOLVE
+  // Structure (admin có thể sửa tay ô "structure"). resolveExerciseStructures
+  // idempotent nên gọi lại nhiều lần không tích luỹ lỗi cũ.
   const updateCell = (index, key, value) => {
-    setPreviewRows((rows) =>
-      rows.map((r, i) => (i === index ? validateExerciseRow({ ...r, [key]: value }) : r))
-    );
+    setPreviewRows((rows) => {
+      const next = rows.map((r, i) =>
+        i === index ? validateExerciseRow({ ...r, [key]: value }) : r
+      );
+      return resolveExerciseStructures(next, structures);
+    });
   };
 
   // Ô options hiển thị dạng text nối bằng ";;"; khi sửa thì tách ngược + revalidate.
@@ -144,9 +130,12 @@ export default function ExerciseImport() {
       .split(EXAMPLES_DELIMITER)
       .map((s) => s.trim())
       .filter(Boolean);
-    setPreviewRows((rows) =>
-      rows.map((r, i) => (i === index ? validateExerciseRow({ ...r, options }) : r))
-    );
+    setPreviewRows((rows) => {
+      const next = rows.map((r, i) =>
+        i === index ? validateExerciseRow({ ...r, options }) : r
+      );
+      return resolveExerciseStructures(next, structures);
+    });
   };
 
   const removeRow = (index) => {
@@ -156,26 +145,36 @@ export default function ExerciseImport() {
   const handleImport = async () => {
     setError('');
     setSuccess('');
-    const validRows = previewRows.filter(isValidExerciseRow);
     if (!user || !isAdmin) {
       setError('Chỉ admin mới được import bài tập.');
       return;
     }
-    if (!selectedStructure) {
-      setError('Hãy chọn một "Cấu trúc kiến thức" trước khi nhập.');
+    if (previewRows.length === 0) {
+      setError('Không có bài tập nào để nhập.');
       return;
     }
-    if (validRows.length === 0) {
-      setError('Không có bài tập hợp lệ nào để nhập.');
+
+    const invalid = previewRows.filter((r) => !isValidExerciseRow(r));
+    if (invalid.length > 0) {
+      // KHÔNG SILENT FAILURE: chặn import ngay, liệt kê đúng dòng + nguyên nhân.
+      const lines = invalid.map((r) => {
+        const num = r._line ?? previewRows.indexOf(r) + 1;
+        const msgs = (r._errors || []).map((m) =>
+          m.startsWith(`Dòng ${num}:`) ? m : `Dòng ${num}: ${m}`
+        );
+        return `- ${msgs.join('; ')}`;
+      });
+      setError(
+        `Không thể nhập: còn ${invalid.length} dòng lỗi. Hãy sửa hoặc xóa các dòng này trước khi import.\n${lines.join('\n')}`
+      );
       return;
     }
 
     setImporting(true);
     try {
-      // Invalid rows KHÔNG được gửi RPC — payload chỉ chứa row hợp lệ.
-      // Mọi row đều mang pattern của structure ĐÃ CHỌN -> RPC resolve về
-      // đúng MỘT structure_id (không bao giờ gán sai knowledge).
-      const payload = toExerciseImportPayload(validRows);
+      // Tất cả rows đều hợp lệ -> gửi TẤT CẢ tới RPC. Mỗi row mang pattern của
+      // structure mà NÓ khai báo; RPC resolve pattern -> structure_id (admin-only).
+      const payload = toExerciseImportPayload(previewRows);
       const { error: rpcError, meta } = await importStructureExercises({ exercises: payload });
       if (rpcError) throw rpcError;
 
@@ -197,6 +196,16 @@ export default function ExerciseImport() {
   };
 
   const validCount = previewRows.filter(isValidExerciseRow).length;
+  // Số dòng đang lỗi trong preview — khác 0 thì CHẶN Import (no silent failure).
+  const invalidPreviewCount = previewRows.length - validCount;
+  const errorRows = previewRows.filter((r) => !isValidExerciseRow(r));
+  const errorLines = errorRows.map((r) => {
+    const num = r._line ?? previewRows.indexOf(r) + 1;
+    const msgs = (r._errors || []).map((m) =>
+      m.startsWith(`Dòng ${num}:`) ? m : `Dòng ${num}: ${m}`
+    );
+    return `- ${msgs.join('; ')}`;
+  });
 
   if (!isAdmin) {
     return (
@@ -210,23 +219,27 @@ export default function ExerciseImport() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="mb-2 text-2xl font-bold text-text-primary">Nhập bài tập (Exercises)</h1>
       <p className="mb-4 text-sm text-text-secondary">
-        Chọn <strong>Cấu trúc kiến thức</strong> ở dưới rồi dán bài tập theo format{' '}
-        <strong>Type | Question | Answer | Options | Explanation</strong> — Options phân cách bằng{' '}
-        <code>{EXAMPLES_DELIMITER}</code>. Type hợp lệ: {VALID_EXERCISE_TYPES.join(', ')}. Ví dụ:
+        Dán một lần theo format{' '}
+        <strong>Type | Structure | Question | Answer | Options | Explanation</strong> — mỗi dòng tự
+        khai báo <strong>Structure</strong> của nó nên có thể nhập <strong>nhiều cấu trúc trong
+        cùng một batch</strong>. Options phân cách bằng <code>{EXAMPLES_DELIMITER}</code>, nhiều đáp án
+        trong Answer phân cách bằng <code>||</code>. Type hợp lệ: {VALID_EXERCISE_TYPES.join(', ')}. Ví dụ:
       </p>
       <pre className="mb-4 overflow-x-auto rounded-lg bg-surface-sidebar p-3 text-xs text-text-secondary">{SAMPLE_LINES}</pre>
 
       {error && <Alert type="error" message={error} className="mb-4" />}
       {success && <Alert type="success" message={success} className="mb-4" />}
 
-      {/* Bước 0: chọn Structure/Knowledge đích — mọi exercise bên dưới sẽ
-          được gắn vào ĐÚNG structure này (structure_exercises.structure_id). */}
+      {/* Bước 0 (TÙY CHỌN): chọn Structure đích — CHỈ cần cho format 5 cột legacy
+          (Type | Question | ...). Format 6 cột canonical tự khai báo Structure nên
+          KHÔNG bắt buộc dropdown cho diagram bulk. Không chọn thì 5 cột sẽ báo lỗi rõ. */}
       <div className="mb-4 rounded-xl border border-border-color bg-surface p-4 shadow-sm">
         <label
           htmlFor="exercise-selected-structure"
           className="mb-1 block text-xs font-medium uppercase tracking-wide text-text-secondary"
         >
-          Cấu trúc kiến thức
+          Cấu trúc kiến thức{' '}
+          <span className="normal-case text-text-secondary">(tuỳ chọn — chỉ dùng cho format 5 cột cũ)</span>
         </label>
         <select
           id="exercise-selected-structure"
@@ -235,7 +248,7 @@ export default function ExerciseImport() {
           aria-label="Cấu trúc kiến thức"
           className="w-full max-w-xl rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="">— Chọn cấu trúc —</option>
+          <option value="">— Không chọn (mỗi dòng tự khai báo Structure) —</option>
           {structures.map((s) => (
             <option key={s.id} value={s.id}>
               {`${s.pattern} — ${s.meaning}${s.cefr ? ` (${s.cefr})` : ''}`}
@@ -245,7 +258,8 @@ export default function ExerciseImport() {
 
         {!selectedStructure ? (
           <p className="mt-2 text-xs text-text-secondary">
-            Hãy chọn một cấu trúc: mọi bài tập bên dưới sẽ được gắn vào đúng knowledge này.
+            Đang ở chế độ <strong>multi-structure</strong>: mỗi dòng phải có cột Structure (format 6 cột).
+            Nếu muốn dùng format 5 cột cũ, hãy chọn một Cấu trúc ở trên.
           </p>
         ) : (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -278,12 +292,7 @@ export default function ExerciseImport() {
           className="w-full font-mono text-sm"
         />
         <div className="mt-3">
-          <Button
-            onClick={handleParse}
-            loading={patternsLoading}
-            disabled={!text.trim() || !selectedStructure}
-            title={!selectedStructure ? 'Hãy chọn Cấu trúc kiến thức trước.' : undefined}
-          >
+          <Button onClick={handleParse} disabled={!text.trim()}>
             Kiểm tra &amp; xem trước
           </Button>
         </div>
@@ -319,19 +328,11 @@ export default function ExerciseImport() {
 
           {summary && (
             <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-              <span className="status-pill status-pill--review"><strong>{summary.found}</strong> tổng</span>
-              <span className="status-pill status-pill--new"><strong>{summary.valid}</strong> hợp lệ</span>
-              {summary.invalid > 0 && (
-                <span className="status-pill status-pill--again"><strong>{summary.invalid}</strong> lỗi</span>
-              )}
+              <span className="status-pill status-pill--review"><strong>{summary.total}</strong> Tổng</span>
+              <span className="status-pill status-pill--new"><strong>{summary.valid}</strong> Hợp lệ</span>
+              <span className="status-pill status-pill--again"><strong>{summary.invalid}</strong> Lỗi</span>
               {summary.dupBatch > 0 && (
-                <span className="status-pill status-pill--review"><strong>{summary.dupBatch}</strong> trùng trong nội dung (bỏ)</span>
-              )}
-              {summary.missingStructure > 0 && (
-                <span className="status-pill status-pill--again"><strong>{summary.missingStructure}</strong> thiếu Structure</span>
-              )}
-              {summary.mismatch > 0 && (
-                <span className="status-pill status-pill--again"><strong>{summary.mismatch}</strong> khác cấu trúc đã chọn</span>
+                <span className="status-pill status-pill--review"><strong>{summary.dupBatch}</strong> Trùng (bỏ)</span>
               )}
               {Object.keys(summary.typeCounts || {}).length > 0 && (
                 <span className="text-xs text-text-secondary">
@@ -341,6 +342,14 @@ export default function ExerciseImport() {
                 </span>
               )}
             </div>
+          )}
+
+          {invalidPreviewCount > 0 && errorLines.length > 0 && (
+            <Alert
+              type="error"
+              message={`Không thể import khi còn ${invalidPreviewCount} dòng lỗi. Chi tiết theo dòng:\n${errorLines.join('\n')}`}
+              className="mb-4 whitespace-pre-line text-left"
+            />
           )}
 
           {previewRows.length > 0 && (
@@ -355,7 +364,7 @@ export default function ExerciseImport() {
                         {c.required && '*'}
                       </th>
                     ))}
-                    <th className="px-2 py-2">Ghi chú</th>
+                    <th className="px-2 py-2">Status</th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -383,6 +392,26 @@ export default function ExerciseImport() {
                                 </option>
                               ))}
                             </select>
+                          ) : c.key === 'structure' ? (
+                            <div className="flex flex-col gap-1">
+                              <input
+                                value={row[c.key] || ''}
+                                onChange={(e) => updateCell(idx, c.key, e.target.value)}
+                                className={`w-full min-w-[180px] rounded border px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none ${
+                                  row.structure && !row._structureId
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-zinc-200'
+                                }`}
+                                placeholder="I want to + V"
+                              />
+                              {row.structure && !row._structureId ? (
+                                <span className="text-[10px] font-semibold text-red-600">UNKNOWN</span>
+                              ) : row._structureId ? (
+                                <span className="text-[10px] font-semibold text-green-600">
+                                  {row._structureResolved?.pattern || row.structure}
+                                </span>
+                              ) : null}
+                            </div>
                           ) : c.key === 'options' ? (
                             <input
                               value={(row.options || []).join(` ${EXAMPLES_DELIMITER} `)}
@@ -399,18 +428,18 @@ export default function ExerciseImport() {
                                   ? 'border-red-300 bg-red-50'
                                   : 'border-zinc-200'
                               }`}
-                              placeholder={c.key === 'structure' ? 'I want to + V' : ''}
                             />
                           )}
                         </td>
                       ))}
-                      <td className="max-w-[220px] px-2 py-2 text-xs">
-                        {(row._errors || []).length > 0 ? (
-                          <span className="text-red-600">❌ {row._errors.join(' ')}</span>
-                        ) : (row._warnings || []).length > 0 ? (
-                          <span className="text-amber-600">⚠️ {row._warnings.join(' ')}</span>
+                      <td className="max-w-[260px] px-2 py-2 text-xs">
+                        {isValidExerciseRow(row) ? (
+                          <span className="text-green-600">✅</span>
                         ) : (
-                          <span className="text-green-600">✔ Hợp lệ</span>
+                          <span className="text-red-600">❌ {row._errors.join(' ')}</span>
+                        )}
+                        {(row._warnings || []).length > 0 && (
+                          <span className="mt-0.5 block text-amber-600">⚠️ {row._warnings.join(' ')}</span>
                         )}
                       </td>
                       <td className="px-3 py-2">
@@ -437,10 +466,18 @@ export default function ExerciseImport() {
               <Button
                 onClick={handleImport}
                 loading={importing}
-                disabled={importing || !selectedStructure || validCount === 0}
-                title={!selectedStructure ? 'Hãy chọn Cấu trúc kiến thức trước.' : undefined}
+                disabled={importing || validCount === 0 || invalidPreviewCount > 0}
+                title={
+                  invalidPreviewCount > 0
+                    ? `Còn ${invalidPreviewCount} dòng lỗi — import chỉ khả dụng khi toàn bộ batch hợp lệ.`
+                    : undefined
+                }
               >
-                {importing ? 'Đang nhập...' : `Nhập ${validCount} bài tập`}
+                {importing
+                  ? 'Đang nhập...'
+                  : invalidPreviewCount > 0
+                  ? 'Sửa lỗi trước khi import'
+                  : `Nhập ${validCount} bài tập`}
               </Button>
             </div>
           )}
