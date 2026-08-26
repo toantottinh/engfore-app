@@ -393,10 +393,11 @@ describe('ONE SRS state per user+structure — N exercises KHÔNG tạo N thẻ'
     expect(upsertCalls[1].payload.learning_step).toBe(2); // GOOD step1 -> step2 trên CÙNG thẻ
   });
 
-  it('SRS payload chỉ chứa đúng bộ field cố định (mirror user_progress)', () => {
+  it('SRS payload chỉ chứa đúng bộ field cố định (mirror user_progress + last_rating)', () => {
     const EXPECTED_KEYS = [
       'ease_factor',
       'interval_hours',
+      'last_rating', // encounter metadata (0/2/3/4) — vẫn cùng MỘT thẻ SRS
       'last_reviewed_at',
       'learning_step',
       'lapses',

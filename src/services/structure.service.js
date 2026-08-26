@@ -215,7 +215,7 @@ const STRUCTURE_DETAIL_SELECT = `
   id, pattern, meaning, explanation, cefr, topic, created_at,
   structure_examples(id, sentence, translation, created_at),
   structure_exercises(id, type),
-  user_structures(state, review_due_at, learning_step, mastery_level, repetitions, interval_hours)
+  user_structures(state, review_due_at, learning_step, mastery_level, repetitions, interval_hours, last_rating)
 `;
 
 /**

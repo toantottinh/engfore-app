@@ -46,7 +46,12 @@ vi.mock('../services/structure-learning.service.js', () => ({
 }));
 
 const USER = { id: 'user-1', email: 'test@example.com' };
+const YESTERDAY = new Date(Date.now() - 86400e3).toISOString();
 
+// Fixture dùng state='review' + review_due_at quá hạn (LEGACY, chưa có
+// last_rating): các test CK8/V2 bên dưới khóa hành vi RANDOM-1-BÀI của hàng ĐÃ
+// TỐT NGHIỆP (= HARD/legacy guided). Behavior của NEW/AGAIN (SEQUENCE ≤6 bài)
+// và GOOD/EASY (pure test) được khóa ở hai describe cuối file.
 const STRUCTURE = {
   id: 's1',
   pattern: 'I want to + V',
@@ -55,7 +60,7 @@ const STRUCTURE = {
   cefr: 'A1',
   topic: 'Daily Life',
   examples: [{ id: 'e1', sentence: 'I want to learn English.', translation: '' }],
-  user_structures: null,
+  user_structures: { state: 'review', review_due_at: YESTERDAY },
 };
 
 const CORRECT_OPTION = 'I want to learn English.';
@@ -347,5 +352,111 @@ describe('Structure Session (CK8 — random single exercise)', () => {
     });
   });
 });
+
+// ------------------------------------------------------------------
+// ENCOUNTER MODES trên phiên thủ công (/structures/session/:id)
+//   NEW       -> SEQUENCE ≤6 bài, progress "Bài x/n", rating chỉ sau bài cuối.
+//   GOOD/EASY -> PURE TEST (random 1 bài) — feedback không reveal pattern.
+// ------------------------------------------------------------------
+const RATE_PROMPT = /Bạn nhớ cấu trúc này thế nào\?/;
+const PROGRESS_TESTID = 'structure-sequence-progress';
+
+function fbManual(letter) {
+  return {
+    id: `m-${letter}`,
+    type: 'fill_blank',
+    question: `MANUALQ-${letter}?`,
+    answer: `ans-${letter}`,
+    options: [],
+    explanation: `expl-${letter}`,
+  };
+}
+
+describe('Structure Session — NEW structure chạy SEQUENCE', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getStructureByIdMock.mockResolvedValue({
+      data: { ...STRUCTURE, user_structures: null },
+      error: null,
+    });
+    getStructureExercisesMock.mockResolvedValue({
+      data: [fbManual('a'), fbManual('b'), fbManual('c')],
+      error: null,
+    });
+  });
+  afterEach(() => cleanup());
+
+  it('NEW: intro khai báo số bài; làm tuần tự; KHÔNG chấm giữa chừng; chấm sau bài cuối', async () => {
+    const user = userEvent.setup();
+    mount();
+
+    await screen.findByRole('button', { name: /Bắt đầu/ });
+    expect(screen.getByText('Học cấu trúc này')).toBeTruthy(); // copy theo mode
+    expect(screen.queryByText('I want to + V')).toBeNull(); // vẫn neutral
+
+    await user.click(screen.getByRole('button', { name: /Bắt đầu/ }));
+    await screen.findByText('MANUALQ-a?');
+    expect(screen.getByTestId(PROGRESS_TESTID)).toHaveTextContent('Bài 1/3');
+
+    for (let i = 0; i < 3; i += 1) {
+      await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'zzz');
+      await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
+      await screen.findByRole('button', { name: /Tiếp tục/ });
+      await user.click(screen.getByRole('button', { name: /Tiếp tục/ }));
+      if (i < 2) {
+        await screen.findByText(`MANUALQ-${['b', 'c'][i]}?`); // đúng thứ tự
+        expect(screen.getByTestId(PROGRESS_TESTID)).toHaveTextContent(`Bài ${i + 2}/3`);
+        expect(screen.queryByText(RATE_PROMPT)).toBeNull(); // không chấm giữa chừng
+      }
+    }
+
+    expect(await screen.findByText(RATE_PROMPT)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /^Good/ }));
+    expect(await screen.findByText(/Đã lưu tiến trình!/)).toBeTruthy();
+    expect(recordStructureResultMock).toHaveBeenCalledTimes(1); // MỘT thẻ SRS
+  }, 15000);
+});
+
+describe('Structure Session — GOOD/EASY pure test trên phiên thủ công', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getStructureByIdMock.mockResolvedValue({
+      data: {
+        ...STRUCTURE,
+        user_structures: { state: 'review', review_due_at: YESTERDAY, last_rating: 3 },
+      },
+      error: null,
+    });
+    getStructureExercisesMock.mockResolvedValue({ data: [fbManual('g')], error: null });
+  });
+  afterEach(() => cleanup());
+
+  it('GOOD: random 1 bài; sau submit KHÔNG reveal pattern/meaning/panel cấu trúc', async () => {
+    const user = userEvent.setup();
+    mount();
+    await startExerciseSession(user); // giữ copy "Một bài tập ngẫu nhiên" cho random-mode
+
+    await screen.findByText('MANUALQ-g?');
+    expect(screen.queryByTestId(PROGRESS_TESTID)).toBeNull(); // không sequence
+    expect(screen.queryByText('I want to + V')).toBeNull();
+
+    await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'zzz');
+    await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
+    await screen.findByRole('button', { name: /Tiếp tục/ });
+
+    // PURE TEST: không công thức/pattern/scaffold ngay cả sau khi trả lời:
+    expect(screen.queryByText('I want to + V')).toBeNull();
+    expect(screen.queryByText('Tôi muốn...')).toBeNull();
+    expect(screen.queryByText('Dùng để nói về mong muốn.')).toBeNull();
+    expect(screen.queryByText('Cấu trúc')).toBeNull(); // panel reveal bị tắt
+
+    await user.click(screen.getByRole('button', { name: /Tiếp tục/ }));
+    expect(await screen.findByText(RATE_PROMPT)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /^Good/ }));
+    expect(await screen.findByText(/Đã lưu tiến trình!/)).toBeTruthy();
+    expect(recordStructureResultMock).toHaveBeenCalledTimes(1);
+  }, 15000);
+});
+
 
 

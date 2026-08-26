@@ -15,11 +15,16 @@ import Alert from '../../components/ui/Alert.jsx';
  * CK10 — STRUCTURE REVIEW SESSION (/learn/structures/session).
  *
  * Giống Vocabulary Review: user KHÔNG chọn structure — system tự chọn theo
- * queue DUE → LEARNING → NEW, mỗi structure làm ĐÚNG 1 random exercise,
- * rating xong TỰ ĐỘNG sang structure kế tiếp cho đến khi hết phiên.
+ * queue DUE → LEARNING → NEW. Cách dùng exercise THEO SRS STATE của structure
+ * (xem resolveStructureExercisePlan):
+ *   NEW/AGAIN  -> SEQUENCE ≤6 bài theo thứ tự, progress "Bài x/n", rating
+ *                 CHỈ sau bài cuối, rồi TỰ ĐỘNG sang structure kế tiếp.
+ *   còn lại    -> RANDOM ĐÚNG 1 exercise; last_rating GOOD/EASY = PURE TEST
+ *                 (không render pattern/hint/scaffold), ngược lại guided.
+ * Rating xong TỰ ĐỘNG sang structure kế tiếp cho đến khi hết phiên.
  *
- * Neutral recall: trong lúc trả lời KHÔNG hiển thị pattern/meaning/explanation.
- * Error-driven learning: sau submit mới reveal Structure + giải thích.
+ * Neutral recall: trong lúc trả lời KHÔNG hiển thị pattern/meaning/explanation
+ * ở MỌI mode. Error-driven reveal sau submit chỉ bật ở mode guided.
  */
 export default function StructureReview() {
   const h = useStructureReviewSession();
@@ -134,23 +139,52 @@ export default function StructureReview() {
   const ex = h.current?.exercise;
   if (!s || !ex) return null;
 
+  // Nhãn theo encounter mode: NEW -> học mới, AGAIN -> luyện lại, còn lại ôn tập.
+  // Chỉ là nhãn văn bản trung tính — KHÔNG tiết lộ pattern/meaning trước submit.
+  const progState = s.user_structures?.state || 'new';
+  const headerLabel =
+    h.planMode === 'sequence'
+      ? progState === 'learning' || progState === 'relearning'
+        ? 'Luyện lại cấu trúc'
+        : 'Học cấu trúc mới'
+      : 'Ôn tập cấu trúc';
+
   // ===== EXERCISE (neutral recall — không lộ structure) =====
   if (h.phase === 'exercise') {
+    const inSequence = h.planMode === 'sequence' && h.sequenceTotal > 0;
     return (
       <div className="mx-auto max-w-2xl space-y-3">
         <div className="flex items-center justify-between text-xs text-text-secondary">
-          <span>Ôn tập cấu trúc</span>
+          <span>{headerLabel}</span>
           <span>
-            Cấu trúc {h.position + 1}/{h.totalCount}
+            {/* Span con giữ đúng chuỗi "Cấu trúc x/y" (contract hiển thị CK10);
+                phần · Bài i/n là phụ kiện của mode SEQUENCE (NEW/AGAIN). */}
+            <span>{`Cấu trúc ${h.position + 1}/${h.totalCount}`}</span>
+            {inSequence && (
+              <span data-testid="queue-sequence-suffix">
+                {` · Bài ${h.sequenceIndex + 1}/${h.sequenceTotal}`}
+              </span>
+            )}
           </span>
         </div>
         <div className="rounded-xl border border-border-color bg-surface p-5">
+          {/* NEW/AGAIN: progress rõ ràng theo số bài THỰC TẾ của structure
+              (ít hơn 6 bài thì phản ánh đúng số đó; rating chỉ sau bài cuối). */}
+          {inSequence && (
+            <p
+              className="mb-3 text-sm font-semibold text-text-primary"
+              data-testid="structure-sequence-progress"
+            >
+              Bài {h.sequenceIndex + 1}/{h.sequenceTotal}
+            </p>
+          )}
           {h.feedback?.submitted ? (
             <FeedbackView
               exercise={ex}
               feedback={h.feedback}
               structure={s}
               onNext={h.proceedAfterFeedback}
+              revealStructure={h.revealStructure}
             />
           ) : (
             <ExerciseRenderer exercise={ex} feedback={h.feedback} onSubmit={h.submitAnswer} />

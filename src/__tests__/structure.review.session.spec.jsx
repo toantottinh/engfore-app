@@ -196,11 +196,14 @@ describe('Structure Review Session (CK10)', () => {
       rating: 2,
     });
 
-    // 30/31. TỰ ĐỘNG chuyển sang structure kế tiếp (LEARNING) + exercise của nó.
-    // learn-1 có 2 bài (FB-LEARN?/TR-LEARN?) — chờ câu hỏi mới bất kỳ xuất hiện:
+    // 30/31. TỰ ĐỘNG chuyển sang structure kế tiếp (LEARNING = bucket AGAIN).
+    // learn-1 đang AGAIN -> chạy SEQUENCE 2 bài theo thứ tự ổn định, bắt đầu
+    // bằng bài 1/2 và KHÔNG cho rating giữa chừng:
     await screen.findByText('Cấu trúc 2/3');
-    const nextQ = await screen.findAllByText(/FB-LEARN\?|TR-LEARN\?/);
-    expect(nextQ.length).toBeGreaterThan(0);
+    expect(await screen.findByText('FB-LEARN?')).toBeTruthy(); // E1 duy nhất render
+    expect(screen.getByTestId('structure-sequence-progress')).toHaveTextContent('Bài 1/2');
+    expect(screen.queryByText('TR-LEARN?')).toBeNull();
+    expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
     expect(getStructureExercisesMock).toHaveBeenNthCalledWith(2, 'learn-1');
     expect(screen.queryByText('MC-DUE?')).toBeNull();
   });
@@ -225,17 +228,23 @@ describe('Structure Review Session (CK10)', () => {
     await screen.findByText(/✅ Chính xác/);
     await rate('Good');
 
-    // 2) LEARNING (2 bài có thể được random chọn — chờ "Cấu trúc 2/3" rồi xử lý cả hai)
+    // 2) LEARNING = AGAIN -> SEQUENCE 2 bài (thứ tự ổn định FB-LEARN? → TR-LEARN?)
+    //    và CHỈ được chấm sau khi hoàn thành cả hai (không rating giữa chừng):
     await screen.findByText('Cấu trúc 2/3');
-    const learnQ = (await screen.findAllByText(/FB-LEARN\?|TR-LEARN\?/))[0];
-    if (learnQ.textContent === 'TR-LEARN?') {
-      await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'there is');
-    } else {
-      await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'is');
-    }
+    await screen.findByText('FB-LEARN?'); // E1
+    await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'is');
     await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
     await screen.findByText(/✅ Chính xác/);
-    await rate('Good');
+    await user.click(screen.getByRole('button', { name: /Tiếp tục/ }));
+
+    // E1 xong -> E2 xuất hiện; rating VẪN chưa được phép hiển thị:
+    await screen.findByText('TR-LEARN?'); // E2
+    expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
+
+    await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'there is');
+    await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
+    await screen.findByText(/✅ Chính xác/);
+    await rate('Good'); // hết sequence mới chấm -> sau đó tự sang NEW
 
     // 3) NEW (có đúng 1 bài) -> Easy -> hết queue -> COMPLETION
     await screen.findByText('Cấu trúc 3/3');

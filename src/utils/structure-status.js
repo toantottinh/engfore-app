@@ -225,3 +225,110 @@ export function selectRandomStructureExercise(exercises) {
   const index = Math.floor(Math.random() * bank.length);
   return bank[index];
 }
+
+// ------------------------------------------------------------------
+// ENCOUNTER MODE PLANNING (STRUCTURE LÀ MỘT KNOWLEDGE ITEM DUY NHẤT)
+//
+// Exercise KHÔNG phải knowledge item độc lập — nó là bài kiểm tra cho Structure.
+// Cách phiên học dùng ngân hàng exercise phụ thuộc SRS state của Structure:
+//
+//   NEW    (chưa có user_structures hoặc state='new')
+//          -> SEQUENCE: tối đa 6 bài ĐẦU TIÊN theo thứ tự ổn định, KHÔNG random;
+//             rating Again/Hard/Good/Easy CHỈ xuất hiện sau bài cuối.
+//   AGAIN  (state='learning' | 'relearning')
+//          -> SEQUENCE (giống NEW): một lượt luyện lại đầy đủ rồi mới chấm lại.
+//   REVIEW (state='review') -> RANDOM đúng 1 bài (giữ behavior CHECKPOINT 8):
+//          - last_rating 2 (Hard) hoặc NULL (row cũ trước khi persist rating)
+//            -> guided như hiện tại (reveal cấu trúc sau khi trả lời).
+//          - last_rating 3 (Good) / 4 (Easy)
+//            -> PURE TEST: UI KHÔNG render pattern/meaning/explanation.
+//             (Trước khi trả lời thì mọi mode vốn đã trung tính — neutral recall.)
+//
+// Các số rating MIRROR RATING trong src/services/srs.service.js (3=Good, 4=Easy)
+// — đặt tại đây thay vì import để util này giữ dependency-free (tránh vòng).
+// ------------------------------------------------------------------
+
+/** Số exercise tối đa một lượt SEQUENCE (AI generator tạo 6 bài / structure). */
+export const STRUCTURE_SEQUENCE_LIMIT = 6;
+
+/**
+ * Trạng thái SRS buộc chạy đủ exercise-sequence trước khi được rating.
+ * NEW + AGAIN -> true; các hàng đã tốt nghiệp (review) -> false.
+ * @param {object|null} progress - row user_structures hoặc null (chưa học)
+ */
+export function isSequentialStructureProgress(progress) {
+  const state = progress?.state || 'new';
+  return state === 'new' || state === 'learning' || state === 'relearning';
+}
+
+/**
+ * Sắp xếp exercise theo THỨ TỰ ỔN ĐỊNH (không random): created_at tăng dần,
+ * tie-break bằng id tăng dần, cuối cùng giữ vị trí gốc nếu còn bằng nhau.
+ *
+ * getStructureExercises đã ORDER BY created_at ASC phía DB — lớp sort này là
+ * phòng thủ thuần client để hai lần fetch cùng dữ liệu luôn ra cùng thứ tự
+ * ("6 exercise đầu tiên theo thứ tự ổn định"), kể cả khi feed test thiếu meta.
+ * KHÔNG mutate array gốc; trả về mảng mới gồm REFERENCES phần tử gốc.
+ *
+ * @param {Array} exercises
+ * @returns {Array}
+ */
+export function orderStructureExercisesStable(exercises) {
+  if (!Array.isArray(exercises)) return [];
+  return exercises
+    .map((item, index) => [item, index])
+    .sort(([a, ai], [b, bi]) => {
+      const ka = String(a?.created_at ?? '');
+      const kb = String(b?.created_at ?? '');
+      if (ka !== kb) return ka < kb ? -1 : 1;
+      const idA = String(a?.id ?? '');
+      const idB = String(b?.id ?? '');
+      if (idA !== idB) return idA < idB ? -1 : 1;
+      return ai - bi;
+    })
+    .map(([item]) => item);
+}
+
+/**
+ * Xây kế hoạch gặp Structure trong phiên học dựa trên SRS state của nó.
+ *
+ * @param {object|null} progress - row user_structures của ĐÚNG structure này
+ * @param {Array} exercises - NGÂN HÀNG exercise của ĐÚNG structure đó
+ *                            (caller fetch theo structure_id — planner KHÔNG
+ *                            merge/ngụy tạo dữ liệu nên isolation tự nhiên:
+ *                            output luôn là tập con (theo reference) của input)
+ * @returns {{ mode: 'sequence'|'random', exercises: Array, revealAfterAnswer: boolean }}
+ *   - mode 'sequence': exercises = danh sách ổn định slice(0, 6); ít hơn 6 thì
+ *     dùng số hiện có (KHÔNG duplicate để đủ số); nhiều hơn 6 lấy 6 đầu.
+ *   - mode 'random': exercises = [MỘT bài random] (bank rỗng -> [] — caller xử
+ *     lý skip / no-exercises như trước).
+ *   - revealAfterAnswer=false => phiên là PURE TEST: feedback không reveal
+ *     pattern/meaning/explanation (hint scaffold bị tắt).
+ */
+export function resolveStructureExercisePlan(progress, exercises) {
+  const bank = Array.isArray(exercises) ? exercises.filter(Boolean) : [];
+
+  // Bank rỗng: mode không còn ý nghĩa — để 'random' với exercises [] cho an toàn
+  // (caller kiểm tra độ dài trước khi vào phase exercise).
+  if (bank.length === 0) {
+    return { mode: 'random', exercises: [], revealAfterAnswer: true };
+  }
+
+  // NEW / AGAIN — học/luyện lại đầy đủ qua sequence cố định trước khi chấm.
+  if (isSequentialStructureProgress(progress)) {
+    return {
+      mode: 'sequence',
+      exercises: orderStructureExercisesStable(bank).slice(0, STRUCTURE_SEQUENCE_LIMIT),
+      revealAfterAnswer: true,
+    };
+  }
+
+  // REVIEW — đã tốt nghiệp: random như hiện tại, chỉ khác mức gợi ý sau trả lời.
+  const lastRating = Number(progress?.last_rating);
+  const isPureTest = lastRating === 3 || lastRating === 4; // RATING.GOOD / RATING.EASY
+  return {
+    mode: 'random',
+    exercises: [selectRandomStructureExercise(bank)].filter(Boolean),
+    revealAfterAnswer: !isPureTest,
+  };
+}

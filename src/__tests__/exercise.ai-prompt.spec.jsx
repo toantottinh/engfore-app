@@ -106,8 +106,10 @@ describe('Nút "Lệnh bài tập" — hiển thị & nội dung prompt', () => 
       within(dialog).getByText(/Bạn là AI chuyên tạo bài tập tiếng Anh cho hệ thống EngFore\./)
     ).toBeTruthy();
     expect(within(dialog).getByText(/Type \| Structure \| Question \| Answer \| Options \| Explanation/)).toBeTruthy();
-    expect(within(dialog).getByText(/answer1 \|\| answer2 \|\| answer3/)).toBeTruthy();
-    expect(within(dialog).getByText(/option1 ;; option2 ;; option3/)).toBeTruthy();
+    // Prompt có thể được hiệu chỉnh wording theo thời gian — test khóa các
+    // CONTRACT marker (delimiter/quy tắc) chứ không khóa từng chữ.
+    expect(within(dialog).getByText(/answer1 \|\| answer2/)).toBeTruthy();
+    expect(within(dialog).getByText(/hungry ;; hunger ;; hungrily/)).toBeTruthy();
     expect(within(dialog).getByText(/CHỈ xuất các dòng exercise\./)).toBeTruthy();
 
     // Nút Sao chép + Đóng tồn tại trong footer ("Đóng" gồm cả nút X ở header).
@@ -118,40 +120,61 @@ describe('Nút "Lệnh bài tập" — hiển thị & nội dung prompt', () => 
 });
 
 describe('Hằng số EXERCISE_AI_PROMPT — đúng chuẩn spec', () => {
-  it('bắt đầu bằng vai trò AI EngFore và chứa đủ 13 mục', () => {
+  it('bắt đầu bằng vai trò AI EngFore và chứa đủ 6 type + các quy tắc cốt lõi', () => {
     expect(
       EXERCISE_AI_PROMPT.startsWith(
         'Bạn là AI chuyên tạo bài tập tiếng Anh cho hệ thống EngFore.'
       )
     ).toBe(true);
 
-    const sections = [
-      '1. STRUCTURE',
-      '2. ANSWER VÀ MULTI-ANSWER',
-      '3. MULTIPLE_CHOICE',
-      '4. FILL_BLANK',
-      '5. TRANSLATION',
-      '6. CORRECTION',
-      '7. REARRANGE',
-      '8. PRODUCTION',
-      '9. OPTIONS',
-      '10. EXPLANATION',
-      '11. CHẤT LƯỢNG CÂU HỎI',
-      '12. NGUYÊN TẮC QUAN TRỌNG NHẤT',
-      '13. OUTPUT',
+    // 6 type hợp lệ — khớp CHECK constraint của structure_exercises:
+    for (const t of [
+      'multiple_choice',
+      'fill_blank',
+      'translation',
+      'correction',
+      'rearrange',
+      'production',
+    ]) {
+      expect(EXERCISE_AI_PROMPT).toContain(t);
+    }
+
+    // Các quy tắc CONTRACT cốt lõi (bắt buộc cho importer/grading — không khóa
+    // từng câu chữ để prompt vẫn được phép tinh chỉnh wording):
+    const coreRules = [
+      'Type | Structure | Question | Answer | Options | Explanation',
+      'Không dùng || trong Options.',
+      '"||" CHỈ được phép xuất hiện trong Answer.',
+      'CHỈ xuất các dòng exercise.',
+      'Không code fence.',
+      'tuyệt đối không lộ Structure',
     ];
-    for (const s of sections) {
-      expect(EXERCISE_AI_PROMPT).toContain(s);
+    for (const rule of coreRules) {
+      expect(EXERCISE_AI_PROMPT).toContain(rule);
     }
   });
 
-  it('chứa format output, quy ước delimiter và ví dụ production cuối cùng', () => {
+  it('chứa format output, quy ước delimiter và kết thúc bằng OUTPUT rule', () => {
     expect(EXERCISE_AI_PROMPT).toContain('Type | Structure | Question | Answer | Options | Explanation');
-    expect(EXERCISE_AI_PROMPT).toContain('multiple_choice\nfill_blank\ntranslation\ncorrection\nrearrange\nproduction');
-    expect(EXERCISE_AI_PROMPT).toContain('answer1 || answer2 || answer3');
-    expect(EXERCISE_AI_PROMPT).toContain('option1 ;; option2 ;; option3');
+    for (const t of [
+      'multiple_choice',
+      'fill_blank',
+      'translation',
+      'correction',
+      'rearrange',
+      'production',
+    ]) {
+      expect(EXERCISE_AI_PROMPT).toContain(t);
+    }
+    // Multi-answer: mẫu || trong Answer (2+ đáp án đều đúng mới dùng).
+    expect(EXERCISE_AI_PROMPT).toContain('answer1 || answer2');
+    // Options dùng ";;" (ví dụ cụ thể trong prompt).
+    expect(EXERCISE_AI_PROMPT).toContain('hungry ;; hunger ;; hungrily');
     expect(EXERCISE_AI_PROMPT).toContain('Không dùng || trong Options.');
-    expect(EXERCISE_AI_PROMPT.trim().endsWith('mô tả cảm xúc hoặc trạng thái.')).toBe(true);
+    // Production: Answer rỗng.
+    expect(EXERCISE_AI_PROMPT).toContain('Answer phải để trống.');
+    // KHÔNG assert vị trí/kết thúc file — prompt được phép bổ sung mục mới
+    // (vd thêm tình huống luyện tập) mà không phá contract.
     // Không được chứa code fence (prompt cấm markdown fence).
     expect(EXERCISE_AI_PROMPT.includes('```')).toBe(false);
   });

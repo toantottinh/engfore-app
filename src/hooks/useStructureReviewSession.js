@@ -7,7 +7,7 @@ import {
 } from '../services/structure-learning.service.js';
 import { computeSrsPayload, RATING } from '../services/srs.service.js';
 import { checkExerciseAnswer } from '../utils/structure-exercise-checker.js';
-import { selectRandomStructureExercise } from '../utils/structure-status.js';
+import { resolveStructureExercisePlan } from '../utils/structure-status.js';
 
 // Map UI rating strings -> SRS rating numbers (giống useLearningSession).
 export const RATING_MAP = {
@@ -20,21 +20,33 @@ export const RATING_MAP = {
 /**
  * CK10 — STRUCTURE REVIEW SESSION (tự động, giống Vocabulary Review).
  *
- * User KHÔNG chọn structure. Flow:
+ * User KHÔNG chọn structure. Flow theo ENCOUNTER MODE dựa trên SRS state của
+ * Structure (một Structure = MỘT knowledge item được SRS):
+ *
  *   vào session
  *     -> queue DUE → LEARNING → NEW (getStructureSessionQueue — không đổi)
  *     -> system tự chọn structure kế tiếp
- *     -> random ĐÚNG 1 exercise (selectRandomStructureExercise — không đổi)
- *     -> answer -> feedback (reveal sau submit) -> user rating
- *     -> recordStructureResult() ĐÚNG 1 LẦN
+ *     -> resolveStructureExercisePlan(progress, bank):
+ *          NEW / AGAIN            -> SEQUENCE ≤6 bài theo thứ tự ổn định;
+ *                                    làm xong từng bài mới sang bài kế;
+ *                                    rating CHỈ xuất hiện SAU bài cuối.
+ *          review + last_rating AGAIN/HARD/không rõ -> RANDOM 1 bài guided
+ *                                    (behavior CHECKPOINT 8 giữ nguyên).
+ *          review + last_rating GOOD/EASY           -> RANDOM 1 bài PURE TEST
+ *                                    (không render pattern/hint/scaffold).
+ *     -> answer -> feedback (reveal tùy mode) -> user rating MỘT LẦN/structure
+ *     -> recordStructureResult() ĐÚNG 1 LẦN (persist last_rating cùng thẻ SRS)
  *     -> TỰ ĐỘNG sang structure tiếp theo (không quay về queue)
  *     -> hết hàng -> completion.
  *
- * Invariants giữ nguyên:
- *   - ONE STRUCTURE = MANY EXERCISES (load bằng structure_id UUID)
- *   - ONE SRS REVIEW = ONE RANDOM EXERCISE
- *   - ONE USER ANSWER = ONE FEEDBACK (correctness ≠ rating)
- *   - ONE USER RATING = ONE STRUCTURE SRS UPDATE (chặn double-submit)
+ * Invariants giữ nguyên / mở rộng:
+ *   - ONE STRUCTURE = MANY EXERCISES (load bằng structure_id UUID).
+ *   - SEQUENCE chỉ chứa exercise CỦA structure đó (fetch scoped theo id,
+ *     planner chỉ slice/sort input — isolation giữa các structure tuyệt đối).
+ *   - ONE USER ANSWER = ONE FEEDBACK (correctness ≠ rating). Trả lời sai giữa
+ *     sequence KHÔNG tự chấm lại Structure — vẫn chạy hết sequence rồi chấm.
+ *   - ONE STRUCTURE RATING = ONE SRS UPDATE (chặn double-submit), gọi ở CUỐI
+ *     lượt gặp (sau bài cuối với NEW/AGAIN) — trước đó KHÔNG có UI rating.
  *   - Exercise bank rỗng -> SKIP structure đó (không crash, không rating,
  *     không ghi SRS); nếu TẤT CẢ đều rỗng -> completion với thông báo riêng.
  */
@@ -63,6 +75,13 @@ export function useStructureReviewSession() {
   const posRef = useRef(0);
   const currentRef = useRef(null);
 
+  // Kế hoạch gặp structure hiện tại (sequence/random + revealAfterAnswer).
+  // sequenceIndex = vị trí trong sequence khi mode='sequence'.
+  const [plan, setPlan] = useState(null);
+  const [sequenceIndex, setSequenceIndex] = useState(0);
+  const planRef = useRef(null);
+  const seqIdxRef = useRef(0);
+
   // Preview interval cho từng rating — reuse computeSrsPayload (không hardcode).
   const previewIntervals = useMemo(() => {
     if (!current?.structure) return {};
@@ -90,6 +109,8 @@ export function useStructureReviewSession() {
 
   // Duyệt queue từ startIndex: chọn structure ĐẦU TIÊN có ngân hàng exercise.
   // Structure không có bài tập bị SKIP an toàn (C11) — không rating, không SRS.
+  // Kế hoạch exercise do resolveStructureExercisePlan quyết định THEO SRS STATE:
+  //   NEW/AGAIN -> sequence ≤6 bài ổn định | review -> random 1 bài.
   const startNextFrom = useCallback(async (list, startIndex, previouslySkipped = 0) => {
     let skipped = previouslySkipped;
     for (let i = startIndex; i < list.length; i += 1) {
@@ -98,9 +119,14 @@ export function useStructureReviewSession() {
       const res = await getStructureExercises(structureId);
       const bank = !res.error && Array.isArray(res.data) ? res.data : [];
       if (bank.length > 0) {
+        const nextPlan = resolveStructureExercisePlan(s.user_structures || null, bank);
         posRef.current = i;
         setPosition(i);
-        const payload = { structure: s, exercise: selectRandomStructureExercise(bank) };
+        seqIdxRef.current = 0;
+        setSequenceIndex(0);
+        planRef.current = nextPlan;
+        setPlan(nextPlan);
+        const payload = { structure: s, exercise: nextPlan.exercises[0] || null };
         currentRef.current = payload;
         setCurrent(payload);
         setFeedback(null);
@@ -128,6 +154,11 @@ export function useStructureReviewSession() {
     setCurrent(null);
     setSkippedCount(0);
     setCompletedMessage('');
+    // Reset kế hoạch encounter-mode của lượt trước (nếu có).
+    setPlan(null);
+    setSequenceIndex(0);
+    planRef.current = null;
+    seqIdxRef.current = 0;
 
     try {
       // Queue đã xếp sẵn DUE → LEARNING → NEW (không đổi scheduler).
@@ -175,8 +206,30 @@ export function useStructureReviewSession() {
     [feedback]
   );
 
-  // Sau feedback -> sang rating (vẫn cùng structure).
+  // Sau feedback:
+  //   - đang GIỮA sequence (NEW/AGAIN) -> exercise KẾ TIẾP của chính sequence đó.
+  //     KHÔNG hiển thị rating giữa chừng; answer sai cũng KHÔNG dừng/ngắt sequence
+  //     (rating chỉ diễn ra sau khi hoàn thành toàn bộ bài của lượt gặp).
+  //   - hoàn thành sequence / mode random (1 bài) -> sang rating Structure.
   const proceedAfterFeedback = useCallback(() => {
+    const activePlan = planRef.current;
+    if (
+      activePlan?.mode === 'sequence' &&
+      seqIdxRef.current < activePlan.exercises.length - 1
+    ) {
+      const nextIdx = seqIdxRef.current + 1;
+      seqIdxRef.current = nextIdx;
+      setSequenceIndex(nextIdx);
+      const nextPayload = {
+        structure: currentRef.current.structure,
+        exercise: activePlan.exercises[nextIdx],
+      };
+      currentRef.current = nextPayload;
+      setCurrent(nextPayload);
+      setFeedback(null);
+      setPhase('exercise');
+      return;
+    }
     setPhase((p) => (p === 'exercise' ? 'rating' : p));
   }, []);
 
@@ -233,6 +286,14 @@ export function useStructureReviewSession() {
     totalCount,
     skippedCount,
     completedMessage,
+    // Encounter-mode info cho UI:
+    //   planMode 'sequence' (NEW/AGAIN) | 'random' (HARD/GOOD/EASY)
+    //   sequenceIndex/sequenceTotal -> progress "Bài x/n"
+    //   revealStructure=false -> PURE TEST, không render pattern/hint/scaffold.
+    planMode: plan?.mode ?? null,
+    sequenceIndex,
+    sequenceTotal: plan?.exercises?.length ?? 0,
+    revealStructure: plan ? plan.revealAfterAnswer : true,
     restart: beginSession,
     submitAnswer,
     proceedAfterFeedback,

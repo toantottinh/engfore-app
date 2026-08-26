@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './useAuth.jsx';
 import { getStructureById, getStructureExercises } from '../services/structure.service.js';
 import { recordStructureResult } from '../services/structure-learning.service.js';
 import { computeSrsPayload, RATING } from '../services/srs.service.js';
 import { checkExerciseAnswer } from '../utils/structure-exercise-checker.js';
-import { selectRandomStructureExercise } from '../utils/structure-status.js';
+import { resolveStructureExercisePlan } from '../utils/structure-status.js';
 
 // Map UI rating strings -> SRS rating numbers (giống useLearningSession).
 export const RATING_MAP = {
@@ -15,21 +15,30 @@ export const RATING_MAP = {
 };
 
 /**
- * Hook điều khiển phiên học MỘT Structure (CHECKPOINT 8):
+ * Hook điều khiển phiên học MỘT Structure (CHECKPOINT 8 + ENCOUNTER MODES):
  *
- *   intro -> RANDOM ĐÚNG 1 exercise -> answer -> feedback
- *         -> user tự rating Structure -> complete
+ *   intro -> kế hoạch THEO SRS STATE của structure ->
+ *     NEW / AGAIN              : SEQUENCE tối đa 6 bài theo thứ tự ổn định,
+ *                                xong bài này mới sang bài kế, rating CHỈ sau
+ *                                bài cuối.
+ *     review + last_rating AGAIN/HARD/không rõ : RANDOM ĐÚNG 1 exercise
+ *                                (behavior CHECKPOINT 8 giữ nguyên).
+ *     review + last_rating GOOD/EASY           : RANDOM ĐÚNG 1 exercise,
+ *                                PURE TEST — feedback không reveal pattern.
+ *   -> answer -> feedback -> ... (đủ sequence khi có) -> user tự rating -> complete
  *
- * Invariants (CK8):
+ * Invariants:
  *   - ONE STRUCTURE = MANY EXERCISES: load exercises bằng
  *     `.eq('structure_id', structureId)` (UUID — KHÔNG dùng pattern).
- *   - ONE SRS OCCURRENCE = ONE RANDOM EXERCISE: mỗi phiên chọn ngẫu nhiên
- *     ĐÚNG MỘT bài (random thuần — được phép lặp bài cũ, KHÔNG history /
- *     tracking / weighted / balancing).
- *   - ONE EXERCISE RESULT = ONE STRUCTURE RATING: correctness của exercise
- *     CHỈ là feedback; SRS rating do USER chọn Again/Hard/Good/Easy.
+ *   - KẾ HOẠCH exercise do resolveStructureExercisePlan quyết định từ bank CỦA
+ *     CHÍNH structure đó (planner không merge dữ liệu khác => isolation tuyệt đối).
+ *   - Random thuần V1 cho hàng đã tốt nghiệp: được phép lặp bài cũ, KHÔNG
+ *     history/tracking/weighted/balancing. NEW/AGAIN thì KHÔNG random.
+ *   - ONE EXERCISE RESULT = FEEDBACK ONLY: correctness không tự thành rating;
+ *     sai giữa sequence không dừng/ngắt — người học vẫn làm hết sequence.
  *   - ONE STRUCTURE RATING = ONE SRS UPDATE: recordStructureResult gọi ĐÚNG
- *     1 lần, payload { userId, structureId, rating } — không exercise_id.
+ *     1 lần ở CUỐI lượt gặp, payload { userId, structureId, rating }
+ *     (last_rating được service persist trên cùng thẻ) — không exercise_id.
  *   - Exercise bank rỗng -> phase 'no-exercises': KHÔNG random, KHÔNG rating,
  *     KHÔNG ghi SRS chỉ vì mở session.
  *   - Sau rating: complete. KHÔNG có "structure kế tiếp" trong cùng session;
@@ -45,8 +54,14 @@ export function useStructureSession(structureId) {
   const [structure, setStructure] = useState(null); // detail + progress
   const [exercises, setExercises] = useState([]); // ngân hàng bài tập
 
-  // Exercise duy nhất của phiên này — random MỘT LẦC khi load xong bank.
+  // Exercise hiện tại của phiên — bài ĐẦU trong kế hoạch (sequence hoặc random 1).
   const [currentExercise, setCurrentExercise] = useState(null);
+
+  // Encounter-mode plan + vị trí sequence (mirrored qua ref cho handler).
+  const [plan, setPlan] = useState(null);
+  const [sequenceIndex, setSequenceIndex] = useState(0);
+  const planRef = useRef(null);
+  const seqIdxRef = useRef(0);
 
   // Phase: 'intro' | 'exercise' | 'rating' | 'complete' | 'no-exercises'
   const [phase, setPhase] = useState('intro');
@@ -69,6 +84,10 @@ export function useStructureSession(structureId) {
       setStructure(null);
       setExercises([]);
       setCurrentExercise(null);
+      setPlan(null);
+      setSequenceIndex(0);
+      planRef.current = null;
+      seqIdxRef.current = 0;
 
       if (!user || !structureId) {
         if (active) {
@@ -94,8 +113,18 @@ export function useStructureSession(structureId) {
         const bank = exRes.data || [];
         setStructure(dRes.data);
         setExercises(bank);
-        // Random đúng MỘT exercise cho cả phiên — chọn 1 lần, giữ nguyên.
-        setCurrentExercise(selectRandomStructureExercise(bank));
+        // Kế hoạch exercise THEO SRS STATE của structure (một knowledge item):
+        //   NEW/AGAIN -> sequence ≤6 bài ổn định | review -> random 1 bài.
+        const nextPlan = resolveStructureExercisePlan(
+          dRes.data.user_structures || null,
+          bank
+        );
+        planRef.current = nextPlan;
+        seqIdxRef.current = 0;
+        if (!active) return;
+        setPlan(nextPlan);
+        setSequenceIndex(0);
+        setCurrentExercise(nextPlan.exercises[0] || null);
       } catch (e) {
         if (active) {
           if (import.meta.env.DEV) {
@@ -161,9 +190,24 @@ export function useStructureSession(structureId) {
     [currentExercise, feedback]
   );
 
-  // Sau feedback -> sang rating (KHÔNG còn "exercise kế tiếp" trong phiên).
+  // Sau feedback:
+  //   - giữa sequence (NEW/AGAIN) -> exercise kế tiếp CỦA sequence, KHÔNG cho
+  //     rating giữa chừng (answer sai không dừng/ngắt sequence).
+  //   - hết sequence / mode random -> sang rating Structure (đúng 1 lần cuối lượt).
   const proceedAfterFeedback = useCallback(() => {
     if (phase !== 'exercise') return;
+    const activePlan = planRef.current;
+    if (
+      activePlan?.mode === 'sequence' &&
+      seqIdxRef.current < activePlan.exercises.length - 1
+    ) {
+      const nextIdx = seqIdxRef.current + 1;
+      seqIdxRef.current = nextIdx;
+      setSequenceIndex(nextIdx);
+      setCurrentExercise(activePlan.exercises[nextIdx]);
+      setFeedback(null);
+      return;
+    }
     setPhase('rating');
     setFeedback(null);
   }, [phase]);
@@ -204,6 +248,11 @@ export function useStructureSession(structureId) {
     isRating,
     ratingError,
     lastReviewResult,
+    // Encounter-mode info cho UI (xem useStructureReviewSession):
+    planMode: plan?.mode ?? null,
+    sequenceIndex,
+    sequenceTotal: plan?.exercises?.length ?? 0,
+    revealStructure: plan ? plan.revealAfterAnswer : true,
     startSession,
     submitAnswer,
     proceedAfterFeedback,

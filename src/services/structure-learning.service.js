@@ -28,6 +28,9 @@ import { buildStructureSessionQueue } from '../utils/structure-status.js';
  *   - Rating model tái sử dụng từ Vocabulary: RATING AGAIN/HARD/GOOD/EASY,
  *     áp dụng MỘT lần sau khi hoàn thành exercise set của structure
  *     (self-rating UX — không tự map wrong/correct thành rating).
+ *     Rating vừa chọn được LƯU VÀO user_structures.last_rating (cùng thẻ SRS,
+ *     không tạo thẻ mới) để lần gặp kế tiếp phân biệt behavior:
+ *       AGAIN/HARD/không rõ -> random guided  |  GOOD/EASY -> random pure test.
  */
 
 const STRUCTURE_CORE_SELECT = 'id, pattern, meaning, explanation, cefr, topic, created_at';
@@ -117,6 +120,11 @@ export async function recordStructureResult({ userId, structureId, rating }) {
       interval_hours: srs.interval_hours,
       ease_factor: srs.ease_factor,
       lapses: srs.lapses,
+      // Persist rating người dùng vừa chọn (0=Again, 2=Hard, 3=Good, 4=Easy)
+      // trên CÙNG thẻ SRS để phiên học kế phân biệt HARD vs GOOD/EASY. Đây là
+      // metadata buổi gặp, KHÔNG phải field scheduler — computeSrsPayload giữ
+      // nguyên hoàn toàn.
+      last_rating: Number(rating),
       review_count: currentReviewCount + 1,
       review_due_at: srs.review_due_at,
       last_reviewed_at: srs.last_reviewed_at,

@@ -169,8 +169,17 @@ export function ExerciseRenderer({ exercise, feedback, onSubmit }) {
 // Trước submit: KHÔNG hiển thị structure/đáp án/hint.
 // Sau submit: verdict -> câu trả lời của user -> đáp án/reference
 //   -> REVEAL Structure (pattern + meaning + explanation).
-// Correctness CHỈ hiển thị — SRS rating vẫn do user chọn bên dưới.
-export function FeedbackView({ exercise, feedback, structure, onNext }) {
+//
+// `revealStructure` (default true): tắt panel reveal ở các phiên PURE TEST
+// (GOOD/EASY — random test không gợi ý). Per-exercise feedback (verdict/đáp án)
+// vẫn hiển thị vì đó là kết quả của bài VỪA trả lời, không dẫn dắt đáp án mới.
+export function FeedbackView({
+  exercise,
+  feedback,
+  structure,
+  onNext,
+  revealStructure = true,
+}) {
   const result = feedback?.result;
   if (!result) return null;
 
@@ -212,8 +221,10 @@ export function FeedbackView({ exercise, feedback, structure, onNext }) {
           </div>
         ))}
 
-      {/* REVEAL cấu trúc — CHỈ sau khi đã trả lời */}
-      {structure && (
+      {/* REVEAL cấu trúc — CHỈ sau khi đã trả lời; PURE TEST (GOOD/EASY)
+          KHÔNG render block này: phiên là bài kiểm tra phản xạ, không dạy lại
+          công thức/pattern ngay sau mỗi lần test. */}
+      {revealStructure !== false && structure && (
         <div className="rounded-lg border border-border-color bg-surface p-3">
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
             Cấu trúc
