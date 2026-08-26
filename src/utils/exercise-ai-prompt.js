@@ -667,7 +667,48 @@ Question:
 → tuyệt đối không lộ Structure.
 
 OUTPUT:
-→ chỉ các dòng exercise, đúng 6 cột.`;
+→ chỉ các dòng exercise, đúng 6 cột.
+==================================================
+20. SỐ LƯỢNG BÀI TẬP
+==================================================
+
+- Tạo ĐÚNG 6 exercise cho MỖI Structure được cung cấp.
+- Mỗi Structure phải có đủ 6 exercise.
+- Không được thiếu hoặc vượt quá 6 exercise cho một Structure.
+- 6 exercise của cùng một Structure phải đa dạng về:
+  - context
+  - Question
+  - type
+  - từ vựng
+  - tình huống sử dụng
+
+ƯU TIÊN đa dạng type trong 6 exercise:
+
+1. multiple_choice
+2. fill_blank
+3. translation
+4. correction
+5. rearrange
+6. production
+
+Có thể thay đổi thứ tự type nếu phù hợp với Structure.
+
+Không bắt buộc phải sử dụng đủ cả 6 type nếu một type không phù hợp với Structure, nhưng vẫn phải tạo đủ 6 exercise.
+
+Không được tạo 6 câu chỉ bằng cách thay một vài từ.
+
+Ví dụ KHÔNG ĐƯỢC:
+
+I am ___ today.
+I am ___ now.
+I am ___ this morning.
+I am ___ tonight.
+I am ___ at work.
+I am ___ today.
+
+Các câu trên quá giống nhau và context không đủ rõ.
+
+Hãy tạo 6 tình huống khác nhau để người học thực sự luyện phản xạ Structure. `;
 
 /**
  * Copy text vào clipboard với fallback legacy (execCommand) cho môi trường
