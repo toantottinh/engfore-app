@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import StructureReview from '../pages/StructureReview/index.jsx';
@@ -383,6 +383,142 @@ describe('Structure Review Session (CK10)', () => {
 async function waitForQueueReload() {
   await waitFor(() => expect(getStructureSessionQueueMock).toHaveBeenCalledTimes(2));
 }
+
+// Helper cho test 34: chờ "Học tiếp" trigger reload queue (lần gọi thứ 2).
+async function waitForQueueReload() {
+  await waitFor(() => expect(getStructureSessionQueueMock).toHaveBeenCalledTimes(2));
+}
+
+// ------------------------------------------------------------------
+// KEYBOARD SHORTCUTS — Enter / Space = nút "Tiếp tục".
+//
+//   37. Enter khi đã trả lời -> Next (sang rating).
+//   38. Space khi đã trả lời -> Next + preventDefault (chặn scroll).
+//   39/40. Chưa trả lời -> Enter/Space KHÔNG làm gì.
+//   41. Focus trong input -> KHÔNG kích hoạt Next; Space vẫn là dấu cách
+//       (preventDefault KHÔNG được gọi).
+//   42. Listener cleanup sau unmount -> keydown không còn tác dụng.
+// ------------------------------------------------------------------
+describe('Structure Review — phím tắt Enter/Space = Tiếp tục', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getStructureSessionQueueMock.mockResolvedValue({ data: QUEUE, error: null });
+    setupBanks(DEFAULT_BANKS);
+  });
+  afterEach(() => cleanup());
+
+  // Đưa phiên tới trạng thái "đã trả lời + feedback hiển thị" (nút Tiếp tục sẵn sàng).
+  async function reachFeedback(user) {
+    const view = mount();
+    await screen.findByText('MC-DUE?');
+    await user.click(screen.getByRole('radio', { name: 'Đáp án đúng DUE' }));
+    await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
+    await screen.findByText(/✅ Chính xác/);
+    expect(screen.getByRole('button', { name: /Tiếp tục/ })).toBeTruthy();
+    return view;
+  }
+
+  it('37. Enter khi đã trả lời -> Next (chuyển sang màn rating)', async () => {
+    const user = userEvent.setup();
+    await reachFeedback(user);
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    // Cùng hành động với nút "Tiếp tục": sang rating, KHÔNG ghi SRS ở bước này.
+    expect(await screen.findByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeTruthy();
+    expect(recordStructureResultMock).not.toHaveBeenCalled();
+  });
+
+  it("38. Space khi đã trả lời -> Next + preventDefault đúng 1 lần", async () => {
+    const user = userEvent.setup();
+    await reachFeedback(user);
+
+    const evt = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    const pdSpy = vi.spyOn(evt, 'preventDefault');
+    window.dispatchEvent(evt);
+
+    expect(pdSpy).toHaveBeenCalledTimes(1); // chặn scroll trang khi kích hoạt
+    expect(await screen.findByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeTruthy();
+  });
+
+  it('39-40. CHƯA trả lời -> Enter/Space không gây Next', async () => {
+    mount();
+    await screen.findByText('MC-DUE?');
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+    fireEvent.keyDown(window, { key: ' ' });
+
+    // Vẫn đang ở exercise — chưa có feedback/rating:
+    expect(screen.getByText('MC-DUE?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Tiếp tục/ })).toBeNull();
+    expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
+    expect(recordStructureResultMock).not.toHaveBeenCalled();
+  });
+
+  it('41. focus trong input -> Enter/Space KHÔNG Next; Space vẫn là dấu cách', async () => {
+    const user = userEvent.setup();
+    await reachFeedback(user);
+
+    // Gắn input thật vào document, focus và dispatch keydown TRÊN input
+    // (event bubbles lên window với target=input -> handler phải bỏ qua).
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    const enterEvt = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    const enterPd = vi.spyOn(enterEvt, 'preventDefault');
+    input.dispatchEvent(enterEvt);
+
+    const spaceEvt = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+    const spacePd = vi.spyOn(spaceEvt, 'preventDefault');
+    input.dispatchEvent(spaceEvt);
+
+    // Vẫn đang ở feedback — KHÔNG chuyển sang rating:
+    expect(screen.getByRole('button', { name: /Tiếp tục/ })).toBeTruthy();
+    expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
+    // preventDefault KHÔNG được gọi (đặc biệt Space phải nhập được dấu cách):
+    expect(enterPd).not.toHaveBeenCalled();
+    expect(spacePd).not.toHaveBeenCalled();
+
+    input.remove();
+  });
+
+  it('41b. focus trong select/contenteditable -> cũng bỏ qua phím tắt', async () => {
+    const user = userEvent.setup();
+    await reachFeedback(user);
+
+    const select = document.createElement('select');
+    document.body.appendChild(select);
+    select.focus();
+
+    const editable = document.createElement('div');
+    editable.setAttribute('contenteditable', 'true');
+    document.body.appendChild(editable);
+    editable.focus();
+
+    fireEvent.keyDown(select, { key: 'Enter' });
+    fireEvent.keyDown(select, { key: ' ' });
+    fireEvent.keyDown(editable, { key: 'Enter' });
+    fireEvent.keyDown(editable, { key: ' ' });
+
+    expect(screen.getByRole('button', { name: /Tiếp tục/ })).toBeTruthy();
+    expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
+
+    select.remove();
+    editable.remove();
+  });
+
+  it('42. unmount -> listener được cleanup (keydown sau unmount vô hại)', async () => {
+    const user = userEvent.setup();
+    const view = await reachFeedback(user);
+    view.unmount();
+
+    expect(() => {
+      fireEvent.keyDown(window, { key: 'Enter' });
+      fireEvent.keyDown(window, { key: ' ' });
+    }).not.toThrow();
+  });
+});
 
 
 

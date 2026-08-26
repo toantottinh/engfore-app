@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStructureReviewSession } from '../../hooks/useStructureReviewSession.js';
 import {
@@ -23,6 +23,50 @@ import Alert from '../../components/ui/Alert.jsx';
  */
 export default function StructureReview() {
   const h = useStructureReviewSession();
+
+  // ------------------------------------------------------------------
+  // Phím tắt Enter / Space = nút "Tiếp tục".
+  //
+  // Điều kiện kích hoạt (đúng spec):
+  //   1. Đang ở màn Ôn tập cấu trúc (component này).
+  //   2. Câu hỏi đã trả lời & kết quả đang hiển thị
+  //      (phase === 'exercise' && feedback.submitted — lúc đó FeedbackView
+  //       cùng nút "Tiếp tục" mới được render).
+  //   3. Nút khả dụng — proceedAfterFeedback() chính là handler của nút,
+  //      được reuse trực tiếp (KHÔNG tạo flow Next riêng), đồng thời nó
+  //      idempotent (setPhase guarded) nên nhấn lặp cũng an toàn.
+  //
+  // Không xung đột input: nếu focus nằm trong input/textarea/select hoặc
+  // phần tử contenteditable thì bỏ qua — đặc biệt giữ nguyên dấu cách (Space)
+  // khi người dùng đang gõ câu trả lời.
+  //
+  // preventDefault CHỈ gọi khi phím tắt thực sự kích hoạt (chặn scroll trang
+  // cho Space). Listener được cleanup khi unmount/khi điều kiện đổi.
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (!(h.phase === 'exercise' && h.feedback?.submitted)) return undefined;
+
+    const isEditableTarget = (el) => {
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName.toLowerCase();
+      return (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        el.isContentEditable === true
+      );
+    };
+
+    const handleKey = (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (isEditableTarget(e.target)) return;
+      e.preventDefault();
+      h.proceedAfterFeedback();
+    };
+
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [h.phase, h.feedback, h.proceedAfterFeedback]);
 
   // ===== LOADING / ADVANCING =====
   if (h.phase === 'loading' || h.phase === 'advancing') {
