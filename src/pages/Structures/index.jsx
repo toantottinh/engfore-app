@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStructures } from '../../hooks/useStructures.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
-import { deleteStructure } from '../../services/structure.service.js';
+import { deleteStructures } from '../../services/structure.service.js';
 import { CEFR_LEVELS } from '../../utils/cefr.js';
 import {
   deriveStructureStatus,
@@ -20,15 +20,33 @@ import Modal from '../../components/ui/Modal.jsx';
 // Emoji trạng thái theo spec (🟢/🔴/🟡).
 const STATUS_EMOJI = { new: '🟢', again: '🔴', review: '🟡' };
 
-function StructureCard({ s, onDelete }) {
+function StructureCard({ s, selectable, checked, onToggle }) {
   const { key, label } = deriveStructureStatus(s.user_structures || null);
   const hasProgress = Boolean(s.user_structures);
   const mastery = s.user_structures?.mastery_level;
 
   return (
-    <div className="flex flex-col rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg">
-      {/* Toàn bộ nội dung chính vẫn điều hướng tới trang detail */}
-      <Link to={`/structures/${s.id}`} className="block">
+    <div className="flex gap-3 rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg">
+      {/* Checkbox chọn để xóa hàng loạt (chỉ render khi selectable=admin).
+          Đặt NGOÀI Link + stopPropagation: tick checkbox KHÔNG mở detail. */}
+      {selectable && (
+        <label
+          className="flex shrink-0 cursor-pointer items-start pt-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={() => onToggle(s.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+            aria-label={`Chọn cấu trúc ${s.pattern}`}
+          />
+        </label>
+      )}
+
+      {/* Nội dung chính điều hướng tới trang detail */}
+      <Link to={`/structures/${s.id}`} className="block min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold text-text-primary">{s.pattern}</h3>
@@ -54,21 +72,6 @@ function StructureCard({ s, onDelete }) {
           )}
         </div>
       </Link>
-
-      {/* Hành động quản trị (chỉ admin — backend RLS vẫn là lớp bảo mật chính) */}
-      {onDelete && (
-        <div className="mt-3 flex justify-end border-t border-border-color/60 pt-2">
-          <button
-            type="button"
-            onClick={() => onDelete(s)}
-            className="rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
-            title={`Xóa cấu trúc ${s.pattern}`}
-            aria-label={`Xóa cấu trúc ${s.pattern}`}
-          >
-            Xóa
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -83,35 +86,46 @@ export default function Structures() {
   const [topic, setTopic] = useState('');
   const [status, setStatus] = useState('all');
 
-  // ---- Xóa cấu trúc ----
-  // deleteTarget: structure đang chờ xác nhận (KHÔNG xóa ngay khi bấm nút).
-  // deleting: cờ double-submit guard — chặn double click tạo 2 request.
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  // ---- Chọn & xóa NHIỀU cấu trúc ----
+  // selectedIds : các id đang được tick checkbox.
+  // confirmOpen : confirmation modal đang mở? (KHÔNG xóa ngay khi tick/bấm)
+  // deleting    : double-submit guard — chặn double click tạo 2 request.
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const openDeleteModal = (s) => {
+  const toggleSelect = (id) => {
     setSuccessMsg('');
-    setDeleteError('');
-    setDeleteTarget(s);
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
-  const closeDeleteModal = () => {
-    if (deleting) return; // đang xử lý -> không cho đóng giữa chừng
-    setDeleteTarget(null);
+  const openBulkDeleteModal = () => {
+    if (selectedIds.length === 0 || deleting) return;
+    setSuccessMsg('');
     setDeleteError('');
+    setConfirmOpen(true);
+  };
+
+  const closeBulkDeleteModal = () => {
+    if (deleting) return; // đang xử lý -> không cho đóng giữa chừng
+    setConfirmOpen(false);
+    setDeleteError('');
+    // GIỮ selection khi đóng modal (kể cả sau lỗi) để user thử lại.
   };
 
   const handleConfirmDelete = async () => {
-    if (!deleteTarget || deleting) return; // chặn double click / double submit
+    if (selectedIds.length === 0 || deleting) return; // chặn double submit
     setDeleting(true);
     setDeleteError('');
 
-    const { id, pattern } = deleteTarget;
     let result;
     try {
-      result = await deleteStructure(id);
+      // MỘT request duy nhất cho toàn bộ selection (bulk .in(...)).
+      result = await deleteStructures(selectedIds);
     } catch (e) {
       // Phòng thủ: service về nguyên tắc không throw, nhưng không được âm thầm
       // bỏ qua lỗi nếu có exception thoát ra.
@@ -120,7 +134,8 @@ export default function Structures() {
     const deleteErr = result?.error;
 
     if (deleteErr) {
-      // KHÔNG silent failure — hiển thị nguyên nhân cụ thể nếu backend trả về.
+      // KHÔNG silent failure — hiển thị nguyên nhân cụ thể nếu backend trả về,
+      // GIỮ nguyên selection để user sửa/trả lời rồi thử lại.
       if (import.meta.env.DEV) {
         console.error('[Structures] Xóa cấu trúc thất bại:', deleteErr);
       }
@@ -133,10 +148,12 @@ export default function Structures() {
       return;
     }
 
+    const deletedCount = selectedIds.length;
     setDeleting(false);
-    setDeleteTarget(null);
-    setSuccessMsg(`Đã xóa cấu trúc "${pattern}".`);
-    await load(); // cập nhật danh sách ngay sau khi xóa thành công
+    setConfirmOpen(false);
+    setSelectedIds([]); // clear selection sau khi xóa thành công
+    setSuccessMsg(`Đã xóa ${deletedCount} cấu trúc.`);
+    await load(); // reload danh sách ngay sau khi xóa thành công
   };
 
   const topics = useMemo(() => distinctStructureTopics(structures), [structures]);
@@ -148,6 +165,21 @@ export default function Structures() {
     () => filterStructures(structures, { search, cefr, topic, status }),
     [structures, search, cefr, topic, status]
   );
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((s) => selectedIds.includes(s.id));
+
+  const toggleSelectAll = () => {
+    setSuccessMsg('');
+    if (allFilteredSelected) {
+      // Bỏ chọn các item đang hiển thị (giữ selection ngoài filter nếu có).
+      setSelectedIds((prev) =>
+        prev.filter((id) => !filtered.some((s) => s.id === id))
+      );
+    } else {
+      setSelectedIds((prev) => [...new Set([...prev, ...filtered.map((s) => s.id)])]);
+    }
+  };
 
   if (loading) {
     return (
@@ -170,19 +202,20 @@ export default function Structures() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-text-primary">Cấu trúc câu</h1>
 
-        {/* Admin-only entry points — điều hướng tới trang import hiện có
-            (cùng pattern với Vocabulary: /vocabulary -> /vocabulary/import).
-            Backend RPC guards vẫn là lớp bảo mật cuối cùng. */}
-        {isAdmin && (
-          <div className="flex items-center gap-2">
+        {/* Entry points:
+            - "Nhập bài tập": MỌI user đăng nhập — authoring nội dung học tập
+              trên shared bank (backend RPC/RLS guard: authenticated).
+            - "Nhập kiến thức": tạo global structure mới -> admin-only. */}
+        <div className="flex items-center gap-2">
+          <Link to="/structures/exercises/import">
+            <Button variant="secondary">Nhập bài tập</Button>
+          </Link>
+          {isAdmin && (
             <Link to="/structures/import">
               <Button variant="secondary">Nhập kiến thức</Button>
             </Link>
-            <Link to="/structures/exercises/import">
-              <Button variant="secondary">Nhập bài tập</Button>
-            </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Thông báo thành công sau khi xóa cấu trúc */}
@@ -250,6 +283,34 @@ export default function Structures() {
         </div>
       </div>
 
+      {/* Toolbar chọn/xóa hàng loạt — chỉ admin (global content management;
+          backend RLS vẫn là lớp bảo mật chính). Nút xóa disabled khi chưa chọn. */}
+      {isAdmin && structures.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-color bg-surface p-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" size="sm" onClick={toggleSelectAll}>
+              {allFilteredSelected ? 'Bỏ chọn' : 'Chọn tất cả'}
+            </Button>
+            <span className="text-xs text-text-secondary">
+              Đã chọn {selectedIds.length}/{structures.length}
+            </span>
+          </div>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={selectedIds.length === 0}
+            onClick={openBulkDeleteModal}
+            title={
+              selectedIds.length === 0 ? 'Hãy chọn ít nhất một cấu trúc.' : undefined
+            }
+          >
+            {selectedIds.length > 0
+              ? `Xóa ${selectedIds.length} cấu trúc`
+              : 'Xóa cấu trúc đã chọn'}
+          </Button>
+        </div>
+      )}
+
       {/* Danh sách */}
       {structures.length === 0 ? (
         <EmptyState
@@ -269,21 +330,22 @@ export default function Structures() {
             <StructureCard
               key={s.id}
               s={s}
-              // Chỉ admin thấy nút Xóa (backend RLS vẫn là lớp bảo mật chính).
-              onDelete={isAdmin ? openDeleteModal : undefined}
+              selectable={isAdmin}
+              checked={selectedIds.includes(s.id)}
+              onToggle={toggleSelect}
             />
           ))}
         </div>
       )}
 
-      {/* Confirmation modal — KHÔNG xóa ngay khi bấm nút Xóa trên card */}
+      {/* Confirmation modal — KHÔNG xóa ngay khi bấm nút trên toolbar */}
       <Modal
-        open={Boolean(deleteTarget)}
-        onClose={closeDeleteModal}
+        open={confirmOpen}
+        onClose={closeBulkDeleteModal}
         title="Xóa cấu trúc"
         footer={
           <>
-            <Button variant="secondary" onClick={closeDeleteModal} disabled={deleting}>
+            <Button variant="secondary" onClick={closeBulkDeleteModal} disabled={deleting}>
               Hủy
             </Button>
             <Button variant="danger" onClick={handleConfirmDelete} loading={deleting}>
@@ -292,24 +354,26 @@ export default function Structures() {
           </>
         }
       >
-        {deleteTarget && (
+        {selectedIds.length > 0 && (
           <div className="space-y-3">
-            <p className="text-sm text-text-primary">Bạn có chắc muốn xóa cấu trúc này?</p>
-            <p className="rounded-lg bg-surface-hover px-3 py-2 text-base font-bold text-text-primary">
-              {deleteTarget.pattern}
+            <p className="text-sm text-text-primary">
+              Bạn có chắc muốn xóa các cấu trúc đã chọn?
             </p>
-            {(deleteTarget.exercise_count > 0 || deleteTarget.user_structures) && (
-              <p className="text-xs text-text-secondary">
-                Cấu trúc này đang có dữ liệu sử dụng
-                {deleteTarget.exercise_count > 0
-                  ? ` (${deleteTarget.exercise_count} bài tập)`
-                  : ''}
-                {deleteTarget.user_structures ? ' và tiến độ học của bạn' : ''}.
-              </p>
-            )}
+            <p className="text-sm font-medium text-text-primary">
+              Bạn đang chọn {selectedIds.length} cấu trúc:
+            </p>
+            <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-surface-hover px-3 py-2 text-sm text-text-primary">
+              {structures
+                .filter((s) => selectedIds.includes(s.id))
+                .map((s) => (
+                  <li key={s.id} className="font-medium">
+                    • {s.pattern}
+                  </li>
+                ))}
+            </ul>
             <p className="text-sm text-text-secondary">
-              Nếu cấu trúc có bài tập hoặc dữ liệu học tập, các dữ liệu liên quan sẽ được xử lý
-              theo quy tắc an toàn của hệ thống.
+              Thao tác này sẽ xóa các cấu trúc đã chọn cùng các dữ liệu phụ thuộc của chúng theo
+              quy tắc an toàn của hệ thống.
             </p>
             {deleteError && <Alert type="error" message={deleteError} />}
           </div>

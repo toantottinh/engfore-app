@@ -73,10 +73,14 @@ export default function AppRoutes() {
             <Route path="structures/session" element={<StructureReview />} />
           </Route>
 
-          {/* Sentence Structures — global content, chỉ admin được import */}
+          {/* Sentence Structures:
+              - /structures/import (knowledge) là global content -> admin-only.
+              - /structures/exercises/import mở cho MỌI user đăng nhập: user tự
+                soạn/nhập bài tập vào shared practice bank (RLS INSERT policy +
+                RPC guard cho phép authenticated — migration 20260831000000). */}
+          <Route path="/structures/exercises/import" element={<ExerciseImport />} />
           <Route element={<AdminRoute />}>
             <Route path="/structures/import" element={<StructureImport />} />
-            <Route path="/structures/exercises/import" element={<ExerciseImport />} />
           </Route>
 
           {/* Structure Library (cho mọi user đăng nhập) */}

@@ -62,12 +62,13 @@ function AnswerCell({ value, onChange }) {
 }
 
 /**
- * [ADMIN] Import Exercises cho Sentence Structures.
- * Paste content -> Parse -> Validate theo type -> Preview -> Import qua
- * RPC import_structure_exercises (append-only). Mirror flow StructureImport.
+ * Import Exercises cho Sentence Structures — mở cho MỌI user đăng nhập
+ * (authoring nội dung học tập trên shared practice bank). Paste content ->
+ * Parse -> Validate theo type -> Preview -> Import qua RPC
+ * import_structure_exercises (append-only; backend guard: authenticated).
  */
 export default function ExerciseImport() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   // Danh sách Structure/Knowledge cho dropdown (tái sử dụng hook Library).
   const { structures, load: reloadStructures } = useStructures();
 
@@ -119,8 +120,8 @@ export default function ExerciseImport() {
     setError('');
     setSuccess('');
 
-    if (!user || !isAdmin) {
-      setError('Chỉ admin mới được import bài tập.');
+    if (!user) {
+      setError('Bạn cần đăng nhập để nhập bài tập.');
       return;
     }
     if (!text.trim()) {
@@ -162,7 +163,7 @@ export default function ExerciseImport() {
       typeCounts,
     });
     setPreviewed(true);
-  }, [text, user, isAdmin, selectedStructure, structures]);
+  }, [text, user, selectedStructure, structures]);
 
   // Mọi edit đều REVALIDATE row ngay lập tức (yêu cầu CP3) + RE-RESOLVE
   // Structure (admin có thể sửa tay ô "structure"). resolveExerciseStructures
@@ -197,8 +198,8 @@ export default function ExerciseImport() {
   const handleImport = async () => {
     setError('');
     setSuccess('');
-    if (!user || !isAdmin) {
-      setError('Chỉ admin mới được import bài tập.');
+    if (!user) {
+      setError('Bạn cần đăng nhập để nhập bài tập.');
       return;
     }
     if (previewRows.length === 0) {
@@ -225,7 +226,8 @@ export default function ExerciseImport() {
     setImporting(true);
     try {
       // Tất cả rows đều hợp lệ -> gửi TẤT CẢ tới RPC. Mỗi row mang pattern của
-      // structure mà NÓ khai báo; RPC resolve pattern -> structure_id (admin-only).
+      // structure mà NÓ khai báo; RPC resolve pattern -> structure_id (guard:
+      // authenticated — xem migration 20260831000000).
       const payload = toExerciseImportPayload(previewRows);
       const { error: rpcError, meta } = await importStructureExercises({ exercises: payload });
       if (rpcError) throw rpcError;
@@ -259,10 +261,10 @@ export default function ExerciseImport() {
     return `- ${msgs.join('; ')}`;
   });
 
-  if (!isAdmin) {
+  if (!user) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <Alert type="error" message="Trang này chỉ dành cho admin." />
+        <Alert type="error" message="Bạn cần đăng nhập để nhập bài tập." />
       </div>
     );
   }

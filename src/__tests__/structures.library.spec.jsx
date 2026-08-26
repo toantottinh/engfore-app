@@ -14,8 +14,8 @@ import { AuthProvider } from '../hooks/useAuth.jsx';
 const getStructuresForUserMock = vi.fn();
 // Điều khiển được per-test: { data: { role: 'user'|'admin' } | null }
 const ensureProfileMock = vi.fn(async () => ({ data: null, error: null }));
-// Delete structure (mặc định thành công; các test xóa chi tiết nằm ở structures.delete.spec.jsx)
-const deleteStructureMock = vi.fn(async () => ({ data: [{ id: 's1' }], error: null }));
+// Bulk delete structure (mặc định thành công; chi tiết ở structures.delete.spec.jsx)
+const deleteStructuresMock = vi.fn(async () => ({ data: [{ id: 's1' }], error: null }));
 
 vi.mock('../services/auth.service.js', () => ({
   authService: {
@@ -27,7 +27,7 @@ vi.mock('../services/auth.service.js', () => ({
 
 vi.mock('../services/structure.service.js', () => ({
   getStructuresForUser: (...args) => getStructuresForUserMock(...args),
-  deleteStructure: (...args) => deleteStructureMock(...args),
+  deleteStructures: (...args) => deleteStructuresMock(...args),
 }));
 
 const USER = { id: 'user-1', email: 'test@example.com' };
@@ -225,11 +225,13 @@ describe('Structures Library — Admin Import entry', () => {
   });
   afterEach(() => cleanup());
 
-  it('non-admin KHÔNG thấy "Nhập kiến thức"/"Nhập bài tập"', async () => {
+  it('non-admin KHÔNG thấy "Nhập kiến thức" NHƯNG VẪN thấy "Nhập bài tập"', async () => {
+    // "Nhập bài tập" là authoring learning content -> mở cho mọi user;
+    // chỉ "Nhập kiến thức" (tạo global structure mới) là admin-only.
     mountLibrary();
     await screen.findByText('I want to + V'); // list đã load, profile=user
     expect(screen.queryByRole('link', { name: /Nhập kiến thức/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Nhập bài tập/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /Nhập bài tập/ })).toBeTruthy();
   });
 
   it('admin THẤY cả hai hành động nhập', async () => {

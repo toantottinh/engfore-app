@@ -7,16 +7,21 @@ import Structures from '../pages/Structures/index.jsx';
 import { AuthProvider } from '../hooks/useAuth.jsx';
 
 // ------------------------------------------------------------------
-// Tests cho chức năng XÓA CẤU TRÚC trong trang /structures:
-//   - Chỉ admin thấy nút Xóa (UI gate; backend RLS là lớp bảo mật chính).
-//   - Bấm Xóa KHÔNG xóa ngay -> confirmation modal hiển thị đúng structure.
-//   - Hủy -> không gọi service. Xác nhận -> gọi service ĐÚNG 1 lần với id.
-//   - Success -> message + danh sách được tải lại. Failure -> báo lỗi rõ ràng.
-//   - Double click / double submit chỉ tạo MỘT request.
+// Tests cho CHỌN + XÓA NHIỀU cấu trúc trên /structures:
+//   D/E. tick checkbox chọn 1 / nhiều structure.
+//   F.   nút xóa disabled khi chưa chọn gì.
+//   G/H. enabled kèm đúng số lượng ("Xóa N cấu trúc", "Đã chọn N/M").
+//   I.   Chọn tất cả / Bỏ chọn.
+//   J.   Hủy -> không gọi service, giữ selection.
+//   K.   Xác nhận -> MỘT request bulk với đúng ids; clear selection; reload.
+//   L.   Double-click -> chỉ 1 request.
+//   N.   Lỗi -> báo rõ nguyên nhân trong modal + GIỮ selection.
+//   O.   Non-admin KHÔNG có công cụ xóa (RLS backend vẫn chặn tuyệt đối).
+// Checkbox đặt ngoài Link: tick KHÔNG điều hướng sang trang detail.
 // ------------------------------------------------------------------
 
 const getStructuresForUserMock = vi.fn();
-const deleteStructureMock = vi.fn();
+const deleteStructuresMock = vi.fn();
 const ensureProfileMock = vi.fn(async () => ({ data: null, error: null }));
 
 vi.mock('../services/auth.service.js', () => ({
@@ -29,7 +34,7 @@ vi.mock('../services/auth.service.js', () => ({
 
 vi.mock('../services/structure.service.js', () => ({
   getStructuresForUser: (...args) => getStructuresForUserMock(...args),
-  deleteStructure: (...args) => deleteStructureMock(...args),
+  deleteStructures: (...args) => deleteStructuresMock(...args),
 }));
 
 const USER = { id: 'user-1', email: 'admin@example.com' };
@@ -43,7 +48,7 @@ const STRUCTURES = [
     topic: 'Daily Life',
     example_count: 3,
     exercise_count: 5,
-    user_structures: { state: 'learning', mastery_level: 2 },
+    user_structures: null,
   },
   {
     id: 's2',
@@ -52,6 +57,16 @@ const STRUCTURES = [
     cefr: 'B1',
     topic: 'Home',
     example_count: 2,
+    exercise_count: 0,
+    user_structures: { state: 'review', mastery_level: 4 },
+  },
+  {
+    id: 's3',
+    pattern: 'I used to + V',
+    meaning: 'Tôi từng...',
+    cefr: 'B1',
+    topic: 'Daily Life',
+    example_count: 1,
     exercise_count: 0,
     user_structures: null,
   },
@@ -64,161 +79,221 @@ function mountPage() {
         <Routes>
           <Route path="/structures" element={<Structures />} />
           <Route path="/structures/:structureId" element={<div>DETAIL PAGE</div>} />
+          <Route path="/structures/exercises/import" element={<div>EXERCISES IMPORT PAGE</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>
   );
 }
 
-async function mountAsAdmin() {
-  ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role: 'admin' }, error: null });
+async function mountAs(role) {
+  ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role }, error: null });
   getStructuresForUserMock.mockResolvedValue({ data: STRUCTURES, error: null });
+  deleteStructuresMock.mockResolvedValue({
+    data: STRUCTURES.map((s) => ({ id: s.id })),
+    error: null,
+  });
   mountPage();
   await screen.findByText('I want to + V');
 }
 
-describe('Structures — nút Xóa & authorization', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-  afterEach(() => cleanup());
+const checkboxOf = (pattern) =>
+  screen.getByRole('checkbox', { name: `Chọn cấu trúc ${pattern}` });
 
-  it('non-admin KHÔNG thấy nút Xóa (chỉ admin quản lý content)', async () => {
-    getStructuresForUserMock.mockResolvedValue({ data: STRUCTURES, error: null });
-    mountPage();
-    await screen.findByText('I want to + V');
-    expect(screen.queryByRole('button', { name: /Xóa cấu trúc/ })).toBeNull();
+const deleteBtn = () => screen.getByRole('button', { name: /^Xóa( \d+ cấu trúc| cấu trúc đã chọn)?$/ });
+
+describe('Bulk delete — quyền & hiển thị', () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(cleanup);
+
+  it('O. non-admin KHÔNG có checkbox/toolbar xóa; vẫn thấy link "Nhập bài tập"', async () => {
+    await mountAs('user');
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Xóa/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /Nhập bài tập/ })).toBeTruthy();
   });
 
-  it('admin THẤY nút Xóa trên từng structure card', async () => {
-    await mountAsAdmin();
-    expect(screen.getByRole('button', { name: 'Xóa cấu trúc I want to + V' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Xóa cấu trúc There is / There are' })).toBeTruthy();
+  it('D. admin thấy checkbox trên từng structure card', async () => {
+    await mountAs('admin');
+    for (const s of STRUCTURES) {
+      expect(checkboxOf(s.pattern).checked).toBe(false);
+    }
   });
 });
 
-describe('Structures — confirmation modal & delete flow', () => {
+describe('Bulk delete — chọn & trạng thái nút', () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(cleanup);
+
+  it('F. chưa chọn gì -> nút xóa disabled, nhãn "Xóa cấu trúc đã chọn"', async () => {
+    await mountAs('admin');
+    const btn = deleteBtn();
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain('Xóa cấu trúc đã chọn');
+  });
+
+  it('G. chọn 1 -> enabled + "Xóa 1 cấu trúc"; tick KHÔNG điều hướng detail', async () => {
+    const user = userEvent.setup();
+    await mountAs('admin');
+
+    await user.click(checkboxOf('I want to + V'));
+    // Checkbox nằm NGOÀI Link: click không được mở trang detail.
+    expect(screen.queryByText('DETAIL PAGE')).toBeNull();
+
+    const btn = deleteBtn();
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toContain('Xóa 1 cấu trúc');
+    expect(screen.getByText('Đã chọn 1/3')).toBeTruthy();
+  });
+
+  it('H. chọn nhiều -> hiển thị đúng số lượng', async () => {
+    const user = userEvent.setup();
+    await mountAs('admin');
+    await user.click(checkboxOf('I want to + V'));
+    await user.click(checkboxOf('There is / There are'));
+    expect(deleteBtn().textContent).toContain('Xóa 2 cấu trúc');
+    expect(screen.getByText('Đã chọn 2/3')).toBeTruthy();
+  });
+
+  it('I. Chọn tất cả -> tất cả checked; Bỏ chọn -> clear về disabled', async () => {
+    const user = userEvent.setup();
+    await mountAs('admin');
+
+    await user.click(screen.getByRole('button', { name: 'Chọn tất cả' }));
+    for (const s of STRUCTURES) {
+      expect(checkboxOf(s.pattern).checked).toBe(true);
+    }
+    expect(deleteBtn().textContent).toContain('Xóa 3 cấu trúc');
+
+    await user.click(screen.getByRole('button', { name: 'Bỏ chọn' }));
+    for (const s of STRUCTURES) {
+      expect(checkboxOf(s.pattern).checked).toBe(false);
+    }
+    expect(deleteBtn().disabled).toBe(true);
+  });
+
+  it('E. tick rồi bỏ tick từng item -> selection cập nhật chính xác', async () => {
+    const user = userEvent.setup();
+    await mountAs('admin');
+    await user.click(checkboxOf('I used to + V'));
+    expect(deleteBtn().textContent).toContain('Xóa 1 cấu trúc');
+    await user.click(checkboxOf('I used to + V'));
+    expect(deleteBtn().disabled).toBe(true);
+  });
+});
+
+describe('Bulk delete — confirmation modal & flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role: 'admin' }, error: null });
-    getStructuresForUserMock.mockResolvedValue({ data: STRUCTURES, error: null });
-    deleteStructureMock.mockResolvedValue({ data: [{ id: 's1' }], error: null });
   });
-  afterEach(() => cleanup());
+  afterEach(cleanup);
 
-  it('bấm Xóa -> mở modal xác nhận, CHƯA gọi service', async () => {
+  it('J. mở modal đúng nội dung; Hủy -> không gọi service + GIỮ selection', async () => {
     const user = userEvent.setup();
-    await mountAsAdmin();
+    await mountAs('admin');
 
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc I want to + V' }));
+    await user.click(checkboxOf('I want to + V'));
+    await user.click(checkboxOf('I used to + V'));
+    await user.click(deleteBtn());
 
-    // Modal hiển thị đúng structure đang xóa
-    expect(await screen.findByText('Bạn có chắc muốn xóa cấu trúc này?')).toBeTruthy();
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('I want to + V')).toBeTruthy();
+    const dialog = screen.getByRole('dialog', { name: 'Xóa cấu trúc' });
+    expect(within(dialog).getByText(/Bạn có chắc muốn xóa các cấu trúc đã chọn\?/)).toBeTruthy();
+    expect(within(dialog).getByText(/Bạn đang chọn 2 cấu trúc:/)).toBeTruthy();
+    expect(within(dialog).getByText('• I want to + V')).toBeTruthy();
+    expect(within(dialog).getByText('• I used to + V')).toBeTruthy();
     expect(
-      screen.getByText(/theo quy tắc an toàn của hệ thống/)
+      within(dialog).getByText(/Thao tác này sẽ xóa các cấu trúc đã chọn cùng các dữ liệu phụ thuộc/)
     ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Hủy' })).toBeTruthy();
-    // Service KHÔNG được gọi khi mới bấm nút (KHÔNG xóa ngay).
-    expect(deleteStructureMock).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+    expect(deleteStructuresMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // Selection GIỮ nguyên sau khi hủy.
+    expect(checkboxOf('I want to + V').checked).toBe(true);
+    expect(checkboxOf('I used to + V').checked).toBe(true);
   });
 
-  it('modal cảnh báo khi structure ĐANG được sử dụng (có exercise + tiến độ học)', async () => {
+  it('K. Xác nhận -> MỘT request bulk với đúng ids; clear selection; reload; success', async () => {
     const user = userEvent.setup();
-    await mountAsAdmin();
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc I want to + V' }));
-    expect(await screen.findByText(/đang có dữ liệu sử dụng/)).toBeTruthy();
-    expect(screen.getByText(/\(5 bài tập\)/)).toBeTruthy();
-    expect(screen.getByText(/và tiến độ học của bạn/)).toBeTruthy();
-  });
+    await mountAs('admin');
 
-  it('Hủy -> đóng modal, không xóa', async () => {
-    const user = userEvent.setup();
-    await mountAsAdmin();
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc I want to + V' }));
-    await screen.findByText('Bạn có chắc muốn xóa cấu trúc này?');
-    await user.click(screen.getByRole('button', { name: 'Hủy' }));
-    expect(deleteStructureMock).not.toHaveBeenCalled();
-    expect(screen.queryByText('Bạn có chắc muốn xóa cấu trúc này?')).toBeNull();
-  });
+    await user.click(checkboxOf('I want to + V'));
+    await user.click(checkboxOf('I used to + V'));
+    await user.click(deleteBtn());
+    const dialog = screen.getByRole('dialog', { name: 'Xóa cấu trúc' });
+    await user.click(within(dialog).getByRole('button', { name: 'Xóa' }));
 
-  it('Xác nhận -> gọi deleteStructure đúng id, success message + reload danh sách', async () => {
-    const user = userEvent.setup();
-    await mountAsAdmin();
-
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc I want to + V' }));
-    await screen.findByText('Bạn có chắc muốn xóa cấu trúc này?');
-
-    await user.click(screen.getByRole('button', { name: 'Xóa' }));
-
-    expect(await screen.findByText(/Đã xóa cấu trúc "I want to \+ V"\./)).toBeTruthy();
-    expect(deleteStructureMock).toHaveBeenCalledTimes(1);
-    expect(deleteStructureMock).toHaveBeenCalledWith('s1');
-    // Danh sách được tải lại ngay sau khi xóa thành công.
+    expect(await screen.findByText('Đã xóa 2 cấu trúc.')).toBeTruthy();
+    expect(deleteStructuresMock).toHaveBeenCalledTimes(1);
+    // Đúng MỘT request bulk, đúng ids theo thứ tự chọn.
+    expect(deleteStructuresMock.mock.calls[0][0]).toEqual(['s1', 's3']);
+    // Modal đóng + selection cleared.
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(checkboxOf('I want to + V').checked).toBe(false);
+    expect(checkboxOf('I used to + V').checked).toBe(false);
+    // Danh sách được reload.
     expect(getStructuresForUserMock.mock.calls.length).toBeGreaterThanOrEqual(2);
-    // Modal đã đóng.
-    expect(screen.queryByText('Bạn có chắc muốn xóa cấu trúc này?')).toBeNull();
-  });
+  }, 15000);
 
-  it('Thất bại -> báo lỗi rõ ràng trong modal (không silent failure)', async () => {
+  it('L. double-click Xác nhận khi request đang treo -> CHỈ 1 request', async () => {
     const user = userEvent.setup();
-    deleteStructureMock.mockRejectedValue(new Error('network down'));
-    await mountAsAdmin();
-
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc There is / There are' }));
-    await screen.findByText('Bạn có chắc muốn xóa cấu trúc này?');
-    await user.click(screen.getByRole('button', { name: 'Xóa' }));
-
-    expect(await screen.findByText(/Không thể xóa cấu trúc/)).toBeTruthy();
-    expect(screen.getByText(/network down/)).toBeTruthy();
-    expect(screen.queryByText(/Đã xóa cấu trúc/)).toBeNull();
-  });
-
-  it('Backend trả nguyên nhân cụ thể (0 dòng = không đủ quyền/không tồn tại) -> hiển thị nguyên nhân', async () => {
-    const user = userEvent.setup();
-    deleteStructureMock.mockResolvedValue({
-      data: null,
-      error: { message: 'Không tìm thấy cấu trúc hoặc bạn không có quyền xóa cấu trúc này.' },
-    });
-    await mountAsAdmin();
-
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc There is / There are' }));
-    await screen.findByText('Bạn có chắc muốn xóa cấu trúc này?');
-    await user.click(screen.getByRole('button', { name: 'Xóa' }));
-
-    expect(
-      await screen.findByText(/Không tìm thấy cấu trúc hoặc bạn không có quyền xóa/)
-    ).toBeTruthy();
-  });
-
-  it('Double click nút Xóa xác nhận -> CHỈ MỘT request được gửi', async () => {
-    const user = userEvent.setup();
-    // Request đầu tiên "treo" — mô phỏng network chậm để giữ trạng thái deleting.
     let resolveFirst;
-    deleteStructureMock.mockImplementationOnce(
+    deleteStructuresMock.mockImplementationOnce(
       () => new Promise((resolve) => { resolveFirst = resolve; })
     );
-    await mountAsAdmin();
+    await mountAs('admin');
 
-    await user.click(screen.getByRole('button', { name: 'Xóa cấu trúc There is / There are' }));
-    await screen.findByText('Bạn có chắc muốn xóa cấu trúc này?');
+    await user.click(checkboxOf('There is / There are'));
+    await user.click(deleteBtn());
+    const confirm = within(screen.getByRole('dialog', { name: 'Xóa cấu trúc' })).getByRole('button', { name: 'Xóa' });
+    await user.click(confirm);
+    await user.click(confirm); // click lần 2 khi request chưa xong
 
-    const confirmBtn = screen.getByRole('button', { name: 'Xóa' });
-    await user.click(confirmBtn);
-    await user.click(confirmBtn); // click lần 2 khi request chưa xong
-
-    expect(deleteStructureMock).toHaveBeenCalledTimes(1);
-    // Nút đang ở trạng thái loading/disabled.
-    expect(confirmBtn.disabled).toBe(true);
+    expect(deleteStructuresMock).toHaveBeenCalledTimes(1);
+    expect(confirm.disabled).toBe(true);
 
     resolveFirst?.({ data: [{ id: 's2' }], error: null });
-    expect(await screen.findByText(/Đã xóa cấu trúc/)).toBeTruthy();
-  });
+    expect(await screen.findByText('Đã xóa 1 cấu trúc.')).toBeTruthy();
+  }, 15000);
 
-  it('Không thêm nút Xóa vào khu vực khác ngoài card library (review/session không bị đụng đến)', async () => {
-    await mountAsAdmin();
-    // Chỉ đúng 2 nút xóa tương ứng 2 structure card.
-    expect(screen.getAllByRole('button', { name: /Xóa cấu trúc/ }).length).toBe(2);
-  });
+  it('N. thất bại -> lỗi rõ ràng trong modal + GIỮ selection (không silent failure)', async () => {
+    const user = userEvent.setup();
+    await mountAs('admin');
+    // GHI ĐÈ sau mountAs (mountAs mặc định set mock thành công).
+    deleteStructuresMock.mockResolvedValue({
+      data: null,
+      error: { message: 'Không tìm thấy cấu trúc hoặc bạn không có quyền xóa các cấu trúc này.' },
+    });
+
+    await user.click(checkboxOf('I want to + V'));
+    await user.click(checkboxOf('There is / There are'));
+    await user.click(deleteBtn());
+    const dialog = screen.getByRole('dialog', { name: 'Xóa cấu trúc' });
+    await user.click(within(dialog).getByRole('button', { name: 'Xóa' }));
+
+    expect(await screen.findByText(/Không thể xóa cấu trúc\./)).toBeTruthy();
+    expect(screen.getByText(/Không tìm thấy cấu trúc hoặc bạn không có quyền xóa/)).toBeTruthy();
+    // Không success, modal còn mở, selection giữ nguyên để thử lại.
+    expect(screen.queryByText(/Đã xóa \d+ cấu trúc/)).toBeNull();
+    expect(screen.queryByRole('dialog')).not.toBeNull();
+    expect(checkboxOf('I want to + V').checked).toBe(true);
+    expect(checkboxOf('There is / There are').checked).toBe(true);
+    expect(deleteStructuresMock).toHaveBeenCalledTimes(1);
+  }, 15000);
+
+  it('exception từ service cũng bị bắt và hiển thị (không crash)', async () => {
+    const user = userEvent.setup();
+    await mountAs('admin');
+    // GHI ĐÈ sau mountAs.
+    deleteStructuresMock.mockRejectedValue(new Error('network down'));
+
+    await user.click(checkboxOf('I used to + V'));
+    await user.click(deleteBtn());
+    const dialog = screen.getByRole('dialog', { name: 'Xóa cấu trúc' });
+    await user.click(within(dialog).getByRole('button', { name: 'Xóa' }));
+
+    expect(await screen.findByText(/network down/)).toBeTruthy();
+    // Selection giữ nguyên.
+    expect(checkboxOf('I used to + V').checked).toBe(true);
+  }, 15000);
 });

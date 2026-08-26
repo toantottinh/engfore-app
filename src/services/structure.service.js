@@ -146,7 +146,7 @@ export async function getStructuresForUser(userId) {
 }
 
 /**
- * [ADMIN] Xóa MỘT Structure theo id.
+ * [ADMIN] Xóa NHIỀU Structure theo danh sách id — MỘT request duy nhất (.in).
  *
  * An toàn phụ thuộc schema HIỆN TẮI (không cần RPC/migration thêm):
  *   - RLS "Admins can manage all structures." FOR ALL -> chỉ admin DELETE được;
@@ -159,22 +159,25 @@ export async function getStructuresForUser(userId) {
  * `.select('id')` để phát hiện "0 dòng bị xóa" (id không tồn tại HOẶC không đủ
  * quyền) — không silent failure.
  *
- * @param {string} structureId
+ * @param {string[]} structureIds
  * @returns {Promise<{ data: Array<{id:string}>|null, error: any }>}
  */
-export async function deleteStructure(structureId) {
-  if (!structureId) return { data: null, error: { message: 'Thiếu structureId.' } };
+export async function deleteStructures(structureIds) {
+  const ids = Array.isArray(structureIds) ? structureIds.filter(Boolean) : [];
+  if (ids.length === 0) {
+    return { data: null, error: { message: 'Thiếu danh sách cấu trúc cần xóa.' } };
+  }
   try {
     const { data, error } = await supabase
       .from('structures')
       .delete()
-      .eq('id', structureId)
+      .in('id', ids)
       .select('id');
 
     if (error) {
       if (import.meta.env.DEV) {
         console.error(
-          '[deleteStructure] error:',
+          '[deleteStructures] error:',
           JSON.stringify(
             {
               status: error?.status ?? null,
@@ -191,12 +194,13 @@ export async function deleteStructure(structureId) {
       return { data: null, error };
     }
 
-    if (!data || data.length === 0) {
+    const deletedCount = Array.isArray(data) ? data.length : 0;
+    if (deletedCount === 0) {
       return {
         data: null,
         error: {
           message:
-            'Không tìm thấy cấu trúc hoặc bạn không có quyền xóa cấu trúc này.',
+            'Không tìm thấy cấu trúc hoặc bạn không có quyền xóa các cấu trúc này.',
         },
       };
     }
