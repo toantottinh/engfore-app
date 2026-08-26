@@ -16,6 +16,8 @@ import { getAcceptedAnswers } from '../../utils/structure-exercise-checker.js';
 import Button from '../../components/ui/Button.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
 import Alert from '../../components/ui/Alert.jsx';
+import Modal from '../../components/ui/Modal.jsx';
+import { EXERCISE_AI_PROMPT, copyTextToClipboard } from '../../utils/exercise-ai-prompt.js';
 
 // Format 6 cột canonical (MỚI): Type | Structure | Question | Answer | Options | Explanation.
 // Mỗi dòng tự khai báo Structure của nó -> BULK nhập nhiều Structure trong 1 paste.
@@ -85,6 +87,33 @@ export default function ExerciseImport() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [importing, setImporting] = useState(false);
+
+  // ---- "Lệnh bài tập" ----
+  // Modal hiển thị prompt chuẩn cho AI sinh Exercise. Thuần UI/clipboard:
+  // KHÔNG gọi API/Supabase khi chỉ mở hoặc copy; KHÔNG đổi dữ liệu exercise.
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+
+  const openPromptModal = () => {
+    setCopied(false);
+    setCopyError('');
+    setPromptOpen(true);
+  };
+
+  const handleCopyPrompt = async () => {
+    setCopied(false);
+    setCopyError('');
+    const ok = await copyTextToClipboard(EXERCISE_AI_PROMPT);
+    if (ok) {
+      // Báo thành công rõ ràng sau khi copy.
+      setCopied(true);
+    } else {
+      setCopyError(
+        'Không thể sao chép tự động. Hãy bôi đen văn bản trong khung prompt và copy thủ công.'
+      );
+    }
+  };
 
   const handleParse = useCallback(async () => {
     setError('');
@@ -240,7 +269,13 @@ export default function ExerciseImport() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="mb-2 text-2xl font-bold text-text-primary">Nhập bài tập (Exercises)</h1>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-text-primary">Nhập bài tập (Exercises)</h1>
+        {/* DUY NHẤT MỘT nút prompt — mở modal hiển thị + copy "Lệnh bài tập". */}
+        <Button variant="secondary" onClick={openPromptModal}>
+          Lệnh bài tập
+        </Button>
+      </div>
       <p className="mb-4 text-sm text-text-secondary">
         Dán một lần theo format{' '}
         <strong>Type | Structure | Question | Answer | Options | Explanation</strong> — mỗi dòng tự
@@ -511,6 +546,42 @@ export default function ExerciseImport() {
           )}
         </div>
       )}
+
+      {/* "Lệnh bài tập": hiển thị prompt chuẩn cho AI sinh Exercise.
+          Read-only + clipboard — KHÔNG đụng dữ liệu exercise, KHÔNG gọi API. */}
+      <Modal
+        open={promptOpen}
+        onClose={() => setPromptOpen(false)}
+        title="Lệnh bài tập"
+        size="lg"
+        footer={
+          <>
+            {copied && (
+              <span className="mr-auto text-xs font-medium text-green-600" role="status">
+                ✓ Đã sao chép prompt vào clipboard.
+              </span>
+            )}
+            {copyError && (
+              <span className="mr-auto text-xs font-medium text-red-600" role="alert">
+                {copyError}
+              </span>
+            )}
+            <Button variant="secondary" onClick={() => setPromptOpen(false)}>
+              Đóng
+            </Button>
+            <Button onClick={handleCopyPrompt}>Sao chép</Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs text-text-secondary">
+          Copy toàn bộ nội dung bên dưới và dán cho AI (ChatGPT, Gemini, Claude...) để sinh bài
+          tập đúng chuẩn import của EngFore. Kết quả do AI trả về dán trực tiếp vào ô nhập phía
+          trên rồi bấm &quot;Xem trước&quot;.
+        </p>
+        <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap rounded-lg bg-surface-sidebar p-3 text-left text-xs leading-relaxed text-text-primary">
+          {EXERCISE_AI_PROMPT}
+        </pre>
+      </Modal>
     </div>
   );
 }
