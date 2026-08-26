@@ -384,11 +384,6 @@ async function waitForQueueReload() {
   await waitFor(() => expect(getStructureSessionQueueMock).toHaveBeenCalledTimes(2));
 }
 
-// Helper cho test 34: chờ "Học tiếp" trigger reload queue (lần gọi thứ 2).
-async function waitForQueueReload() {
-  await waitFor(() => expect(getStructureSessionQueueMock).toHaveBeenCalledTimes(2));
-}
-
 // ------------------------------------------------------------------
 // KEYBOARD SHORTCUTS — Enter / Space = nút "Tiếp tục".
 //
@@ -496,16 +491,18 @@ describe('Structure Review — phím tắt Enter/Space = Tiếp tục', () => {
     document.body.appendChild(editable);
     editable.focus();
 
-    fireEvent.keyDown(select, { key: 'Enter' });
-    fireEvent.keyDown(select, { key: ' ' });
-    fireEvent.keyDown(editable, { key: 'Enter' });
-    fireEvent.keyDown(editable, { key: ' ' });
+    try {
+      fireEvent.keyDown(select, { key: 'Enter' });
+      fireEvent.keyDown(select, { key: ' ' });
+      fireEvent.keyDown(editable, { key: 'Enter' });
+      fireEvent.keyDown(editable, { key: ' ' });
 
-    expect(screen.getByRole('button', { name: /Tiếp tục/ })).toBeTruthy();
-    expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
-
-    select.remove();
-    editable.remove();
+      expect(screen.getByRole('button', { name: /Tiếp tục/ })).toBeTruthy();
+      expect(screen.queryByText(/Bạn nhớ cấu trúc này thế nào\?/)).toBeNull();
+    } finally {
+      select.remove();
+      editable.remove();
+    }
   });
 
   it('42. unmount -> listener được cleanup (keydown sau unmount vô hại)', async () => {

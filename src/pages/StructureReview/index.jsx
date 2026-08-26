@@ -49,11 +49,20 @@ export default function StructureReview() {
     const isEditableTarget = (el) => {
       if (!el || !el.tagName) return false;
       const tag = el.tagName.toLowerCase();
-      return (
+      if (
         tag === 'input' ||
         tag === 'textarea' ||
-        tag === 'select' ||
-        el.isContentEditable === true
+        tag === 'select'
+      ) {
+        return true;
+      }
+      // contenteditable: kiểm tra CẢ API (isContentEditable) lẫn attribute
+      // [contenteditable="true"] (kể cả tổ tiên) — một số môi trường (vd jsdom)
+      // không implement isContentEditable.
+      if (el.isContentEditable) return true;
+      return (
+        typeof el.closest === 'function' &&
+        el.closest('[contenteditable="true"]') != null
       );
     };
 
