@@ -14,6 +14,8 @@ import { AuthProvider } from '../hooks/useAuth.jsx';
 const getStructuresForUserMock = vi.fn();
 // Điều khiển được per-test: { data: { role: 'user'|'admin' } | null }
 const ensureProfileMock = vi.fn(async () => ({ data: null, error: null }));
+// Delete structure (mặc định thành công; các test xóa chi tiết nằm ở structures.delete.spec.jsx)
+const deleteStructureMock = vi.fn(async () => ({ data: [{ id: 's1' }], error: null }));
 
 vi.mock('../services/auth.service.js', () => ({
   authService: {
@@ -25,6 +27,7 @@ vi.mock('../services/auth.service.js', () => ({
 
 vi.mock('../services/structure.service.js', () => ({
   getStructuresForUser: (...args) => getStructuresForUserMock(...args),
+  deleteStructure: (...args) => deleteStructureMock(...args),
 }));
 
 const USER = { id: 'user-1', email: 'test@example.com' };

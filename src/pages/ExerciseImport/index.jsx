@@ -12,6 +12,7 @@ import {
   VALID_EXERCISE_TYPES,
 } from '../../utils/exercise-importer.js';
 import { EXAMPLES_DELIMITER } from '../../utils/structure-importer.js';
+import { getAcceptedAnswers } from '../../utils/structure-exercise-checker.js';
 import Button from '../../components/ui/Button.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
 import Alert from '../../components/ui/Alert.jsx';
@@ -35,6 +36,28 @@ const COLUMN_HEADERS = [
   { key: 'options', label: `Options ("${EXAMPLES_DELIMITER}")`, required: false },
   { key: 'explanation', label: 'Giải thích', required: false },
 ];
+
+// Ô Đáp án: giữ nguyên raw value (có thể chứa "||" cho NHIỀU accepted answers)
+// và khi có >1 đáp án thì hiển thị hint rõ ràng bên dưới input — không cắt bớt,
+// không làm vỡ các column phía sau.
+function AnswerCell({ value, onChange }) {
+  const accepted = getAcceptedAnswers(value);
+  return (
+    <div className="flex flex-col gap-1">
+      <input
+        value={value || ''}
+        onChange={onChange}
+        className="w-full min-w-[160px] rounded border border-zinc-200 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none"
+        placeholder="Đáp án (nhiều đáp án phân cách bằng ||)"
+      />
+      {accepted.length > 1 && (
+        <span className="text-[10px] font-medium text-indigo-600">
+          ↳ {accepted.length} đáp án được chấp nhận: {accepted.join(' / ')}
+        </span>
+      )}
+    </div>
+  );
+}
 
 /**
  * [ADMIN] Import Exercises cho Sentence Structures.
@@ -412,6 +435,11 @@ export default function ExerciseImport() {
                                 </span>
                               ) : null}
                             </div>
+                          ) : c.key === 'answer' ? (
+                            <AnswerCell
+                              value={row.answer}
+                              onChange={(e) => updateCell(idx, 'answer', e.target.value)}
+                            />
                           ) : c.key === 'options' ? (
                             <input
                               value={(row.options || []).join(` ${EXAMPLES_DELIMITER} `)}

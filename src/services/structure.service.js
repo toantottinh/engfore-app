@@ -145,6 +145,68 @@ export async function getStructuresForUser(userId) {
   }
 }
 
+/**
+ * [ADMIN] Xóa MỘT Structure theo id.
+ *
+ * An toàn phụ thuộc schema HIỆN TẮI (không cần RPC/migration thêm):
+ *   - RLS "Admins can manage all structures." FOR ALL -> chỉ admin DELETE được;
+ *     non-admin sẽ nhận kết quả 0 dòng (bị lọc bởi RLS) => báo lỗi rõ ràng.
+ *   - structure_examples / structure_exercises / user_structures đều
+ *     REFERENCES public.structures(id) ON DELETE CASCADE -> xóa structure là
+ *     DB tự dọn dependency ATOMIC (không orphan exercises/SRS), và KHÔNG đụng
+ *     dữ liệu vocabulary (words/user_vocabulary...).
+ *
+ * `.select('id')` để phát hiện "0 dòng bị xóa" (id không tồn tại HOẶC không đủ
+ * quyền) — không silent failure.
+ *
+ * @param {string} structureId
+ * @returns {Promise<{ data: Array<{id:string}>|null, error: any }>}
+ */
+export async function deleteStructure(structureId) {
+  if (!structureId) return { data: null, error: { message: 'Thiếu structureId.' } };
+  try {
+    const { data, error } = await supabase
+      .from('structures')
+      .delete()
+      .eq('id', structureId)
+      .select('id');
+
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error(
+          '[deleteStructure] error:',
+          JSON.stringify(
+            {
+              status: error?.status ?? null,
+              code: error?.code ?? null,
+              message: error?.message ?? null,
+              details: error?.details ?? null,
+              hint: error?.hint ?? null,
+            },
+            null,
+            2
+          )
+        );
+      }
+      return { data: null, error };
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        data: null,
+        error: {
+          message:
+            'Không tìm thấy cấu trúc hoặc bạn không có quyền xóa cấu trúc này.',
+        },
+      };
+    }
+
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
+
 const STRUCTURE_DETAIL_SELECT = `
   id, pattern, meaning, explanation, cefr, topic, created_at,
   structure_examples(id, sentence, translation, created_at),

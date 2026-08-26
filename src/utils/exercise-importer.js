@@ -30,6 +30,7 @@ import {
   structureKey,
   normalizePattern,
 } from './structure-importer.js';
+import { getAcceptedAnswers } from './structure-exercise-checker.js';
 
 const PIPE_DELIMITER = '|';
 
@@ -244,18 +245,40 @@ export function validateExerciseRow(row, lineNumber = null) {
   const answerTrimmed = String(row.answer || '').trim();
   row.answer = answerTrimmed;
 
+  // V2: Answer có thể chứa NHIỀU accepted answers phân cách bằng "||".
+  // MỖI đáp án được validate RIÊNG (raw vẫn giữ nguyên "||" để lưu DB;
+  // grading tách lúc chấm qua getAcceptedAnswers).
+  const acceptedAnswers = getAcceptedAnswers(answerTrimmed);
+
+  // Deterministic types: Answer chỉ toàn delimiter ("||") -> không còn gì để chấm.
+  // Production KHÔNG bị ràng buộc này (Answer tùy chọn, không dùng grading).
+  if (
+    row.type !== 'production' &&
+    answerTrimmed &&
+    acceptedAnswers.length === 0
+  ) {
+    row._errors.push('Answer không chứa đáp án hợp lệ sau khi tách "||".');
+  }
+
+  // Kiểm tra "mọi accepted answer phải nằm trong Options" (MC bắt buộc có
+  // Options; fill_blank chỉ khi Options được cung cấp). Trả về danh sách
+  // đáp án còn thiếu (so sánh case-insensitive + whitespace-normalized).
+  const missingAcceptedInOptions = () =>
+    acceptedAnswers.filter((a) => !optionKeys.includes(compareKey(a)));
+
   switch (row.type) {
     case 'multiple_choice': {
       if (!answerTrimmed) row._errors.push('multiple_choice thiếu đáp án (cột 4).');
       if ((row.options || []).length < 2) {
         row._errors.push('multiple_choice cần ít nhất 2 options.');
       }
-      if (
-        answerTrimmed &&
-        (row.options || []).length > 0 &&
-        !optionKeys.includes(compareKey(answerTrimmed))
-      ) {
-        row._errors.push('Đáp án phải xuất hiện trong Options.');
+      if (answerTrimmed && (row.options || []).length > 0) {
+        const missing = missingAcceptedInOptions();
+        if (missing.length > 0) {
+          row._errors.push(
+            `Đáp án phải xuất hiện trong Options (thiếu: ${missing.join(', ')}).`
+          );
+        }
       }
       if (hasDuplicateOptions) row._errors.push('Options bị trùng nhau.');
       break;
@@ -266,10 +289,14 @@ export function validateExerciseRow(row, lineNumber = null) {
       if (!BLANK_MARKER_RE.test(String(row.question || ''))) {
         row._errors.push('Câu hỏi fill_blank phải chứa dấu blank "___".');
       }
-      // Options tùy chọn; NẾU có cung cấp thì answer phải nằm trong options (ERROR).
+      // Options tùy chọn; NẾU có cung cấp thì TẤT CẢ accepted answers phải nằm
+      // trong options (ERROR) — khớp đúng semantics "chọn/khớp BẤT KỲ một đáp án".
       if ((row.options || []).length > 0) {
-        if (!optionKeys.includes(compareKey(answerTrimmed))) {
-          row._errors.push('Đáp án phải xuất hiện trong Options (khi Options được cung cấp).');
+        const missing = missingAcceptedInOptions();
+        if (missing.length > 0) {
+          row._errors.push(
+            `Đáp án phải xuất hiện trong Options (khi Options được cung cấp — thiếu: ${missing.join(', ')}).`
+          );
         }
         if (hasDuplicateOptions) row._errors.push('Options bị trùng nhau.');
       }

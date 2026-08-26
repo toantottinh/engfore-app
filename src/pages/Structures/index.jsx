@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStructures } from '../../hooks/useStructures.js';
 import { useAuth } from '../../hooks/useAuth.jsx';
+import { deleteStructure } from '../../services/structure.service.js';
 import { CEFR_LEVELS } from '../../utils/cefr.js';
 import {
   deriveStructureStatus,
@@ -14,50 +15,66 @@ import Alert from '../../components/ui/Alert.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import StatusCounts from '../../components/ui/StatusCounts.jsx';
 import Button from '../../components/ui/Button.jsx';
+import Modal from '../../components/ui/Modal.jsx';
 
 // Emoji trạng thái theo spec (🟢/🔴/🟡).
 const STATUS_EMOJI = { new: '🟢', again: '🔴', review: '🟡' };
 
-function StructureCard({ s }) {
+function StructureCard({ s, onDelete }) {
   const { key, label } = deriveStructureStatus(s.user_structures || null);
   const hasProgress = Boolean(s.user_structures);
   const mastery = s.user_structures?.mastery_level;
 
   return (
-    <Link
-      to={`/structures/${s.id}`}
-      className="flex flex-col rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-text-primary">{s.pattern}</h3>
-          <p className="mt-1 text-sm text-text-secondary">{s.meaning}</p>
-        </div>
-        <span className="whitespace-nowrap text-sm text-text-secondary">
-          {STATUS_EMOJI[key]} {label}
-        </span>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
-          {s.cefr || '—'}
-        </span>
-        {s.topic && (
-          <span className="rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
-            {s.topic}
+    <div className="flex flex-col rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg">
+      {/* Toàn bộ nội dung chính vẫn điều hướng tới trang detail */}
+      <Link to={`/structures/${s.id}`} className="block">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-text-primary">{s.pattern}</h3>
+            <p className="mt-1 text-sm text-text-secondary">{s.meaning}</p>
+          </div>
+          <span className="whitespace-nowrap text-sm text-text-secondary">
+            {STATUS_EMOJI[key]} {label}
           </span>
-        )}
-        <span className="text-text-secondary/70">{s.example_count} ví dụ</span>
-        {hasProgress && mastery > 0 && (
-          <span className="text-text-secondary/70">Phản xạ {mastery}/5</span>
-        )}
-      </div>
-    </Link>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            {s.cefr || '—'}
+          </span>
+          {s.topic && (
+            <span className="rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+              {s.topic}
+            </span>
+          )}
+          <span className="text-text-secondary/70">{s.example_count} ví dụ</span>
+          {hasProgress && mastery > 0 && (
+            <span className="text-text-secondary/70">Phản xạ {mastery}/5</span>
+          )}
+        </div>
+      </Link>
+
+      {/* Hành động quản trị (chỉ admin — backend RLS vẫn là lớp bảo mật chính) */}
+      {onDelete && (
+        <div className="mt-3 flex justify-end border-t border-border-color/60 pt-2">
+          <button
+            type="button"
+            onClick={() => onDelete(s)}
+            className="rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            title={`Xóa cấu trúc ${s.pattern}`}
+            aria-label={`Xóa cấu trúc ${s.pattern}`}
+          >
+            Xóa
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function Structures() {
-  const { structures, loading, error } = useStructures();
+  const { structures, loading, error, load } = useStructures();
   // Admin-only entry points (backend RPC guards remain authoritative).
   const { isAdmin } = useAuth();
 
@@ -65,6 +82,62 @@ export default function Structures() {
   const [cefr, setCefr] = useState('');
   const [topic, setTopic] = useState('');
   const [status, setStatus] = useState('all');
+
+  // ---- Xóa cấu trúc ----
+  // deleteTarget: structure đang chờ xác nhận (KHÔNG xóa ngay khi bấm nút).
+  // deleting: cờ double-submit guard — chặn double click tạo 2 request.
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const openDeleteModal = (s) => {
+    setSuccessMsg('');
+    setDeleteError('');
+    setDeleteTarget(s);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return; // đang xử lý -> không cho đóng giữa chừng
+    setDeleteTarget(null);
+    setDeleteError('');
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || deleting) return; // chặn double click / double submit
+    setDeleting(true);
+    setDeleteError('');
+
+    const { id, pattern } = deleteTarget;
+    let result;
+    try {
+      result = await deleteStructure(id);
+    } catch (e) {
+      // Phòng thủ: service về nguyên tắc không throw, nhưng không được âm thầm
+      // bỏ qua lỗi nếu có exception thoát ra.
+      result = { data: null, error: e };
+    }
+    const deleteErr = result?.error;
+
+    if (deleteErr) {
+      // KHÔNG silent failure — hiển thị nguyên nhân cụ thể nếu backend trả về.
+      if (import.meta.env.DEV) {
+        console.error('[Structures] Xóa cấu trúc thất bại:', deleteErr);
+      }
+      setDeleting(false);
+      setDeleteError(
+        deleteErr?.message
+          ? `Không thể xóa cấu trúc. ${deleteErr.message}`
+          : 'Không thể xóa cấu trúc. Vui lòng thử lại.'
+      );
+      return;
+    }
+
+    setDeleting(false);
+    setDeleteTarget(null);
+    setSuccessMsg(`Đã xóa cấu trúc "${pattern}".`);
+    await load(); // cập nhật danh sách ngay sau khi xóa thành công
+  };
 
   const topics = useMemo(() => distinctStructureTopics(structures), [structures]);
   // Counters tính trên TOÀN BỘ danh sách (KHÔNG bị filter làm sai)
@@ -111,6 +184,9 @@ export default function Structures() {
           </div>
         )}
       </div>
+
+      {/* Thông báo thành công sau khi xóa cấu trúc */}
+      {successMsg && <Alert type="success" message={successMsg} />}
 
       {/* Counters */}
       {structures.length > 0 && <StatusCounts counts={counts} />}
@@ -190,10 +266,55 @@ export default function Structures() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((s) => (
-            <StructureCard key={s.id} s={s} />
+            <StructureCard
+              key={s.id}
+              s={s}
+              // Chỉ admin thấy nút Xóa (backend RLS vẫn là lớp bảo mật chính).
+              onDelete={isAdmin ? openDeleteModal : undefined}
+            />
           ))}
         </div>
       )}
+
+      {/* Confirmation modal — KHÔNG xóa ngay khi bấm nút Xóa trên card */}
+      <Modal
+        open={Boolean(deleteTarget)}
+        onClose={closeDeleteModal}
+        title="Xóa cấu trúc"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeDeleteModal} disabled={deleting}>
+              Hủy
+            </Button>
+            <Button variant="danger" onClick={handleConfirmDelete} loading={deleting}>
+              Xóa
+            </Button>
+          </>
+        }
+      >
+        {deleteTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-text-primary">Bạn có chắc muốn xóa cấu trúc này?</p>
+            <p className="rounded-lg bg-surface-hover px-3 py-2 text-base font-bold text-text-primary">
+              {deleteTarget.pattern}
+            </p>
+            {(deleteTarget.exercise_count > 0 || deleteTarget.user_structures) && (
+              <p className="text-xs text-text-secondary">
+                Cấu trúc này đang có dữ liệu sử dụng
+                {deleteTarget.exercise_count > 0
+                  ? ` (${deleteTarget.exercise_count} bài tập)`
+                  : ''}
+                {deleteTarget.user_structures ? ' và tiến độ học của bạn' : ''}.
+              </p>
+            )}
+            <p className="text-sm text-text-secondary">
+              Nếu cấu trúc có bài tập hoặc dữ liệu học tập, các dữ liệu liên quan sẽ được xử lý
+              theo quy tắc an toàn của hệ thống.
+            </p>
+            {deleteError && <Alert type="error" message={deleteError} />}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
