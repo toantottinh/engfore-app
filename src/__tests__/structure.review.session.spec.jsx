@@ -42,6 +42,9 @@ vi.mock('../services/auth.service.js', () => ({
 vi.mock('../services/structure-learning.service.js', () => ({
   getStructureSessionQueue: (...a) => getStructureSessionQueueMock(...a),
   recordStructureResult: (...a) => recordStructureResultMock(...a),
+  getUserDailyNewStructureLimit: vi.fn(async () => ({ value: 5, error: null })),
+  getDailyNewStructureProgress: vi.fn(async () => ({ data: [], error: null })),
+  markNewStructureIntroduced: vi.fn(async () => ({ error: null })),
 }));
 
 vi.mock('../services/structure.service.js', () => ({
@@ -138,7 +141,14 @@ describe('Structure Review Session (CK10)', () => {
     // System tự chọn — không có UI chọn structure:
     const q = await screen.findByText('MC-DUE?');
     expect(q).toBeTruthy();
-    expect(getStructureSessionQueueMock).toHaveBeenCalledWith(USER.id);
+    // Queue giờ load cùng daily-NEW-structure quota (Id mặc định từ setting mock).
+    expect(getStructureSessionQueueMock).toHaveBeenCalledWith(
+      USER.id,
+      expect.objectContaining({
+        dailyNewStructureLimit: 5,
+        introducedTodayStructureIds: [],
+      })
+    );
     // Scope đúng structure_id của item đầu tiên trong queue (DUE):
     expect(getStructureExercisesMock).toHaveBeenNthCalledWith(1, 'due-1');
 

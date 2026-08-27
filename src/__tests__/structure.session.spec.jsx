@@ -43,6 +43,9 @@ vi.mock('../services/structure.service.js', () => ({
 vi.mock('../services/structure-learning.service.js', () => ({
   getStructureSessionQueue: vi.fn(async () => ({ data: [], error: null })),
   recordStructureResult: (...a) => recordStructureResultMock(...a),
+  getUserDailyNewStructureLimit: vi.fn(async () => ({ value: 5, error: null })),
+  getDailyNewStructureProgress: vi.fn(async () => ({ data: [], error: null })),
+  markNewStructureIntroduced: vi.fn(async () => ({ error: null })),
 }));
 
 const USER = { id: 'user-1', email: 'test@example.com' };
@@ -268,23 +271,24 @@ describe('Structure Session (CK8 — random single exercise)', () => {
     );
   });
 
-  // ---- V2: DAILY RECALL — KHÔNG lộ Structure trước khi trả lời ----
-  it('V2: intro + exercise phase KHÔNG hiển thị pattern/meaning/explanation', async () => {
+  // ---- V2 (cập nhật): intro trung tính; EXERCISE hiển thị CẤU TRÚC góc phải trên ----
+  it('V2: intro trung tính; exercise hiển thị structure ở header nhưng KHÔNG meaning/explanation', async () => {
     const user = userEvent.setup();
     mount();
 
-    // Intro trung tính:
+    // Intro trung tính (intro KHÔNG đổi — vẫn không lộ gì):
     const startBtn = await screen.findByRole('button', { name: /Bắt đầu/ });
     expect(screen.queryByText('I want to + V')).toBeNull();
     expect(screen.queryByText('Tôi muốn...')).toBeNull();
     expect(screen.queryByText('Dùng để nói về mong muốn.')).toBeNull();
     expect(screen.queryByText('I want to learn English.')).toBeNull(); // ví dụ
 
-    // Exercise phase (chưa submit):
+    // Exercise phase (chưa submit): CẤU TRÚC đang học hiển thị góc trên bên
+    // phải (yêu cầu product mới), nhưng meaning/explanation/ví dụ vẫn ẩn.
     await user.click(startBtn);
     await screen.findByText(/Một bài tập ngẫu nhiên/);
     await screen.findByText(/Câu hỏi số \d+\?/);
-    expect(screen.queryByText('I want to + V')).toBeNull();
+    expect(screen.getByTestId('structure-session-pattern')).toHaveTextContent('I want to + V');
     expect(screen.queryByText('Tôi muốn...')).toBeNull();
     expect(screen.queryByText('Dùng để nói về mong muốn.')).toBeNull();
   });
@@ -302,8 +306,9 @@ describe('Structure Session (CK8 — random single exercise)', () => {
     await user.click(screen.getByRole('radio', { name: new RegExp(WRONG_OPTION) }));
     await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
 
-    // Feedback reveal đầy đủ theo thiết kế §7:
-    expect(await screen.findByText('I want to + V')).toBeTruthy(); // pattern
+    // Feedback reveal đầy đủ theo thiết kế §7. Lưu ý: header giờ đã hiển thị
+    // structure nên dùng findAllByText (header + feedback panel cùng chứa).
+    expect((await screen.findAllByText('I want to + V')).length).toBeGreaterThan(0); // pattern
     expect(screen.getByText('Tôi muốn...')).toBeTruthy(); // meaning
     expect(
       screen.getByText(`Giải thích ${visibleIndex}.`) || screen.getByText('Dùng để nói về mong muốn.')
@@ -431,21 +436,22 @@ describe('Structure Session — GOOD/EASY pure test trên phiên thủ công', (
   });
   afterEach(() => cleanup());
 
-  it('GOOD: random 1 bài; sau submit KHÔNG reveal pattern/meaning/panel cấu trúc', async () => {
+  it('GOOD: random 1 bài; header hiển thị structure nhưng KHÔNG reveal meaning/panel', async () => {
     const user = userEvent.setup();
     mount();
     await startExerciseSession(user); // giữ copy "Một bài tập ngẫu nhiên" cho random-mode
 
     await screen.findByText('MANUALQ-g?');
     expect(screen.queryByTestId(PROGRESS_TESTID)).toBeNull(); // không sequence
-    expect(screen.queryByText('I want to + V')).toBeNull();
+    // Góc trên phải luôn hiển thị CẤU TRÚC đang luyện (yêu cầu product mới):
+    expect(screen.getByTestId('structure-session-pattern')).toHaveTextContent('I want to + V');
 
     await user.type(screen.getByPlaceholderText('Nhập câu trả lời...'), 'zzz');
     await user.click(screen.getByRole('button', { name: /Kiểm tra/ }));
     await screen.findByRole('button', { name: /Tiếp tục/ });
 
-    // PURE TEST: không công thức/pattern/scaffold ngay cả sau khi trả lời:
-    expect(screen.queryByText('I want to + V')).toBeNull();
+    // PURE TEST: không reveal meaning/explanation/panel ngay cả sau khi trả lời
+    // (header structure giữ nguyên — không thuộc khu vực reveal).
     expect(screen.queryByText('Tôi muốn...')).toBeNull();
     expect(screen.queryByText('Dùng để nói về mong muốn.')).toBeNull();
     expect(screen.queryByText('Cấu trúc')).toBeNull(); // panel reveal bị tắt
@@ -456,6 +462,43 @@ describe('Structure Session — GOOD/EASY pure test trên phiên thủ công', (
     expect(await screen.findByText(/Đã lưu tiến trình!/)).toBeTruthy();
     expect(recordStructureResultMock).toHaveBeenCalledTimes(1);
   }, 15000);
+});
+
+// ------------------------------------------------------------------
+// UI (required case 13): Góc TRÊN BÊN PHẢI của màn exercise hiển thị
+// CẤU TRÚC đang học — KHÔNG hard-code, không phải instruction chấm điểm.
+// ------------------------------------------------------------------
+describe('Structure Session — pattern hiển thị ở góc trên bên phải', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // user_structures: null -> NEW -> SEQUENCE mode ("Bài x/n" như mockup).
+    getStructureByIdMock.mockResolvedValue({
+      data: { ...STRUCTURE, user_structures: null },
+      error: null,
+    });
+    getStructureExercisesMock.mockResolvedValue({
+      data: [fbManual('a'), fbManual('b')],
+      error: null,
+    });
+  });
+  afterEach(() => cleanup());
+
+  it('CASE 13. "Bài 1/n" trái + CẤU TRÚC hiện tại phải; instruction không chiếm chỗ đó', async () => {
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole('button', { name: /Bắt đầu/ }));
+    expect(await screen.findByTestId(PROGRESS_TESTID)).toHaveTextContent('Bài 1/2');
+
+    // Structure lấy từ state hiện có (s.pattern) — đúng cấu trúc đang luyện:
+    const pattern = screen.getByTestId('structure-session-pattern');
+    expect(pattern).toHaveTextContent('I want to + V');
+
+    // Instruction cũ KHÔNG còn nằm ở góc trên bên phải của màn exercise.
+    expect(
+      screen.queryByText('Làm xong hết mới chấm Again/Hard/Good/Easy')
+    ).toBeNull();
+  });
 });
 
 

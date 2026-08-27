@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './useAuth.jsx';
 import { getStructureById, getStructureExercises } from '../services/structure.service.js';
-import { recordStructureResult } from '../services/structure-learning.service.js';
+import {
+  recordStructureResult,
+  markNewStructureIntroduced,
+} from '../services/structure-learning.service.js';
 import { computeSrsPayload, RATING } from '../services/srs.service.js';
 import { checkExerciseAnswer } from '../utils/structure-exercise-checker.js';
 import { resolveStructureExercisePlan } from '../utils/structure-status.js';
@@ -228,6 +231,16 @@ export function useStructureSession(structureId) {
         setIsRating(false);
         return;
       }
+
+      // Structure vừa được đưa vào SRS lần đầu -> đếm vào hạn mức cấu trúc MỚI
+      // của hôm nay (mirror Vocabulary — idempotent upsert, non-fatal).
+      const preProgress = structure.user_structures || null;
+      if (!preProgress || preProgress.state === 'new' || !preProgress.state) {
+        markNewStructureIntroduced(user.id, structure.id).catch(() => {
+          // Non-fatal: hạn mức ngày có thể hào phóng hơn nhưng không phá phiên.
+        });
+      }
+
       setLastReviewResult(progress);
       setPhase('complete');
       setIsRating(false);

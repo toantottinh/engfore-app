@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './useAuth.jsx';
 import { getStructureExercises } from '../services/structure.service.js';
-import { recordStructureResult } from '../services/structure-learning.service.js';
 import {
+  recordStructureResult,
   getStructureSessionQueue,
+  getUserDailyNewStructureLimit,
+  getDailyNewStructureProgress,
+  markNewStructureIntroduced,
 } from '../services/structure-learning.service.js';
 import { computeSrsPayload, RATING } from '../services/srs.service.js';
 import { checkExerciseAnswer } from '../utils/structure-exercise-checker.js';
@@ -16,6 +19,16 @@ export const RATING_MAP = {
   good: RATING.GOOD,   // 3
   easy: RATING.EASY,   // 4
 };
+
+/**
+ * Kiểm tra một structure có đang là MỚI (chưa được đưa vào SRS) hay không.
+ * Mirror vocabulary rule: chưa có row user_structures HOẶC state='new'.
+ * @param {object|null} progress - row user_structures của structure
+ * @returns {boolean}
+ */
+function isNewStructureProgress(progress) {
+  return !progress || progress.state === 'new' || !progress.state;
+}
 
 /**
  * CK10 — STRUCTURE REVIEW SESSION (tự động, giống Vocabulary Review).
@@ -161,8 +174,19 @@ export function useStructureReviewSession() {
     seqIdxRef.current = 0;
 
     try {
-      // Queue đã xếp sẵn DUE → LEARNING → NEW (không đổi scheduler).
-      const { data, error: qErr } = await getStructureSessionQueue(user.id);
+      // Daily NEW structure quota (mirror Vocabulary): đọc setting + progress
+      // theo ngày business Việt Nam trước khi dựng queue.
+      const [limitRes, progRes] = await Promise.all([
+        getUserDailyNewStructureLimit(user.id),
+        getDailyNewStructureProgress(user.id),
+      ]);
+      const introducedIds = progRes?.data ?? [];
+
+      // Queue đã xếp sẵn DUE → LEARNING → NEW; chỉ nhóm NEW bị giới hạn hạn mức.
+      const { data, error: qErr } = await getStructureSessionQueue(user.id, {
+        dailyNewStructureLimit: limitRes?.value ?? undefined,
+        introducedTodayStructureIds: introducedIds,
+      });
       if (qErr) throw qErr;
       const list = Array.isArray(data) ? data : [];
       queueRef.current = list;
@@ -253,6 +277,15 @@ export function useStructureReviewSession() {
         setRatingError('Không thể lưu tiến trình học. Vui lòng thử lại.');
         setIsRating(false);
         return;
+      }
+
+      // Structure này vừa được đưa vào SRS lần đầu -> đếm vào hạn mức cấu trúc
+      // MỚI của hôm nay (idempotent upsert, non-fatal như Vocabulary).
+      if (isNewStructureProgress(cur.structure.user_structures || null)) {
+        markNewStructureIntroduced(user.id, cur.structure.structureId ?? cur.structure.id)
+          .catch(() => {
+            // Non-fatal: hạn mức ngày có thể hào phóng hơn nhưng không phá phiên.
+          });
       }
 
       setLastResult(progress);

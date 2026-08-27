@@ -8,11 +8,23 @@ import {
 const { NEW, REVIEW, AGAIN, DONE } = SESSION_STATE;
 
 describe('resolveSessionWordState — session counter transitions', () => {
-  it('NEW → AGAIN: word lands in the red bucket', () => {
-    expect(resolveSessionWordState(NEW, 'again', NEW)).toBe(AGAIN);
+  // REQUIRED CASE 1 — NEW + AGAIN: introduction is NOT completed yet, so the
+  // word KEEPS being counted as 🟢 Mới ("Từ mới" counter must not drop).
+  it('CASE 1. NEW → AGAIN: từ vẫn còn NEW (không rời nhóm Mới)', () => {
+    expect(resolveSessionWordState(NEW, 'again', NEW)).toBe(NEW);
   });
 
-  it('REVIEW → AGAIN: review word moves to the red bucket', () => {
+  // REQUIRED CASES 2–4 — NEW + HARD/GOOD/EASY completes the introduction:
+  // the word leaves the 🟢 Mới bucket → "Từ mới" counter decrements by 1.
+  it('CASES 2–4. NEW → HARD/GOOD/EASY: hoàn thành NEW (ra khỏi nhóm Mới)', () => {
+    expect(resolveSessionWordState(NEW, 'hard', NEW)).toBe(DONE);
+    expect(resolveSessionWordState(NEW, 'good', NEW)).toBe(DONE);
+    expect(resolveSessionWordState(NEW, 'easy', NEW)).toBe(DONE);
+  });
+
+  // REQUIRED CASE 6 — REVIEW + AGAIN lapses into the red bucket exactly once;
+  // the NEW counter is untouched by anything that happens to a REVIEW word.
+  it('REVIEW → AGAIN: review word moves to the red bucket (Ôn -1)', () => {
     expect(resolveSessionWordState(REVIEW, 'again', REVIEW)).toBe(AGAIN);
   });
 
@@ -26,21 +38,20 @@ describe('resolveSessionWordState — session counter transitions', () => {
     expect(resolveSessionWordState(AGAIN, 'easy')).toBe(DONE);
   });
 
-  it('NEW answered correctly stays 🟢 Mới (never counted as Again/Ôn)', () => {
-    expect(resolveSessionWordState(NEW, 'good', NEW)).toBe(NEW);
-  });
-
-  it('REVIEW answered correctly (hard/good/easy) exits 🟠 Ôn (bug fix)', () => {
+  // REQUIRED CASE 5 — REVIEW answered correctly exits 🟠 Ôn; NEW counter untouched.
+  it('REVIEW answered correctly (hard/good/easy) exits 🟠 Ôn', () => {
     expect(resolveSessionWordState(REVIEW, 'good', REVIEW)).toBe(DONE);
     expect(resolveSessionWordState(REVIEW, 'hard', REVIEW)).toBe(DONE);
     expect(resolveSessionWordState(REVIEW, 'easy', REVIEW)).toBe(DONE);
   });
 
   it('unknown current state falls back to the initial word state', () => {
-    // Unknown state that falls back to NEW + Again → red bucket.
-    expect(resolveSessionWordState('', AGAIN, NEW)).toBe(AGAIN);
+    // Unknown state that falls back to NEW + Again → still NEW (case-1 rule).
+    expect(resolveSessionWordState('', 'again', NEW)).toBe(NEW);
     // Unknown state that falls back to REVIEW + correct → treated as REVIEW→correct → done.
     expect(resolveSessionWordState(undefined, 'good', REVIEW)).toBe(DONE);
+    // Unknown state that falls back to REVIEW + Again → red bucket.
+    expect(resolveSessionWordState(undefined, 'again', REVIEW)).toBe(AGAIN);
   });
 });
 
@@ -70,23 +81,24 @@ describe('full required example sequence (3 NEW / 0 AGAIN / 5 REVIEW)', () => {
   it('walks the whole example and ends at NEW 2 / AGAIN 0 / REVIEW 4', () => {
     expect(countSessionStates(states)).toEqual({ new: 3, again: 0, review: 5 });
 
-    // Step 1 — one Mới (NEW) answered wrong → NEW -1, AGAIN +1, Ôn unchanged
-    states.n1 = resolveSessionWordState(states.n1, AGAIN, NEW);
-    expect(countSessionStates(states)).toEqual({ new: 2, again: 1, review: 5 });
+    // Step 1 — Mới (NEW) answered WRONG with Again → VẪN còn Mới
+    // (introduction chưa hoàn thành ⇒ "Từ mới" KHÔNG giảm — required case 1).
+    states.n1 = resolveSessionWordState(states.n1, 'again', NEW);
+    expect(countSessionStates(states)).toEqual({ new: 3, again: 0, review: 5 });
 
-    // Step 2 — one Ôn (REVIEW) answered wrong → Ôn -1, AGAIN +1, Mới unchanged
-    states.r1 = resolveSessionWordState(states.r1, AGAIN, REVIEW);
-    expect(countSessionStates(states)).toEqual({ new: 2, again: 2, review: 4 });
+    // Step 2 — Ôn (REVIEW) answered wrong → Ôn -1, AGAIN +1, Mới unchanged
+    states.r1 = resolveSessionWordState(states.r1, 'again', REVIEW);
+    expect(countSessionStates(states)).toEqual({ new: 3, again: 1, review: 4 });
 
     // Step 3 — an Again word re-reviewed and STILL wrong → every counter unchanged
-    states.n1 = resolveSessionWordState(states.n1, AGAIN, NEW);
-    expect(countSessionStates(states)).toEqual({ new: 2, again: 2, review: 4 });
+    states.r1 = resolveSessionWordState(states.r1, 'again', REVIEW);
+    expect(countSessionStates(states)).toEqual({ new: 3, again: 1, review: 4 });
 
-    // Step 4 — an Again word answered correctly → AGAIN -1 only
+    // Step 4 — the SAME Mới word now completed with GOOD → Mới -1
     states.n1 = resolveSessionWordState(states.n1, 'good', NEW);
     expect(countSessionStates(states)).toEqual({ new: 2, again: 1, review: 4 });
 
-    // Step 5 — the last Again word answered correctly → AGAIN 0
+    // Step 5 — an Again word answered correctly → AGAIN -1 only
     states.r1 = resolveSessionWordState(states.r1, 'good', REVIEW);
     expect(countSessionStates(states)).toEqual({ new: 2, again: 0, review: 4 });
   });
@@ -114,29 +126,29 @@ describe('bug: REVIEW answered correctly must decrement the 🟠 Ôn counter', (
     expect(countSessionStates(states)).toEqual({ new: 3, again: 0, review: 2 });
   });
 
-  it('non-REVIEW cards are never decremented from the Ôn counter', () => {
-    // A NEW card answered correctly must NOT touch the review count (stays green).
+  it('a NEW card answered correctly NEVER touches the Ôn or Again counter', () => {
     const states = { n1: NEW, r1: REVIEW };
     expect(countSessionStates(states)).toEqual({ new: 1, again: 0, review: 1 });
 
+    // NEW → GOOD: the completed word leaves the green bucket only.
     states.n1 = resolveSessionWordState(states.n1, 'good', NEW);
-    expect(countSessionStates(states)).toEqual({ new: 1, again: 0, review: 1 });
+    expect(countSessionStates(states)).toEqual({ new: 0, again: 0, review: 1 });
   });
 
-  it('NEW→AGAIN and AGAIN→AGAIN still behave correctly (never double-count Again)', () => {
+  it('NEW→AGAIN keeps the Mới count until the retry completes; HARD then drops it once', () => {
     let states = { n1: NEW, r1: REVIEW };
     expect(countSessionStates(states)).toEqual({ new: 1, again: 0, review: 1 });
 
-    // NEW → AGAIN: green -1, red +1
+    // NEW → AGAIN: vẫn còn Mới (counter không đổi — required case 1).
     states.n1 = resolveSessionWordState(states.n1, 'again', NEW);
-    expect(countSessionStates(states)).toEqual({ new: 0, again: 1, review: 1 });
+    expect(countSessionStates(states)).toEqual({ new: 1, again: 0, review: 1 });
 
-    // AGAIN → AGAIN: no additional red, no green/Ôn change
+    // Another Again on the unfinished NEW word → still counted as Mới.
     states.n1 = resolveSessionWordState(states.n1, 'again', NEW);
-    expect(countSessionStates(states)).toEqual({ new: 0, again: 1, review: 1 });
+    expect(countSessionStates(states)).toEqual({ new: 1, again: 0, review: 1 });
 
-    // AGAIN → correct: red -1 only
-        states.n1 = resolveSessionWordState(states.n1, 'good', NEW);
+    // Retry succeeded with HARD → hoàn thành NEW → Mới -1 (một lần duy nhất).
+    states.n1 = resolveSessionWordState(states.n1, 'hard', NEW);
     expect(countSessionStates(states)).toEqual({ new: 0, again: 0, review: 1 });
   });
 });

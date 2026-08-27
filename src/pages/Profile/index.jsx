@@ -11,11 +11,20 @@ import {
   DEFAULT_DAILY_NEW_LIMIT,
   DAILY_NEW_LIMIT_OPTIONS,
 } from '../../services/learning.service.js';
+import {
+  getUserDailyNewStructureLimit,
+  updateDailyNewStructureLimit,
+  DEFAULT_DAILY_NEW_STRUCTURE_LIMIT,
+  DAILY_NEW_STRUCTURE_LIMIT_OPTIONS,
+} from '../../services/structure-learning.service.js';
 
 export default function Profile() {
   const { user, profile } = useAuth();
   const [username, setUsername] = useState(profile?.username || '');
   const [dailyNewLimit, setDailyNewLimit] = useState(DEFAULT_DAILY_NEW_LIMIT);
+  const [dailyNewStructureLimit, setDailyNewStructureLimit] = useState(
+    DEFAULT_DAILY_NEW_STRUCTURE_LIMIT
+  );
   const [dailyGoal, setDailyGoal] = useState(20); // users.daily_goal (mục tiêu hôm nay)
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -23,7 +32,7 @@ export default function Profile() {
 
   const displayName = profile?.username || user?.email?.split('@')[0] || 'Người dùng';
 
-  // Load đầy đủ hồ sơ (gồm daily_goal) từ bảng users.
+  // Load đầy đủ hồ sơ (gồm daily_goal) từ bảng users + hạn mức daily hiện có.
   useEffect(() => {
     let mounted = true;
     if (user?.id) {
@@ -31,6 +40,10 @@ export default function Profile() {
         if (!mounted || error || !data) return;
         setUsername((prev) => prev || data.username || '');
         setDailyGoal(Number(data.daily_goal) || 20);
+      });
+      getUserDailyNewStructureLimit(user.id).then(({ value }) => {
+        if (!mounted) return;
+        if (Number.isFinite(value)) setDailyNewStructureLimit(value);
       });
     }
     return () => {
@@ -49,6 +62,10 @@ export default function Profile() {
     }
     setSaving(true);
     const { error, value } = await updateDailyNewLimit(user.id, dailyNewLimit);
+    if (!error) {
+      // Persist hạn mức cấu trúc mới mỗi ngày (user_settings mirror vocabulary).
+      await updateDailyNewStructureLimit(user.id, dailyNewStructureLimit);
+    }
     if (!error && Number.isFinite(dailyGoal) && dailyGoal > 0) {
       // Lưu mục tiêu hôm nay (users.daily_goal) — RLS cho phép user tự cập nhật.
       const profRes = await authService.updateProfile(user.id, {
@@ -105,6 +122,21 @@ export default function Profile() {
             onChange={(e) => setDailyNewLimit(Number(e.target.value))}
           >
             {DAILY_NEW_LIMIT_OPTIONS.map((limit) => (
+              <option key={limit} value={limit}>
+                {limit}
+              </option>
+            ))}
+          </select>
+          <label className="block text-sm font-medium text-zinc-700 mb-1">
+            Cấu trúc mới mỗi ngày
+          </label>
+          <select
+            aria-label="Cấu trúc mới mỗi ngày"
+            className="w-full rounded-xl py-2.5 px-3 border border-zinc-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+            value={dailyNewStructureLimit}
+            onChange={(e) => setDailyNewStructureLimit(Number(e.target.value))}
+          >
+            {DAILY_NEW_STRUCTURE_LIMIT_OPTIONS.map((limit) => (
               <option key={limit} value={limit}>
                 {limit}
               </option>

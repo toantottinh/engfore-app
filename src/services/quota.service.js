@@ -27,6 +27,24 @@ export const DAILY_NEW_LIMIT_OPTIONS = [5, 10, 20, 30, 50];
 export const DAILY_NEW_LIMIT_KEY = 'daily_new_limit';
 
 /**
+ * Shared clamping logic for every "daily-new-X-limit" setting family.
+ * - Falls back to `fallback` when absent/invalid (NaN, null, …).
+ * - Clamps into the supported options range so a misconfigured setting can
+ *   never disable learning entirely (limit < 0) or explode the quota.
+ * @param {*} value
+ * @param {number[]} options supported choices (defines min/max)
+ * @param {number} fallback default when value is absent/invalid
+ * @returns {number} a valid limit within [min, max] of options
+ */
+function resolveLimitWithinOptions(value, options, fallback) {
+  const min = Math.min(...options);
+  const max = Math.max(...options);
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(Math.round(n), min), max);
+}
+
+/**
  * Resolve an arbitrary setting value into a valid daily-new-limit integer.
  * - Falls back to DEFAULT_DAILY_NEW_LIMIT when absent/invalid (NaN, null, …).
  * - Clamps into the supported options range so a misconfigured setting can
@@ -35,12 +53,11 @@ export const DAILY_NEW_LIMIT_KEY = 'daily_new_limit';
  * @returns {number} a valid limit within [min, max] of DAILY_NEW_LIMIT_OPTIONS
  */
 export function resolveDailyNewLimit(value) {
-  const opts = DAILY_NEW_LIMIT_OPTIONS;
-  const min = Math.min(...opts);
-  const max = Math.max(...opts);
-  const n = Number(value);
-  if (!Number.isFinite(n)) return DEFAULT_DAILY_NEW_LIMIT;
-  return Math.min(Math.max(Math.round(n), min), max);
+  return resolveLimitWithinOptions(
+    value,
+    DAILY_NEW_LIMIT_OPTIONS,
+    DEFAULT_DAILY_NEW_LIMIT
+  );
 }
 
 /**
@@ -71,7 +88,7 @@ export const getDailyDateKey = getBusinessDateKey;
  * @returns {Array} NEW words allowed into the session today (<= remaining quota)
  */
 export function selectNewWordsForToday(newWords, dailyNewLimit, introducedTodayIds = []) {
-  const limit = resolveDailyNewLimit(dailyNewLimit);
+  const limit = resolveLimitWithinOptions(dailyNewLimit, DAILY_NEW_LIMIT_OPTIONS, DEFAULT_DAILY_NEW_LIMIT);
   const introduced = new Set(
     (introducedTodayIds || []).map((id) => (id == null ? '' : String(id)))
   );
@@ -79,6 +96,68 @@ export function selectNewWordsForToday(newWords, dailyNewLimit, introducedTodayI
     let wid = '';
     if (w) wid = String(w.id ?? w.word_sense_id ?? '');
     return !introduced.has(wid);
+  });
+  const remaining = Math.max(0, limit - introduced.size);
+  return available.slice(0, Math.max(0, remaining));
+}
+
+// ------------------------------------------------------------------
+// DAILY NEW STRUCTURE limit — mirror của daily NEW-limit cho Vocabulary,
+// áp dụng riêng cho Sentence Structures.
+//
+// Nguyên tắc giữ nguyên 100%:
+//   - Chỉ nhóm NEW bị giới hạn; DUE REVIEW và LEARNING/RELEARNING luôn vào
+//     phiên đầy đủ, KHÔNG bao giờ bị giới hạn daily.
+//   - Một structure NEW chỉ đếm vào hạn mức ĐÚNG MỘT LẦN/ngày (idempotent qua
+//     bảng daily_new_structure_progress).
+// ------------------------------------------------------------------
+
+/** Default NEW structures a user may introduce per day when no setting exists. */
+export const DEFAULT_DAILY_NEW_STRUCTURE_LIMIT = 5;
+
+/** Allowed daily-new-structure-limit choices surfaced in the Settings UI. */
+export const DAILY_NEW_STRUCTURE_LIMIT_OPTIONS = [5, 10, 20, 30, 50];
+
+/** Setting key under which the daily STRUCTURE limit is persisted in `user_settings`. */
+export const DAILY_NEW_STRUCTURE_LIMIT_KEY = 'daily_new_structure_limit';
+
+/**
+ * Resolve an arbitrary setting value into a valid daily-new-STRUCTURE-limit
+ * integer. Same clamping contract as resolveDailyNewLimit but keyed on the
+ * structure defaults/options (invalid/absent value -> structure default).
+ * @param {*} value
+ * @returns {number} a valid limit within [min, max] of DAILY_NEW_STRUCTURE_LIMIT_OPTIONS
+ */
+export function resolveDailyNewStructureLimit(value) {
+  return resolveLimitWithinOptions(
+    value,
+    DAILY_NEW_STRUCTURE_LIMIT_OPTIONS,
+    DEFAULT_DAILY_NEW_STRUCTURE_LIMIT
+  );
+}
+
+/**
+ * Select the NEW structures that may be introduced to a session today.
+ * Mirror thuần (pure) của selectNewWordsForToday — identity là structure id.
+ *
+ * @param {Array} freshStructures        NEW structures (bucket 'new'), đã xếp thứ tự
+ * @param {number} dailyNewStructureLimit quota của ngày (đã resolve)
+ * @param {Array<string>} introducedTodayIds structure_ids đã giới thiệu hôm nay
+ * @returns {Array} NEW structures được phép vào phiên hôm nay (<= hạn mức còn lại)
+ */
+export function selectNewStructuresForToday(
+  freshStructures,
+  dailyNewStructureLimit,
+  introducedTodayIds = []
+) {
+  const limit = resolveDailyNewStructureLimit(dailyNewStructureLimit);
+  const introduced = new Set(
+    (introducedTodayIds || []).map((id) => (id == null ? '' : String(id)))
+  );
+  const available = (freshStructures || []).filter((s) => {
+    let sid = '';
+    if (s) sid = String(s.id ?? s.structureId ?? '');
+    return !introduced.has(sid);
   });
   const remaining = Math.max(0, limit - introduced.size);
   return available.slice(0, Math.max(0, remaining));

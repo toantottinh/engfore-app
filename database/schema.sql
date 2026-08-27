@@ -117,3 +117,33 @@ CREATE POLICY "Users can manage their own daily new progress."
 CREATE INDEX ON user_settings (user_id);
 CREATE INDEX ON daily_new_progress (user_id);
 CREATE INDEX ON daily_new_progress (day);
+
+/* --- Daily NEW STRUCTURE limit (mirror cho Sentence Structures) --- */
+
+/*
+   Table: daily_new_structure_progress
+   Tracks which NEW structure_ids a user has already introduced today.
+   One row per (user, day, structure_id) — upsert is idempotent.
+   The `day` column stores the Vietnam business date key "YYYY-MM-DD"
+   (Asia/Ho_Chi_Minh) like daily_new_progress since migration
+   20260822_fix_daily_progress_timezone; mirror table created in
+   20260827_add_daily_new_structure_progress.
+*/
+CREATE TABLE IF NOT EXISTS daily_new_structure_progress (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  day TEXT NOT NULL CHECK (day ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'), -- business date key Asia/Ho_Chi_Minh
+  structure_id UUID NOT NULL,
+  PRIMARY KEY (user_id, day, structure_id)
+);
+
+/* RLS for daily_new_structure_progress */
+ALTER TABLE daily_new_structure_progress ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own daily new structure progress."
+  ON daily_new_structure_progress FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+/* Indexes for performance */
+CREATE INDEX IF NOT EXISTS daily_new_structure_progress_user_id_idx
+  ON daily_new_structure_progress (user_id);
+CREATE INDEX IF NOT EXISTS daily_new_structure_progress_day_idx
+  ON daily_new_structure_progress (day);

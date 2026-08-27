@@ -17,6 +17,9 @@ const getStructureSrsStatsMock = vi.fn();
 vi.mock('../services/structure-learning.service.js', () => ({
   getStructureSessionQueue: (...a) => getStructureSessionQueueMock(...a),
   getStructureSrsStats: (...a) => getStructureSrsStatsMock(...a),
+  getUserDailyNewStructureLimit: vi.fn(async () => ({ value: 5, error: null })),
+  getDailyNewStructureProgress: vi.fn(async () => ({ data: [], error: null })),
+  markNewStructureIntroduced: vi.fn(async () => ({ error: null })),
 }));
 
 vi.mock('../services/auth.service.js', () => ({

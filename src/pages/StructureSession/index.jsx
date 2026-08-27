@@ -133,29 +133,37 @@ export default function StructureSession() {
   }
 
   // ===== EXERCISE =====
-  // Header KHÔNG hiển thị pattern/structure — tránh lộ công thức/đáp án
-  // trước khi user submit (daily recall test).
-  // NEW/AGAIN (sequence): progress "Bài x/n" rõ ràng; vẫn ĐÚNG MỘT exercise
-  // render tại một thời điểm — bài kế tiếp xuất hiện sau khi feedback được
-  // "Tiếp tục", KHÔNG bao giờ kèm rating giữa chừng.
+  // Góc TRÊN BÊN PHẢI luôn hiển thị CẤU TRÚC đang luyện (s.pattern) — yêu cầu
+  // product: người học biết công thức cấu trúc cần sử dụng trong khi làm bài.
+  // NEW/AGAIN (sequence): progress "Bài x/n" bên trái; instruction về quy tắc
+  // chấm AGAIN/HARD/GOOD/EASY chỉ là dòng hint nhỏ DƯỚI card (không chiếm chỗ
+  // của structure). Vẫn ĐÚNG MỘT exercise render tại một thời điểm — bài kế
+  // tiếp xuất hiện sau khi feedback được "Tiếp tục", KHÔNG có rating giữa chừng.
   if (h.phase === 'exercise') {
     const ex = h.currentExercise;
     const inSequence = h.planMode === 'sequence' && h.sequenceTotal > 0;
     return (
       <div className="mx-auto max-w-2xl space-y-3">
-        {inSequence ? (
-          <div className="flex items-center justify-between text-sm text-text-secondary">
+        <div className="flex items-start justify-between gap-3">
+          {inSequence ? (
             <span
-              className="font-semibold text-text-primary"
+              className="shrink-0 text-sm font-semibold text-text-primary"
               data-testid="structure-sequence-progress"
             >
               Bài {h.sequenceIndex + 1}/{h.sequenceTotal}
             </span>
-            <span>Làm xong hết mới chấm Again/Hard/Good/Easy</span>
-          </div>
-        ) : (
-          <div className="text-sm text-text-secondary">🎲 Một bài tập ngẫu nhiên</div>
-        )}
+          ) : (
+            <span className="shrink-0 text-sm text-text-secondary">🎲 Một bài tập ngẫu nhiên</span>
+          )}
+          {/* Cấu trúc đang học — không hard-code, lấy từ structure hiện tại */}
+          <span
+            data-testid="structure-session-pattern"
+            title={s.pattern}
+            className="min-w-0 truncate rounded-lg bg-surface-sidebar px-2 py-1 text-right text-sm font-semibold text-brand-primary"
+          >
+            {s.pattern}
+          </span>
+        </div>
         <div className="rounded-xl border border-border-color bg-surface p-5">
           {h.feedback?.submitted ? (
             <FeedbackView
@@ -169,6 +177,12 @@ export default function StructureSession() {
             <ExerciseRenderer exercise={ex} feedback={h.feedback} onSubmit={h.submitAnswer} />
           )}
         </div>
+        {inSequence && !h.feedback?.submitted && (
+          <p className="text-xs text-text-secondary">
+            Làm xong hết các bài bạn sẽ tự đánh giá mức độ nhớ:{' '}
+            Again / Hard / Good / Easy.
+          </p>
+        )}
       </div>
     );
   }

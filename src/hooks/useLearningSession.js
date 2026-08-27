@@ -34,18 +34,18 @@ export const SESSION_STATE = {
  * Resolve the next session display state for a word after a rating.
  * Pure (no I/O) so the transition matrix can be unit-tested directly.
  *
- * Rules:
- *  - rating === 'again' (NEW→AGAIN / REVIEW→AGAIN / AGAIN→AGAIN):
- *    the word lands / stays in the red bucket exactly once. A repeated Again
- *    NEVER increments the Again count for the same word.
- *  - A REVIEW (🟠 Ôn) word answered correctly (Hard/Good/Easy) has been
- *    successfully reviewed and is no longer pending this session, so it leaves
- *    the yellow bucket ('done'). This mirrors the REVIEW→AGAIN path (Ôn -1,
- *    Again +1) for success ratings (Ôn -1, Again untouched).
- *  - An Again word answered correctly (Hard/Good/Easy) leaves the red bucket
- *    ('done'); it is not moved into 🟢 Mới or 🟠 Ôn.
- *  - A NEW word answered correctly stays 🟢 Mới (still part of the new batch).
- *    Non-REVIEW cards are never decremented from the Ôn counter.
+ * Rules ("Từ mới" = còn chưa hoàn thành việc giới thiệu từ NEW hôm nay):
+ *  - A NEW word rated Again has NOT completed its introduction yet: it stays
+ *    🟢 Mới (counter unchanged). The in-session retry itself is tracked by the
+ *    per-queue-instance `sessionStatus` (red card + requeue), NOT by counters.
+ *  - A NEW word rated Hard/Good/Easy HAS completed its introduction, so it
+ *    leaves the 🟢 Mới bucket ('done') and the counter decrements by 1.
+ *  - A REVIEW word rated Again lapses into the red bucket exactly once
+ *    (Ôn -1 / Again +1). Repeated Again NEVER increments Again again.
+ *  - A REVIEW word answered correctly (Hard/Good/Easy) was successfully
+ *    reviewed and leaves the yellow bucket ('done') — Ôn -1, Again untouched.
+ *  - An AGAIN word answered correctly (Hard/Good/Easy) leaves the red bucket
+ *    ('done'); it is never moved into 🟢 Mới or 🟠 Ôn.
  *
  * @param {string} currentState 'new' | 'review' | 'again' | 'done' (may be empty)
  * @param {string} rating UI rating key: 'again' | 'hard' | 'good' | 'easy'
@@ -54,11 +54,16 @@ export const SESSION_STATE = {
  */
 export function resolveSessionWordState(currentState, rating, fallbackState = SESSION_STATE.REVIEW) {
   const base = currentState || fallbackState;
-  if (rating === 'again') return SESSION_STATE.AGAIN;
-  if (base === SESSION_STATE.AGAIN) return SESSION_STATE.DONE;
-  // REVIEW answered correctly → successfully reviewed → leaves the yellow bucket.
-  if (base === SESSION_STATE.REVIEW) return SESSION_STATE.DONE;
-  return base;
+  if (rating === 'again') {
+    // Only a REVIEW lapse lands in the red bucket. A NEW word rated Again is
+    // still unfinished business -> remains 🟢 Mới. An AGAIN word re-rated
+    // Again stays in the red bucket (base === AGAIN -> return base).
+    return base === SESSION_STATE.REVIEW ? SESSION_STATE.AGAIN : base;
+  }
+  // Any correct answer resolves the pending states:
+  if (base === SESSION_STATE.AGAIN) return SESSION_STATE.DONE;   // retry succeeded
+  if (base === SESSION_STATE.REVIEW) return SESSION_STATE.DONE;  // reviewed ok
+  return SESSION_STATE.DONE;                                     // NEW completed
 }
 
 /**
@@ -389,11 +394,13 @@ export function useLearningSession(setId) {
         });
 
         // Update the per-word display state (independent of queue requeue).
-        // rating === 'again' covers every path with the semantic
-        // "current word -> Again" (Flashcard Again button, Typing wrong +
-        // Again, keyboard 1, ...). Non-again ratings on an Again word mean
-        // the retry succeeded -> it leaves the red bucket ('done'). A REVIEW
-        // word answered with Hard/Good/Easy was successfully reviewed -> it
+        // Semantics of "Từ mới" (🟢 Mới): a NEW word only LEAVES the counter when
+        // its introduction is COMPLETED with Hard/Good/Easy — a rating of Again
+        // keeps it counted as NEW while its retry is requeued via sessionStatus.
+        // rating === 'again' on a REVIEW word is a lapse: it lands in the red
+        // bucket exactly once. Non-again ratings on an Again word mean the
+        // retry succeeded -> it leaves the red bucket ('done'). A REVIEW word
+        // answered with Hard/Good/Easy was successfully reviewed -> it
         // leaves the yellow bucket so the Ôn counter decrements by 1.
         setSessionWordStates((prev) => {
           const initialForWord = currentWord.state === 'new' ? 'new' : 'review';

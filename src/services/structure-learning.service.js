@@ -1,7 +1,27 @@
 import { supabase } from './supabase.js';
 import { computeSrsPayload, RATING } from './srs.service.js';
 import { MASTERY_MAX, MASTERY_MIN } from './learning.service.js';
-import { buildStructureSessionQueue } from '../utils/structure-status.js';
+import {
+  buildStructureSessionQueue,
+  partitionStructureQueue,
+} from '../utils/structure-status.js';
+import {
+  DEFAULT_DAILY_NEW_STRUCTURE_LIMIT,
+  DAILY_NEW_STRUCTURE_LIMIT_KEY,
+  resolveDailyNewStructureLimit,
+  selectNewStructuresForToday,
+} from './quota.service.js';
+// Business timezone helper (Asia/Ho_Chi_Minh) — NGUỒN DUY NHẤT cho "hôm nay",
+// giống daily_new_progress của Vocabulary (KHÔNG dùng UTC trực tiếp).
+import { getBusinessDateKey } from '../utils/time.js';
+
+export {
+  DEFAULT_DAILY_NEW_STRUCTURE_LIMIT,
+  DAILY_NEW_STRUCTURE_LIMIT_OPTIONS,
+  DAILY_NEW_STRUCTURE_LIMIT_KEY,
+  resolveDailyNewStructureLimit,
+  selectNewStructuresForToday,
+} from './quota.service.js';
 
 /**
  * Dịch vụ Structure Learning + SRS (CHECKPOINT 5+6).
@@ -42,12 +62,23 @@ const STRUCTURE_CORE_SELECT = 'id, pattern, meaning, explanation, cefr, topic, c
  * - NEW    : chưa có user_structures HOẶC state='new'
  * Review chưa tới hạn bị LOẠI khỏi queue.
  *
+ * Daily NEW limit (tùy chọn):
+ *   Khi caller truyền `{ dailyNewStructureLimit, introducedTodayStructureIds }`,
+ *   CHỈ nhóm NEW bị cắt còn số lượng = max(0, limit - đã giới thiệu hôm nay).
+ *   DUE và LEARNING LUÔN được giữ đầy đủ — daily limit không bao giờ áp dụng
+ *   cho review/learning (khác with Vocabulary engine: chỉ NEW capped).
+ *   Không truyền options => giữ behavior cũ (không giới hạn) cho backward compat.
+ *
  * RLS giới hạn đúng user hiện tại (lọc .eq('user_id')).
  *
  * @param {string} userId
+ * @param {{
+ *   dailyNewStructureLimit?: number,
+ *   introducedTodayStructureIds?: string[],
+ * }} [options]
  * @returns {Promise<{ data: Array|null, error: any }>}
  */
-export async function getStructureSessionQueue(userId) {
+export async function getStructureSessionQueue(userId, options = {}) {
   if (!userId) return { data: null, error: { message: 'Thiếu userId.' } };
   try {
     const [structRes, progRes] = await Promise.all([
@@ -63,7 +94,24 @@ export async function getStructureSessionQueue(userId) {
     });
 
     const queue = buildStructureSessionQueue(structRes.data || [], progressMap);
-    return { data: queue, error: null };
+
+    const hasLimit =
+      typeof options.dailyNewStructureLimit === 'number' &&
+      Number.isFinite(options.dailyNewStructureLimit);
+    if (!hasLimit) {
+      // Backward compatible: không truyền hạn mức -> queue đầy đủ như trước.
+      return { data: queue, error: null };
+    }
+
+    // Tách phần đuôi NEW khỏi DUE/LEARNING (thứ tự builder được partition giữ
+    // nguyên). Chỉ slice nhóm NEW; DUE + LEARNING giữ nguyên từng item.
+    const sections = partitionStructureQueue(queue);
+    const limitedFresh = selectNewStructuresForToday(
+      sections.new,
+      options.dailyNewStructureLimit,
+      options.introducedTodayStructureIds
+    );
+    return { data: [...sections.due, ...sections.learning, ...limitedFresh], error: null };
   } catch (e) {
     return { data: null, error: e };
   }
@@ -205,5 +253,113 @@ export async function getStructureSrsStats(userId) {
     };
   } catch (e) {
     return { data: null, error: e };
+  }
+}
+
+// ------------------------------------------------------------------
+// Daily NEW STRUCTURE limit persistence — mirror 1:1 với bộ hàm daily NEW
+// limit của Vocabulary trong learning.service.js:
+//   setting  -> user_settings(key = 'daily_new_structure_limit')
+//   tracking -> daily_new_structure_progress(user_id, day, structure_id)
+// `day` luôn là business-date key Asia/Ho_Chi_Minh (getBusinessDateKey).
+// ------------------------------------------------------------------
+
+/**
+ * Read the user's `daily_new_structure_limit` setting.
+ * Missing row / unconfigured user -> DEFAULT_DAILY_NEW_STRUCTURE_LIMIT (5).
+ * Tolerates both a raw-number and a `{ value: N }` jsonb shape.
+ * @param {string} userId
+ * @returns {Promise<{ value: number, error: object|null }>}
+ */
+export async function getUserDailyNewStructureLimit(userId) {
+  if (!userId) return { value: DEFAULT_DAILY_NEW_STRUCTURE_LIMIT, error: null };
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('value_jsonb')
+      .eq('user_id', userId)
+      .eq('key', DAILY_NEW_STRUCTURE_LIMIT_KEY)
+      .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    const raw = data?.value_jsonb;
+    const num = typeof raw === 'number' ? raw : raw && raw.value;
+    return { value: resolveDailyNewStructureLimit(num), error: null };
+  } catch (e) {
+    // Never block a learning session because the setting can't be read.
+    return { value: DEFAULT_DAILY_NEW_STRUCTURE_LIMIT, error: e };
+  }
+}
+
+/**
+ * structure_ids đã được giới thiệu (rated) hôm nay theo ngày business Việt Nam.
+ * @param {string} userId
+ * @param {string} [dateKey] — mặc định getBusinessDateKey() (Asia/Ho_Chi_Minh)
+ * @returns {Promise<{ data: string[], error: object|null }>}
+ */
+export async function getDailyNewStructureProgress(userId, dateKey) {
+  const key = dateKey || getBusinessDateKey();
+  if (!userId) return { data: [], error: null };
+  try {
+    const { data, error } = await supabase
+      .from('daily_new_structure_progress')
+      .select('structure_id')
+      .eq('user_id', userId)
+      .eq('day', key);
+    if (error) return { data: [], error };
+    return {
+      data: (data || []).map((r) => r.structure_id).filter(Boolean),
+      error: null,
+    };
+  } catch (e) {
+    return { data: [], error: e };
+  }
+}
+
+/**
+ * Record that a NEW structure was introduced to the user today.
+ * Upsert idempotent theo PK (user_id, day, structure_id) — ghi nhiều lần vẫn
+ * chỉ đếm một lần vào hạn mức.
+ * @param {string} userId
+ * @param {string} structureId
+ * @param {string} [dateKey]
+ * @returns {Promise<{ error: object|null }>}
+ */
+export async function markNewStructureIntroduced(userId, structureId, dateKey) {
+  const key = dateKey || getBusinessDateKey();
+  if (!userId || !structureId) {
+    return { error: { message: 'Thiếu userId hoặc structureId.' } };
+  }
+  try {
+    const { error } = await supabase
+      .from('daily_new_structure_progress')
+      .upsert(
+        { user_id: userId, day: key, structure_id: structureId },
+        { onConflict: 'user_id,day,structure_id' }
+      );
+    return { error: error ?? null };
+  } catch (e) {
+    return { error: e };
+  }
+}
+
+/**
+ * Persist the user's daily_new_structure_limit setting (idempotent upsert).
+ * @param {string} userId
+ * @param {*} value
+ * @returns {Promise<{ value: number, error: object|null }>}
+ */
+export async function updateDailyNewStructureLimit(userId, value) {
+  const limit = resolveDailyNewStructureLimit(value);
+  if (!userId) return { value: limit, error: { message: 'Thiếu userId.' } };
+  try {
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert(
+        { user_id: userId, key: DAILY_NEW_STRUCTURE_LIMIT_KEY, value_jsonb: limit },
+        { onConflict: 'user_id,key' }
+      );
+    return { value: limit, error: error ?? null };
+  } catch (e) {
+    return { value: DEFAULT_DAILY_NEW_STRUCTURE_LIMIT, error: e };
   }
 }
