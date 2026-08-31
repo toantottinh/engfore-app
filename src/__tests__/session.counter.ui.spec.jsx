@@ -131,7 +131,7 @@ describe('LearningSession — session counters reflect per-word state, not butto
   });
   afterEach(() => cleanup());
 
-  it('NEW→AGAIN keeps the Mới count / repeated Again no change / GOOD completes NEW via the rendered UI', async () => {
+  it('NEW→AGAIN drops Mới to 0 / repeated Again no double-count / retry GOOD keeps 0 via the rendered UI', async () => {
     // Test dài (3 chu kỳ answer tuần tự với real timers) — chạy thật ca. 2.4s
     // khi đơn lẻ nhưng dễ chạm timeout 5s mặc định khi full suite chạy song
     // song. Nới timeout CHO RIÊNG test này (không đổi global config/behavior).
@@ -140,28 +140,28 @@ describe('LearningSession — session counters reflect per-word state, not butto
     expect(getCounts()).toEqual({ new: 1, again: 0, review: 0 });
 
     // Type a WRONG answer, reveal, then choose Again.
-    // "Từ mới" semantics: a NEW word rated AGAIN has NOT completed its
-    // introduction → it stays 🟢 Mới (the retry is tracked per queue instance,
-    // NOT by the counters). Ôn/Again untouched.
+    // "Từ mới" semantics: a NEW word rated AGAIN has been introduced (it now
+    // exists in user_progress), so it LEAVES 🟢 Mới exactly once → Mới -1.
+    // The in-session retry itself is tracked per queue instance, NOT by counters.
     await typeAndReveal('xyz');
     await userEvent.click(screen.getByRole('button', { name: /^Again/ }));
     // Rating resolved once the requeue left a Continue button on screen.
     await userEvent.click(await screen.findByRole('button', { name: /Tiếp t/i }));
-    expect(getCounts()).toEqual({ new: 1, again: 0, review: 0 });
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
 
-    // Continue to the requeued copy and answer it WRONG again → Again changes nothing.
+    // Continue to the requeued copy and answer it WRONG again → no double-count.
     await waitFor(() => screen.getByText('quả táo'));
     await typeAndReveal('nope');
     await userEvent.click(screen.getByRole('button', { name: /^Again/ }));
     await waitFor(() => screen.getByRole('button', { name: /Tiếp t/i }));
-    expect(getCounts()).toEqual({ new: 1, again: 0, review: 0 });
+    expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
 
-    // Now answer the retry CORRECTLY (GOOD) → introduction COMPLETED: Mới -1.
+    // Now answer the retry CORRECTLY (GOOD) → already left Mới, stays 0.
     await userEvent.click(screen.getByRole('button', { name: /Tiếp t/i }));
     await waitFor(() => screen.getByText('quả táo'));
     await typeAndReveal('apple');
     await userEvent.click(screen.getByRole('button', { name: /^Good/ }));
-    await waitFor(() => getCounts().new === 0);
+    await waitFor(() => screen.findByRole('button', { name: /Tiếp t/i }));
     expect(getCounts()).toEqual({ new: 0, again: 0, review: 0 });
   }, 15000);
 

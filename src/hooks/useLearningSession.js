@@ -34,12 +34,12 @@ export const SESSION_STATE = {
  * Resolve the next session display state for a word after a rating.
  * Pure (no I/O) so the transition matrix can be unit-tested directly.
  *
- * Rules ("Từ mới" = còn chưa hoàn thành việc giới thiệu từ NEW hôm nay):
- *  - A NEW word rated Again has NOT completed its introduction yet: it stays
- *    🟢 Mới (counter unchanged). The in-session retry itself is tracked by the
- *    per-queue-instance `sessionStatus` (red card + requeue), NOT by counters.
- *  - A NEW word rated Hard/Good/Easy HAS completed its introduction, so it
- *    leaves the 🟢 Mới bucket ('done') and the counter decrements by 1.
+ * Rules ("Từ mới" = từ NEW được đưa vào luồng học hôm nay):
+ *  - A NEW word rated with ANY rating (Again/Hard/Good/Easy) has been
+ *    introduced into the learning flow (a user_progress row now exists), so it
+ *    leaves the 🟢 Mới bucket ('done') and the counter decrements by exactly 1.
+ *    The in-session retry is tracked by the per-queue-instance `sessionStatus`
+ *    (red card + requeue), NOT by counters — so the same word is never -2.
  *  - A REVIEW word rated Again lapses into the red bucket exactly once
  *    (Ôn -1 / Again +1). Repeated Again NEVER increments Again again.
  *  - A REVIEW word answered correctly (Hard/Good/Easy) was successfully
@@ -55,10 +55,13 @@ export const SESSION_STATE = {
 export function resolveSessionWordState(currentState, rating, fallbackState = SESSION_STATE.REVIEW) {
   const base = currentState || fallbackState;
   if (rating === 'again') {
-    // Only a REVIEW lapse lands in the red bucket. A NEW word rated Again is
-    // still unfinished business -> remains 🟢 Mới. An AGAIN word re-rated
-    // Again stays in the red bucket (base === AGAIN -> return base).
-    return base === SESSION_STATE.REVIEW ? SESSION_STATE.AGAIN : base;
+    // Only a REVIEW lapse lands in the red bucket. A NEW word rated Again has
+    // STILL been introduced (it now exists in user_progress), so it leaves the
+    // 🟢 Mới bucket exactly once (the counter decrements by 1). An AGAIN word
+    // re-rated Again stays in the red bucket (base === AGAIN -> return base).
+    if (base === SESSION_STATE.REVIEW) return SESSION_STATE.AGAIN;
+    if (base === SESSION_STATE.NEW) return SESSION_STATE.DONE;
+    return base;
   }
   // Any correct answer resolves the pending states:
   if (base === SESSION_STATE.AGAIN) return SESSION_STATE.DONE;   // retry succeeded
@@ -394,14 +397,16 @@ export function useLearningSession(setId) {
         });
 
         // Update the per-word display state (independent of queue requeue).
-        // Semantics of "Từ mới" (🟢 Mới): a NEW word only LEAVES the counter when
-        // its introduction is COMPLETED with Hard/Good/Easy — a rating of Again
-        // keeps it counted as NEW while its retry is requeued via sessionStatus.
-        // rating === 'again' on a REVIEW word is a lapse: it lands in the red
-        // bucket exactly once. Non-again ratings on an Again word mean the
-        // retry succeeded -> it leaves the red bucket ('done'). A REVIEW word
-        // answered with Hard/Good/Easy was successfully reviewed -> it
-        // leaves the yellow bucket so the Ôn counter decrements by 1.
+        // Semantics of "Từ mới" (🟢 Mới): a NEW word LEAVES the counter as soon
+        // as it is introduced with ANY rating (Again/Hard/Good/Easy) — it now
+        // exists in user_progress and is no longer "brand new". The counter
+        // therefore decrements by exactly 1 for that word and never -2 (a word
+        // that already left the bucket stays out). rating === 'again' on a
+        // REVIEW word is a lapse: it lands in the red bucket exactly once.
+        // Non-again ratings on an Again word mean the retry succeeded -> it
+        // leaves the red bucket ('done'). A REVIEW word answered with
+        // Hard/Good/Easy was successfully reviewed -> it leaves the yellow
+        // bucket so the Ôn counter decrements by 1.
         setSessionWordStates((prev) => {
           const initialForWord = currentWord.state === 'new' ? 'new' : 'review';
           const currentState = prev[currentWord.id] ?? initialForWord;
