@@ -15,12 +15,14 @@ import {
   toImportPayload,
   dedupeRows,
 } from '../../utils/vocabulary-importer.js';
+import { VOCABULARY_AI_PROMPT, copyTextToClipboard } from '../../utils/vocabulary-ai-prompt.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
+import Modal from '../../components/ui/Modal.jsx';
 
 const COLUMN_HEADERS = [
   { key: 'word', label: 'Từ', required: true },
@@ -89,6 +91,33 @@ export default function Import() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [importing, setImporting] = useState(false);
+
+  // ---- "Lệnh vocabulary" ----
+  // Modal hiển thị prompt chuẩn cho AI xử lý từ vựng. Thuần UI/clipboard:
+  // KHÔNG gọi API/Supabase khi chỉ mở hoặc copy; KHÔNG đổi dữ liệu vocabulary.
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+
+  const openPromptModal = () => {
+    setCopied(false);
+    setCopyError('');
+    setPromptOpen(true);
+  };
+
+  const handleCopyPrompt = async () => {
+    setCopied(false);
+    setCopyError('');
+    const ok = await copyTextToClipboard(VOCABULARY_AI_PROMPT);
+    if (ok) {
+      // Báo thành công rõ ràng sau khi copy.
+      setCopied(true);
+    } else {
+      setCopyError(
+        'Không thể sao chép tự động. Hãy bôi đen văn bản trong khung prompt và copy thủ công.'
+      );
+    }
+  };
 
   // Destination Word Set — TÙY CHỌN, không bắt buộc.
   const [destMode, setDestMode] = useState('vocab'); // 'vocab' | 'newSet' | 'existingSet'
@@ -296,7 +325,13 @@ export default function Import() {
         >
           ← Từ vựng
         </Link>
-        <h1 className="text-2xl font-bold text-zinc-900">Nhập từ vựng</h1>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-zinc-900">Nhập từ vựng</h1>
+          {/* DUY NHẤT MỘT nút prompt — mở modal hiển thị + copy "Lệnh vocabulary". */}
+          <Button variant="secondary" onClick={openPromptModal}>
+            Lệnh vocabulary
+          </Button>
+        </div>
         <p className="mt-1 text-sm text-zinc-500">
           Dán danh sách từ (mỗi dòng một từ) hoặc format pipe 7 cột vào ô bên dưới, xem trước, chỉnh
           sửa nếu cần rồi nhập vào bộ từ.
@@ -611,6 +646,42 @@ export default function Import() {
           )}
         </div>
       )}
+
+      {/* "Lệnh vocabulary": hiển thị prompt chuẩn cho AI xử lý từ vựng.
+          Read-only + clipboard — KHÔNG đụng dữ liệu vocabulary, KHÔNG gọi API. */}
+      <Modal
+        open={promptOpen}
+        onClose={() => setPromptOpen(false)}
+        title="Lệnh vocabulary"
+        size="lg"
+        footer={
+          <>
+            {copied && (
+              <span className="mr-auto text-xs font-medium text-green-600" role="status">
+                ✓ Đã sao chép prompt vào clipboard.
+              </span>
+            )}
+            {copyError && (
+              <span className="mr-auto text-xs font-medium text-red-600" role="alert">
+                {copyError}
+              </span>
+            )}
+            <Button variant="secondary" onClick={() => setPromptOpen(false)}>
+              Đóng
+            </Button>
+            <Button onClick={handleCopyPrompt}>Sao chép</Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs text-text-secondary">
+          Copy toàn bộ nội dung bên dưới và dán cho AI (ChatGPT, Gemini, Claude...) để tạo / chuẩn
+          hóa danh sách từ vựng đúng chuẩn import của EngFore. Kết quả do AI trả về dán trực tiếp
+          vào ô nhập phía trên rồi bấm &quot;Xem trước&quot;.
+        </p>
+        <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap rounded-lg bg-surface-sidebar p-3 text-left text-xs leading-relaxed text-text-primary">
+          {VOCABULARY_AI_PROMPT}
+        </pre>
+      </Modal>
     </div>
   );
 }
