@@ -147,6 +147,8 @@ Có thể sử dụng:
 - liên tưởng tiếng Việt
 
 KHÔNG viết thành đoạn giải thích dài.
+ví dụ: occupation
+Lĩnh vực/ngành nghề mưu sinh nói chung
 
 ==================================================
 8. CEFR
