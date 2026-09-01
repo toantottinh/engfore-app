@@ -161,7 +161,7 @@ export async function importWords({ words, setId = null, newSetName = null }) {
 
   // Log đầy đủ lỗi thật (message, code, details, hint) dưới dạng CHUỖI — chỉ khi DEV.
   if (error) {
-    if (import.meta.env.DEV) { // This was already correct, but I'm confirming it. The user's prompt implies there might be other instances. Let's assume there was a faulty one.
+    if (import.meta.env.DEV) {
       const errInfo = {
         status: error?.status ?? null,
         code: error?.code ?? null,
