@@ -140,11 +140,6 @@ Câu ví dụ phải:
 ==================================================
 
 Memory Clue phải là một gợi ý NGẮN giúp người học nhớ từ.
-Có thể sử dụng:
-- liên tưởng âm thanh
-- liên tưởng hình ảnh
-- tách nghĩa
-- liên tưởng tiếng Việt
 
 KHÔNG viết thành đoạn giải thích dài.
 ví dụ: occupation
