@@ -168,17 +168,22 @@ export function ExerciseRenderer({ exercise, feedback, onSubmit }) {
 // Feedback sau khi submit — EXERCISE V2 (error-driven learning).
 // Trước submit: KHÔNG hiển thị structure/đáp án/hint.
 // Sau submit: verdict -> câu trả lời của user -> đáp án/reference
-//   -> REVEAL Structure (pattern + meaning + explanation).
+//   -> REVEAL knowledge (pattern + meaning + explanation).
 //
 // `revealStructure` (default true): tắt panel reveal ở các phiên PURE TEST
 // (GOOD/EASY — random test không gợi ý). Per-exercise feedback (verdict/đáp án)
 // vẫn hiển thị vì đó là kết quả của bài VỪA trả lời, không dẫn dắt đáp án mới.
+//
+// `revealLabel` (default 'Cấu trúc'): nhãn của panel reveal — Grammar Session
+// tái sử dụng component này cho knowledge item của mình (rule) nên đổi nhãn
+// thành 'Kiến thức' mà KHÔNG đổi behavior cho Structure Session.
 export function FeedbackView({
   exercise,
   feedback,
   structure,
   onNext,
   revealStructure = true,
+  revealLabel = 'Cấu trúc',
 }) {
   const result = feedback?.result;
   if (!result) return null;
@@ -227,7 +232,7 @@ export function FeedbackView({
       {revealStructure !== false && structure && (
         <div className="rounded-lg border border-border-color bg-surface p-3">
           <p className="text-[11px] font-medium uppercase tracking-wide text-text-secondary">
-            Cấu trúc
+            {revealLabel}
           </p>
           <p className="mt-0.5 text-base font-bold text-text-primary">{structure.pattern}</p>
           {structure.meaning && (

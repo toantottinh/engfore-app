@@ -26,6 +26,10 @@ import ExerciseImport from './pages/ExerciseImport/index.jsx';
 import Structures from './pages/Structures/index.jsx';
 import StructureDetail from './pages/Structures/StructureDetail.jsx';
 import StructureSession from './pages/StructureSession/index.jsx';
+import Grammar from './pages/Grammar/index.jsx';
+import GrammarTopicDetail from './pages/Grammar/GrammarTopicDetail.jsx';
+import GrammarRuleDetail from './pages/Grammar/GrammarRuleDetail.jsx';
+import GrammarSession from './pages/GrammarSession/index.jsx';
 import Profile from './pages/Profile/index.jsx';
 
 import AdminRoute from './components/AdminRoute.jsx';
@@ -87,6 +91,18 @@ export default function AppRoutes() {
           <Route path="/structures" element={<Structures />} />
           <Route path="/structures/:structureId" element={<StructureDetail />} />
           <Route path="/structures/session/:structureId" element={<StructureSession />} />
+
+          {/* Grammar Library (/grammar) — thư viện kiến thức ngữ pháp (content
+              library giống Vocabulary/Structures):
+              - /grammar                       : danh sách topics nhóm theo CEFR
+              - /grammar/:topicId              : danh sách rules của topic
+              - /grammar/rule/:ruleId          : Rule + Explanation + Exercises liên quan
+              - /grammar/session/:ruleId       : phiên học MỘT rule (SRS của /learn)
+              SRS/queue thuộc /learn — KHÔNG tạo /learn/grammar riêng. */}
+          <Route path="/grammar" element={<Grammar />} />
+          <Route path="/grammar/:topicId" element={<GrammarTopicDetail />} />
+          <Route path="/grammar/rule/:ruleId" element={<GrammarRuleDetail />} />
+          <Route path="/grammar/session/:ruleId" element={<GrammarSession />} />
 
           <Route path="/profile" element={<Profile />} />
         </Route>

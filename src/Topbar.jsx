@@ -159,6 +159,7 @@ export default function Topbar() {
               )}
             </div>
           </NavItem>
+          <NavItem to="/grammar" end={false}>Ngữ pháp</NavItem>
           {isAdmin && <NavItem to="/admin">Admin</NavItem>}
         </ul>
       </nav>
