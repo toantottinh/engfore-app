@@ -241,6 +241,8 @@ export default function VocabularyDetail() {
               <th className="px-4 py-3 font-medium">Meaning</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">CEFR</th>
+              <th className="px-4 py-3 font-medium">Example</th>
+              <th className="px-4 py-3 font-medium">Memory Clue</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
@@ -254,6 +256,8 @@ export default function VocabularyDetail() {
                 <td className="max-w-xs px-4 py-3 align-top text-text-primary">{word.meaning}</td>
                 <td className="px-4 py-3 align-top"><span className="whitespace-nowrap rounded bg-surface-hover px-2 py-1 text-xs font-medium uppercase text-text-secondary">{word.word_type.replace(/_/g, ' ')}</span></td>
                 <td className="px-4 py-3 align-top"><span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold ${cefrBadgeClass(word.cefr_level)}`}>{cefrLabel(word.cefr_level)}</span></td>
+                <td className="max-w-xs px-4 py-3 align-top text-text-secondary">{word.example || '—'}</td>
+                <td className="max-w-xs px-4 py-3 align-top text-text-secondary">{word.memory_clue || '—'}</td>
                 <td className="px-4 py-3 align-top text-right">
                   <div className="relative inline-block">
                     {isAdmin && <button onClick={() => openEditModal(word)} className="rounded-md p-1.5 text-text-secondary hover:text-text-primary"><i className="bx bx-edit-alt text-base"></i></button>}

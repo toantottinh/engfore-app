@@ -333,28 +333,48 @@ export async function updateUserWord(senseId, wordId, updates = {}) {
 }
 
 /**
- * Toàn bộ Vocabulary của user: các sense thuộc (user, sense) qua user_vocabulary,
- * kèm tiến trình học (user_progress) và các Word Set chứa sense (để hiển thị).
+ * Toàn bộ Vocabulary của user: các sense user đang sở hữu qua `set_words` +
+ * `vocabulary_sets` (SOURCE OF TRUTH cho membership), kèm tiến trình học
+ * (user_progress) và tên các Word Set chứa sense (để hiển thị).
+ *
+ * Membership được suy từ set_words (không phải user_vocabulary) để trang
+ * Vocabulary luôn đồng bộ với SRS Learning Queue: một từ chỉ còn thuộc ít
+ * nhất một Set của user thì mới hiển thị; từ đã bị xóa khỏi mọi Set cũng
+ * biến mất khỏi đây (memory_clue của từ KHÔNG phải điều kiện membership —
+ * từ không có Memory Clue vẫn hiển thị bình thường).
  * @param {string} userId
  * @returns {Promise<{ data: Array, error: any }>}
  */
 export async function getUserVocabulary(userId) {
   if (!userId) return { data: null, error: null };
 
+  // !inner + eq trên cột embed => chỉ lấy set_words thuộc set của user.
+  // Một sense nằm trong nhiều set sẽ trả nhiều dòng -> dedup bằng seen set
+  // (TEST 7: không bao giờ duplicate item trong Vocabulary).
   const { data: memberships, error } = await supabase
-    .from('user_vocabulary')
+    .from('set_words')
     .select(
       `word_sense_id,
+       vocabulary_sets!inner ( id, user_id ),
        word_senses (
          id, word_type, meaning, description, example,
          words ( id, word, ipa, cefr_level )
        )`
     )
-    .eq('user_id', userId);
+    .eq('vocabulary_sets.user_id', userId);
 
   if (error) return { data: null, error };
 
-  const senseIds = (memberships || []).map((m) => m.word_sense_id).filter(Boolean);
+  const seenSenseIds = new Set();
+  const ownedRows = [];
+  for (const m of memberships || []) {
+    const senseId = m.word_sense_id;
+    if (!senseId || seenSenseIds.has(senseId)) continue;
+    seenSenseIds.add(senseId);
+    ownedRows.push(m);
+  }
+
+  const senseIds = ownedRows.map((m) => m.word_sense_id).filter(Boolean);
 
   // Progress (graceful fallback khi thiếu cột SRS ở môi trường cũ).
   let progressMap = {};
@@ -408,7 +428,7 @@ export async function getUserVocabulary(userId) {
     });
   }
 
-  const merged = (memberships || []).map((m) => {
+  const merged = ownedRows.map((m) => {
     const sense = m.word_senses || {};
     const w = sense.words || {};
     const prog = progressMap[m.word_sense_id];
@@ -510,14 +530,44 @@ export async function getWordsInSet(setId, userId) {
   return { data, error };
 }
 
-/** Xóa một từ khỏi set (gỡ quan hệ set_words). */
+/**
+ * Xóa một từ khỏi một Word Set (set-scoped removal) và giữ SRS đồng bộ với
+ * membership (Bug 1 fix):
+ *   - Gỡ link set_words của (set, sense) — set phải thuộc user.
+ *   - NẾU sense KHÔNG còn thuộc bất kỳ Set nào khác của user:
+ *       dọn user_progress (SRS) + user_vocabulary (library) của user cho
+ *       sense đó → từ biến mất khỏi Học ngắt quãng và trang Vocabulary.
+ *   - NẾU sense vẫn còn trong một Set khác của user:
+ *       giữ nguyên user_progress + user_vocabulary (TEST 6).
+ * Không bao giờ xóa dữ liệu toàn cục (words / word_senses).
+ * @param {string} setId
+ * @param {string} wordSenseId
+ * @returns {Promise<{ data: any, error: any }>}
+ */
 export async function deleteWordFromSet(setId, wordSenseId) {
-  const { error } = await supabase
-    .from('set_words')
-    .delete()
-    .eq('set_id', setId)
-    .eq('word_sense_id', wordSenseId);
-  return { error };
+  if (!setId || !wordSenseId) {
+    return { error: { message: 'Thiếu id của bộ từ hoặc của từ.' } };
+  }
+  const { data, error } = await supabase.rpc('remove_word_from_set', {
+    p_set_id: setId,
+    p_word_sense_id: wordSenseId,
+  });
+  if (!error) return { data, error };
+
+  // Graceful fallback while production is one migration behind: if the RPC
+  // does not exist yet (42883 = undefined_function), fall back to removing
+  // only the set_words link (the legacy behaviour). The orphaned
+  // user_progress row is then cleaned up by the migration's one-time
+  // cleanup, and every SRS read already filters by current membership.
+  if (error?.code === '42883' || String(error?.message || '').includes('remove_word_from_set')) {
+    const { error: deleteError } = await supabase
+      .from('set_words')
+      .delete()
+      .eq('set_id', setId)
+      .eq('word_sense_id', wordSenseId);
+    return { data: null, error: deleteError };
+  }
+  return { data, error };
 }
 
 /**

@@ -10,6 +10,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // so the fake user id ("user-1") never reaches a UUID parameter.
 // ------------------------------------------------------------------
 
+// Embedded membership structures (what PostgREST resolves for the
+// `word_senses.set_words(vocabulary_sets(user_id))` embed). A row is
+// "owned" only when at least one link reaches a vocabulary_sets row of
+// the user — exactly the inner-join semantics the production filter uses.
+const OWNED_SET_WORDS = [{ set_id: 'set-owned', vocabulary_sets: [{ user_id: 'user-1' }] }];
+
 // Table data returned by the mocked client (per table name).
 const tableData = {
   user_progress: [],
@@ -20,37 +26,64 @@ const tableData = {
 // RPC responses, keyed by function name.
 const rpcData = {};
 
+// Resolve a (possibly dotted) PostgREST column path against a row,
+// fanning out across embedded arrays. E.g. `word_senses.set_words` is an
+// array, so `word_senses.set_words.vocabulary_sets.user_id` yields every
+// user_id reachable through any link. An orphan row (empty/missing
+// set_words) yields NO values → never matches → never returned, which is
+// exactly the production inner-join behaviour we rely on.
+const resolvePathValues = (value, parts) => {
+  if (value === undefined || value === null) return [];
+  if (parts.length === 0) return [value];
+  const [head, ...rest] = parts;
+  if (Array.isArray(value)) {
+    return value.flatMap((v) => resolvePathValues(v?.[head], rest));
+  }
+  return resolvePathValues(value?.[head], rest);
+};
+
+const matchesOp = (rowVal, op, val) => {
+  switch (op) {
+    case 'eq': return rowVal === val;
+    case 'in': return (val || []).includes(rowVal);
+    case 'lte': return new Date(rowVal).getTime() <= new Date(val).getTime();
+    case 'gt': return new Date(rowVal).getTime() > new Date(val).getTime();
+    default: return true;
+  }
+};
+
 const chainableFrom = (tableName) => {
-  // Track filters applied (eq/in/lte/gt) so the mock surfaces the actual
-  // SQL constraints the production queries use.  This lets us assert that
-  // the DUE/LEARNING state & timing filters behave correctly.
+  // Track filters applied (eq/in/lte/gt/filter) so the mock surfaces the
+  // actual SQL constraints the production queries use. This lets us assert
+  // that the DUE/LEARNING state, timing AND vocabulary-membership filters
+  // behave correctly.
   const filters = [];
+  let selectOpts = null;
   const chain = {
-    select() { return chain; },
+    select(_selectText, opts) { selectOpts = opts || null; return chain; },
     eq(col, val) { filters.push(['eq', col, val]); return chain; },
     in(col, vals) { filters.push(['in', col, vals]); return chain; },
     lte(col, val) { filters.push(['lte', col, val]); return chain; },
     gt(col, val) { filters.push(['gt', col, val]); return chain; },
+    filter(col, op, val) { filters.push(['filter', col, op, val]); return chain; },
     order() { return chain; },
     limit() { return chain; },
     maybeSingle: async () => ({ data: (tableData[tableName] || [])[0] ?? null, error: null }),
     upsert: async () => ({ data: null, error: null }),
     then(onFulfilled) {
       let data = [...(tableData[tableName] || [])];
-      for (const [op, col, val] of filters) {
-        data = data.filter((row) => {
-          const rowVal = row[col];
-          if (rowVal === undefined || rowVal === null) return false;
-          switch (op) {
-            case 'eq': return rowVal === val;
-            case 'in': return (val || []).includes(rowVal);
-            case 'lte': return new Date(rowVal).getTime() <= new Date(val).getTime();
-            case 'gt': return new Date(rowVal).getTime() > new Date(val).getTime();
-            default: return true;
-          }
-        });
+      for (const entry of filters) {
+        const [op, col, val] = entry;
+        const effectiveOp = op === 'filter' ? entry[2] : op;
+        const effectiveVal = op === 'filter' ? entry[3] : val;
+        const parts = String(col).split('.');
+        data = data.filter((row) =>
+          resolvePathValues(row, parts).some((v) => matchesOp(v, effectiveOp, effectiveVal))
+        );
       }
-      return Promise.resolve({ data, error: null }).then(onFulfilled);
+      const result = { data: selectOpts?.head ? null : data, error: null };
+      if (selectOpts?.count === 'exact') result.count = data.length;
+      return Promise.resolve(result).then(onFulfilled);
     },
   };
   return chain;
@@ -84,7 +117,12 @@ vi.mock('../services/dailyGoal.service.js', () => ({
   logDailyLearning: vi.fn(async () => ({ error: null })),
 }));
 
-import { getLearnSessionQueue } from '../services/learning.service.js';
+import {
+  getLearnSessionQueue,
+  getDueReviewWords,
+  getDueReviewWordsCount,
+  getLearningWords,
+} from '../services/learning.service.js';
 
 describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked data layer)', () => {
   beforeEach(() => {
@@ -107,7 +145,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
         flashcard_reviews: 2,
         review_due_at: new Date(Date.now() - 1000).toISOString(),
         state: 'review',
-        word_senses: { id: 'due-1', meaning: 'due meaning', words: { word: 'dueword' } },
+        word_senses: { set_words: OWNED_SET_WORDS, id: 'due-1', meaning: 'due meaning', words: { word: 'dueword' } },
       },
     ];
     rpcData['get_new_words_for_session'] = [
@@ -187,7 +225,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
         state: 'review',
         review_due_at: new Date(now + 72 * 3600 * 1000).toISOString(),
         mastery_level: 3,
-        word_senses: { id: 'graduated-1', meaning: 'graduated', words: { word: 'graduated' } },
+        word_senses: { set_words: OWNED_SET_WORDS, id: 'graduated-1', meaning: 'graduated', words: { word: 'graduated' } },
       },
       // A card genuinely still in an active 'learning' step, due in 10 min.
       {
@@ -196,7 +234,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
         state: 'learning',
         review_due_at: new Date(now + 10 * 60 * 1000).toISOString(),
         mastery_level: 1,
-        word_senses: { id: 'learning-1', meaning: 'learning', words: { word: 'learning' } },
+        word_senses: { set_words: OWNED_SET_WORDS, id: 'learning-1', meaning: 'learning', words: { word: 'learning' } },
       },
     ];
 
@@ -227,7 +265,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
         state: 'learning',
         review_due_at: new Date(now - 10 * 60 * 1000).toISOString(),
         mastery_level: 1,
-        word_senses: { id: 'just-due', meaning: 'due', words: { word: 'due' } },
+        word_senses: { set_words: OWNED_SET_WORDS, id: 'just-due', meaning: 'due', words: { word: 'due' } },
       },
       // Clearly in the future → belongs in LEARNING, not DUE.
       {
@@ -236,7 +274,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
         state: 'learning',
         review_due_at: new Date(now + 10 * 60 * 1000).toISOString(),
         mastery_level: 1,
-        word_senses: { id: 'just-future', meaning: 'future', words: { word: 'future' } },
+        word_senses: { set_words: OWNED_SET_WORDS, id: 'just-future', meaning: 'future', words: { word: 'future' } },
       },
     ];
 
@@ -330,7 +368,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
       state: 'review',
       review_due_at: new Date(now - 3600 * 1000).toISOString(),
       mastery_level: 2,
-      word_senses: { id: `due-${i}`, meaning: `đã ôn ${i}`, words: { word: `dueword${i}` } },
+      word_senses: { set_words: OWNED_SET_WORDS, id: `due-${i}`, meaning: `đã ôn ${i}`, words: { word: `dueword${i}` } },
     }));
     tableData.vocabulary_sets = [{ id: 'set-big', user_id: 'user-1' }];
     rpcData['get_user_set_learn_priorities'] = [{ set_id: 'set-big', learn_priority: 1 }];
@@ -464,7 +502,7 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
         state: 'review',
         review_due_at: new Date(now - 3600 * 1000).toISOString(),
         mastery_level: 2,
-        word_senses: { id: 'due-b', meaning: 'due in low-priority set', words: { word: 'dueb' } },
+        word_senses: { set_words: OWNED_SET_WORDS, id: 'due-b', meaning: 'due in low-priority set', words: { word: 'dueb' } },
       },
     ];
     tableData.vocabulary_sets = [
@@ -501,10 +539,10 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
       { set_id: 'set-b', word_sense_id: 'learning-b' },
     ];
     tableData.user_progress = [
-      { user_id: 'user-1', word_sense_id: 'due-a', state: 'review', review_due_at: new Date(now - 1000).toISOString(), mastery_level: 2, word_senses: { id: 'due-a', meaning: 'due A', words: { word: 'duea' } } },
-      { user_id: 'user-1', word_sense_id: 'due-b', state: 'review', review_due_at: new Date(now - 1000).toISOString(), mastery_level: 2, word_senses: { id: 'due-b', meaning: 'due B', words: { word: 'dueb' } } },
-      { user_id: 'user-1', word_sense_id: 'learning-a', state: 'learning', review_due_at: new Date(now + 3600 * 1000).toISOString(), mastery_level: 1, word_senses: { id: 'learning-a', meaning: 'learn A', words: { word: 'learna' } } },
-      { user_id: 'user-1', word_sense_id: 'learning-b', state: 'learning', review_due_at: new Date(now + 3600 * 1000).toISOString(), mastery_level: 1, word_senses: { id: 'learning-b', meaning: 'learn B', words: { word: 'learnb' } } },
+      { user_id: 'user-1', word_sense_id: 'due-a', state: 'review', review_due_at: new Date(now - 1000).toISOString(), mastery_level: 2, word_senses: { set_words: OWNED_SET_WORDS, id: 'due-a', meaning: 'due A', words: { word: 'duea' } } },
+      { user_id: 'user-1', word_sense_id: 'due-b', state: 'review', review_due_at: new Date(now - 1000).toISOString(), mastery_level: 2, word_senses: { set_words: OWNED_SET_WORDS, id: 'due-b', meaning: 'due B', words: { word: 'dueb' } } },
+      { user_id: 'user-1', word_sense_id: 'learning-a', state: 'learning', review_due_at: new Date(now + 3600 * 1000).toISOString(), mastery_level: 1, word_senses: { set_words: OWNED_SET_WORDS, id: 'learning-a', meaning: 'learn A', words: { word: 'learna' } } },
+      { user_id: 'user-1', word_sense_id: 'learning-b', state: 'learning', review_due_at: new Date(now + 3600 * 1000).toISOString(), mastery_level: 1, word_senses: { set_words: OWNED_SET_WORDS, id: 'learning-b', meaning: 'learn B', words: { word: 'learnb' } } },
     ];
     tableData.vocabulary_sets = [];
     // The NEW RPC is scoped to the chosen set (server-side enforcement);
@@ -528,5 +566,203 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
     // NEW selection was scoped to the chosen set only (no cross-set leak).
     const newRpcCall = rpcImpl.mock.calls.find((c) => c[0] === 'get_new_words_for_session');
     expect(newRpcCall[1].p_set_ids_prioritized).toEqual(['set-a']);
+  });
+
+  // ------------------------------------------------------------------
+  // Vocabulary ↔ SRS membership: set_words + vocabulary_sets is the
+  // source of truth. A word_sense whose user_progress row has NO
+  // set_words link left (removed from Vocabulary) must never surface
+  // in the SRS queues — DUE, LEARNING, NEW or the due badge count.
+  // ------------------------------------------------------------------
+
+  it('TEST 5+8+10: removed word (no set_words left) is excluded from DUE; NEW still flows', async () => {
+    const now = Date.now();
+    // The user still owns one set (holding the NEW word)…
+    tableData.vocabulary_sets = [{ id: 'set-owned', user_id: 'user-1' }];
+    rpcData['get_user_set_learn_priorities'] = [{ set_id: 'set-owned', learn_priority: 1 }];
+    rpcData['get_new_words_for_session'] = [
+      { id: 'n1', word: 'alive', meaning: 'still in a set', state: 'new', set_id: 'set-owned' },
+    ];
+
+    tableData.user_progress = [
+      {
+        // Attractive was removed from every set → set_words embed empty.
+        user_id: 'user-1',
+        word_sense_id: 'attractive',
+        state: 'review',
+        review_due_at: new Date(now - 1000).toISOString(),
+        mastery_level: 2,
+        word_senses: { id: 'attractive', meaning: 'hấp dẫn', words: { word: 'attractive' }, set_words: [] },
+      },
+      {
+        // A word the user still owns through set_words.
+        user_id: 'user-1',
+        word_sense_id: 'owned-1',
+        state: 'review',
+        review_due_at: new Date(now - 2000).toISOString(),
+        mastery_level: 3,
+        word_senses: { id: 'owned-1', meaning: 'owned', words: { word: 'owned' }, set_words: OWNED_SET_WORDS },
+      },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'LIMITED', setId: 'all', dailyNewLimit: 10, introducedTodayCount: 0, sessionSize: 50,
+    });
+    expect(error).toBeNull();
+    // DUE section keeps only the owned word; the removed word never re-enters.
+    expect(queue.map((w) => w.id)).toEqual(['owned-1', 'n1']);
+    expect(queue.some((w) => w.id === 'attractive')).toBe(false);
+
+    // getDueReviewWords also drops the orphan.
+    const { data: due } = await getDueReviewWords('user-1', 50);
+    expect(due.map((w) => w.id)).toEqual(['owned-1']);
+
+    // The due badge count ignores orphaned progress.
+    const { count } = await getDueReviewWordsCount('user-1');
+    expect(count).toBe(1);
+  });
+
+  it('TEST 9: a removed word still in its LEARNING step is excluded from the LEARNING queue', async () => {
+    const now = Date.now();
+    tableData.vocabulary_sets = [];
+    rpcData['get_new_words_for_session'] = [];
+
+    tableData.user_progress = [
+      {
+        user_id: 'user-1',
+        word_sense_id: 'orphan-learning',
+        state: 'learning',
+        review_due_at: new Date(now + 10 * 60 * 1000).toISOString(),
+        mastery_level: 1,
+        word_senses: { id: 'orphan-learning', meaning: 'orphan learning', words: { word: 'orphl' }, set_words: [] },
+      },
+      {
+        user_id: 'user-1',
+        word_sense_id: 'owned-learning',
+        state: 'learning',
+        review_due_at: new Date(now + 20 * 60 * 1000).toISOString(),
+        mastery_level: 1,
+        word_senses: { id: 'owned-learning', meaning: 'owned learning', words: { word: 'ownl' }, set_words: OWNED_SET_WORDS },
+      },
+    ];
+
+    const { data: learning } = await getLearningWords('user-1', null, 50);
+    expect(learning.map((w) => w.id)).toEqual(['owned-learning']);
+  });
+
+  it('TEST 6: word removed from Set A but still in Set B stays in the SRS queue', async () => {
+    const now = Date.now();
+    tableData.vocabulary_sets = [];
+    rpcData['get_new_words_for_session'] = [];
+
+    tableData.user_progress = [
+      {
+        user_id: 'user-1',
+        word_sense_id: 'attractive',
+        state: 'review',
+        review_due_at: new Date(now - 1000).toISOString(),
+        mastery_level: 2,
+        word_senses: {
+          id: 'attractive',
+          meaning: 'hấp dẫn',
+          words: { word: 'attractive' },
+          // Removed from the user's Set A (link gone), but Set B of the SAME
+          // user still holds it; a link to another user's set must NOT
+          // grant ownership.
+          set_words: [
+            { set_id: 'set-b', vocabulary_sets: [{ user_id: 'user-1' }] },
+            { set_id: 'set-other-user', vocabulary_sets: [{ user_id: 'user-2' }] },
+          ],
+        },
+      },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'LIMITED', setId: 'all', dailyNewLimit: 10, introducedTodayCount: 0, sessionSize: 50,
+    });
+    expect(error).toBeNull();
+    expect(queue.map((w) => w.id)).toEqual(['attractive']);
+
+    const { count } = await getDueReviewWordsCount('user-1');
+    expect(count).toBe(1);
+  });
+
+  it('TEST 7: a word_sense held by two sets appears exactly ONCE in the queue', async () => {
+    const now = Date.now();
+    tableData.vocabulary_sets = [];
+    rpcData['get_new_words_for_session'] = [];
+
+    tableData.user_progress = [
+      {
+        user_id: 'user-1',
+        word_sense_id: 'shared',
+        state: 'review',
+        review_due_at: new Date(now - 1000).toISOString(),
+        mastery_level: 2,
+        word_senses: {
+          id: 'shared',
+          meaning: 'in two sets',
+          words: { word: 'shared' },
+          set_words: [
+            { set_id: 'set-a', vocabulary_sets: [{ user_id: 'user-1' }] },
+            { set_id: 'set-b', vocabulary_sets: [{ user_id: 'user-1' }] },
+          ],
+        },
+      },
+    ];
+
+    const { queue, error } = await getLearnSessionQueue('user-1', {
+      learnMode: 'LIMITED', setId: 'all', dailyNewLimit: 10, introducedTodayCount: 0, sessionSize: 50,
+    });
+    expect(error).toBeNull();
+    const ids = queue.map((w) => w.id);
+    expect(ids).toEqual(['shared']);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('TEST 1+3: Memory Clue travels through SRS rows; missing clue never filters a word out', async () => {
+    const now = Date.now();
+    tableData.vocabulary_sets = [];
+    rpcData['get_new_words_for_session'] = [];
+
+    tableData.user_progress = [
+      {
+        user_id: 'user-1',
+        word_sense_id: 'with-clue',
+        state: 'review',
+        review_due_at: new Date(now - 1000).toISOString(),
+        mastery_level: 2,
+        word_senses: {
+          id: 'with-clue',
+          meaning: 'hấp dẫn',
+          description: 'Có sức hút với người khác',
+          words: { word: 'attractive' },
+          set_words: OWNED_SET_WORDS,
+        },
+      },
+      {
+        user_id: 'user-1',
+        word_sense_id: 'no-clue',
+        state: 'review',
+        review_due_at: new Date(now - 2000).toISOString(),
+        mastery_level: 2,
+        word_senses: {
+          id: 'no-clue',
+          meaning: 'không có clue',
+          words: { word: 'noclue' },
+          set_words: OWNED_SET_WORDS,
+        },
+      },
+    ];
+
+    const { data: due, error } = await getDueReviewWords('user-1', 50);
+    expect(error).toBeNull();
+    const withClue = due.find((w) => w.id === 'with-clue');
+    const noClue = due.find((w) => w.id === 'no-clue');
+    // The clue is preserved end-to-end…
+    expect(withClue.memory_clue).toBe('Có sức hút với người khác');
+    // …and its ABSENCE never filters a word out of the queue (TEST 3).
+    expect(noClue).toBeDefined();
+    expect(noClue.memory_clue).toBe('');
   });
 });

@@ -198,7 +198,13 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
  * @param {string} userId
  * @param {number} limit
  */
+
 // Base columns guaranteed to exist in the production database.
+// Vocabulary-membership path: `set_words` + `vocabulary_sets` is THE source of
+// truth for whether a user still owns/studies a word_sense. Embedding this
+// path in EVERY SRS select lets PostgREST apply the inner-join filter
+// `word_senses.set_words.vocabulary_sets.user_id`, so deleted vocabulary words
+// (no set_words membership anymore) can NEVER surface in the SRS queue again.
 const BASE_PROGRESS_SELECT = `word_sense_id,
         mastery_level,
         review_count,
@@ -214,6 +220,11 @@ const BASE_PROGRESS_SELECT = `word_sense_id,
             word,
             ipa,
             cefr_level
+          ),
+          set_words (
+            vocabulary_sets (
+              user_id
+            )
           )
         )`;
 
@@ -240,8 +251,26 @@ const SRS_PROGRESS_SELECT = `word_sense_id,
             word,
             ipa,
             cefr_level
+          ),
+          set_words (
+            vocabulary_sets (
+              user_id
+            )
           )
         )`;
+
+/**
+ * Column of the embedded membership path used to scope SRS rows to the user's
+ * current vocabulary holdings. Must be present in the matching select string.
+ */
+const VOCAB_MEMBERSHIP_FILTER = {
+  column: 'word_senses.set_words.vocabulary_sets.user_id',
+  operator: 'eq',
+};
+
+const SRS_COUNT_SELECT = 'word_sense_id,word_senses(id,set_words(vocabulary_sets(user_id)))';
+
+const SRS_NEXT_DUE_SELECT = 'review_due_at,state,interval_hours,word_senses(id,set_words(vocabulary_sets(user_id)))';
 
 /**
  * Map a raw user_progress row into the unified word shape.
@@ -283,6 +312,7 @@ async function fetchProgressRows(selectText, userId, limit) {
     .from('user_progress')
     .select(selectText)
     .eq('user_id', userId)
+    .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
     .lte('review_due_at', new Date().toISOString())
     .order('review_due_at', { ascending: true })
     .limit(limit);
@@ -292,6 +322,7 @@ async function fetchProgressRows(selectText, userId, limit) {
       .from('user_progress')
       .select(BASE_PROGRESS_SELECT)
       .eq('user_id', userId)
+      .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
       .lte('review_due_at', new Date().toISOString())
       .order('review_due_at', { ascending: true })
       .limit(limit));
@@ -339,6 +370,7 @@ export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE
     .from('user_progress')
     .select(SRS_PROGRESS_SELECT)
     .eq('user_id', userId)
+    .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
     .lte('review_due_at', new Date().toISOString())
     .in('word_sense_id', senseIds)
     .order('review_due_at', { ascending: true })
@@ -386,6 +418,12 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
     .in('state', ACTIVE_STATES)
     .order('review_due_at', { ascending: true })
     .limit(limit);
+// Global (all-vocabulary) scope must enforce CURRENT vocabulary membership
+    // (set_words + vocabulary_sets is the source of truth). Set-scoped sessions restrict
+    // to the chosen set's set_words links already, so no extra filter is needed there.
+    if (!setId) {
+    query = query.filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId);
+  }
 
   if (setSenseIds && setSenseIds.length > 0) {
     query = query.in('word_sense_id', setSenseIds);
@@ -408,6 +446,13 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
 
     if (setSenseIds && setSenseIds.length > 0) {
       fallbackQuery = fallbackQuery.in('word_sense_id', setSenseIds);
+    }
+
+    // Global scope needs the same CURRENT-vocabulary membership guard in the
+    // fallback (state column missing) path.
+
+    if (!setId) {
+      fallbackQuery = fallbackQuery.filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId);
     }
 
     ({ data, error } = await fallbackQuery);
@@ -605,10 +650,15 @@ export async function getLearnSessionQueue(userId, options) {
  * @param {string} userId
  */
 export async function getDueReviewWordsCount(userId) {
+  // Membership guard: a user_progress row only counts while its word_sense
+  // still belongs to at least one of the user's Vocabulary Sets (set_words +
+  // vocabulary_sets is the source of truth). Orphaned rows (word removed
+  // from Vocabulary) must never inflate the due badge.
   const { count, error } = await supabase
     .from('user_progress')
-    .select('*', { count: 'exact', head: true })
+    .select(SRS_COUNT_SELECT, { count: 'exact', head: true })
     .eq('user_id', userId)
+    .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
     .lte('review_due_at', new Date().toISOString());
   return { count: count ?? 0, error };
 }
@@ -621,38 +671,46 @@ export async function getSrsDashboardStats(userId) {
   if (!userId) return { data: null, error: { message: 'Missing userId' } };
   try {
     const nowIso = new Date().toISOString();
-    // Count queries (head: true -> returns count without rows)
+    // Membership guard (see getDueReviewWordsCount): every SRS stat only
+    // counts word_senses the user still owns through set_words +
+    // vocabulary_sets. Orphaned progress (removed vocabulary) is excluded.
     const [dueRes, newRes, learningRes, relearnRes, reviewRes, nextRes] = await Promise.all([
       supabase
         .from('user_progress')
-        .select('*', { count: 'exact', head: true })
+        .select(SRS_COUNT_SELECT, { count: 'exact', head: true })
         .eq('user_id', userId)
+        .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
         .lte('review_due_at', nowIso),
       supabase
         .from('user_progress')
-        .select('*', { count: 'exact', head: true })
+        .select(SRS_COUNT_SELECT, { count: 'exact', head: true })
         .eq('user_id', userId)
+        .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
         .eq('state', 'new'),
       supabase
         .from('user_progress')
-        .select('*', { count: 'exact', head: true })
+        .select(SRS_COUNT_SELECT, { count: 'exact', head: true })
         .eq('user_id', userId)
+        .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
         .eq('state', 'learning'),
       supabase
         .from('user_progress')
-        .select('*', { count: 'exact', head: true })
+        .select(SRS_COUNT_SELECT, { count: 'exact', head: true })
         .eq('user_id', userId)
+        .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
         .eq('state', 'relearning'),
       supabase
         .from('user_progress')
-        .select('*', { count: 'exact', head: true })
+        .select(SRS_COUNT_SELECT, { count: 'exact', head: true })
         .eq('user_id', userId)
+        .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
         .eq('state', 'review'),
       // next due in future (smallest review_due_at > now)
       supabase
         .from('user_progress')
-        .select('review_due_at, state, interval_hours')
+        .select(SRS_NEXT_DUE_SELECT)
         .eq('user_id', userId)
+        .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
         .gt('review_due_at', nowIso)
         .order('review_due_at', { ascending: true })
         .limit(1),

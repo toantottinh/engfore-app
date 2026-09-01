@@ -39,6 +39,7 @@ vi.mock('../services/supabase.js', () => ({
         in: function () { return chain; },
         lte: function () { return chain; },
         gt: function () { return chain; },
+        filter: function () { return chain; },
         order: function () { return chain; },
         limit: function () { return chain; },
         maybeSingle: maybeSingleMock,
