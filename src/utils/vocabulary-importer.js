@@ -49,30 +49,33 @@ const HEADER_ALIASES = {
   level: 'cefr',
 };
 
-// Enum word_type của production DB — đã được mở rộng (XEM migration
-// 20260810200000_add_word_types.sql) lên 12 giá trị:
-//   noun, verb, adjective, adverb, preposition, conjunction, pronoun, other,
-//   determiner, interjection, phrasal_verb, verb_phrase
+// Enum word_type chính thức của production DB — ĐÚNG 11 giá trị:
+//   noun, verb, adjective, adverb, pronoun, preposition, conjunction,
+//   determiner, interjection, phrasal_verb, other
+// `verb_phrase` KHÔNG còn là Type hợp lệ — mọi phrase (verb phrase, noun
+// phrase, adjective phrase, adverb phrase, prepositional phrase, expression,
+// collocation, ...) đều dùng `other`.
 // Dùng đúng set này để tránh lỗi PostgreSQL 22P02 khi gọi import_words_to_set.
 export const VALID_WORD_TYPES = new Set([
   'noun',
   'verb',
   'adjective',
   'adverb',
+  'pronoun',
   'preposition',
   'conjunction',
-  'pronoun',
-  'other',
   'determiner',
   'interjection',
   'phrasal_verb',
-  'verb_phrase',
+  'other',
 ]);
 
 // Bảng chuẩn hóa các biến thể do người dùng nhập về giá trị enum word_type hợp lệ.
-// Không còn map "phrasal verb"/"verb phrase" về "verb" — giữ nguyên loại từ gốc.
-// Nếu không khớp bất kỳ alias nào, fallback về 'other' (không làm hỏng INSERT)
-// và báo warning để người dùng tự xem lại.
+// - Phrasal verb -> phrasal_verb.
+// - MỌI phrase/expression/collocation (kể cả verb phrase, noun phrase, ...)
+//   -> other (KHÔNG tạo verb_phrase).
+// - Nếu không khớp bất kỳ alias nào, fallback về 'other' (không làm hỏng INSERT)
+//   và báo warning để người dùng tự xem lại.
 const WORD_TYPE_ALIASES = {
   // Phrasal verb
   'phrasal verb': 'phrasal_verb',
@@ -81,12 +84,49 @@ const WORD_TYPE_ALIASES = {
   'phrasalverb': 'phrasal_verb',
   'phrasal verbs': 'phrasal_verb',
 
-  // Verb phrase
-  'verb phrase': 'verb_phrase',
-  'verb_phrase': 'verb_phrase',
-  'verb-phrase': 'verb_phrase',
-  'verbphrase': 'verb_phrase',
-  'verb phrases': 'verb_phrase',
+  // Other / phrases
+  other: 'other',
+  phrase: 'other',
+  phrases: 'other',
+  expression: 'other',
+  expressions: 'other',
+  collocation: 'other',
+  collocations: 'other',
+
+  // Verb phrase -> other (KHÔNG còn verb_phrase)
+  'verb phrase': 'other',
+  'verb_phrase': 'other',
+  'verb-phrase': 'other',
+  'verbphrase': 'other',
+  'verb phrases': 'other',
+
+  // Noun phrase -> other (KHÔNG còn map về noun)
+  'noun phrase': 'other',
+  'noun_phrase': 'other',
+  'noun-phrase': 'other',
+  'nounphrase': 'other',
+  'noun phrases': 'other',
+
+  // Adjective phrase -> other
+  'adjective phrase': 'other',
+  'adjective_phrase': 'other',
+  'adjective-phrase': 'other',
+  'adjectivephrase': 'other',
+  'adjective phrases': 'other',
+
+  // Adverb phrase -> other
+  'adverb phrase': 'other',
+  'adverb_phrase': 'other',
+  'adverb-phrase': 'other',
+  'adverbphrase': 'other',
+  'adverb phrases': 'other',
+
+  // Prepositional phrase -> other
+  'prepositional phrase': 'other',
+  'prepositional_phrase': 'other',
+  'prepositional-phrase': 'other',
+  'prepositionalphrase': 'other',
+  'prepositional phrases': 'other',
 
   // Determiner
   determiner: 'determiner',
@@ -101,7 +141,6 @@ const WORD_TYPE_ALIASES = {
   // Các viết tắt / biến thể thông dụng
   'v.': 'verb',
   'n.': 'noun',
-  'noun phrase': 'noun',
   'adj.': 'adjective',
   'adv.': 'adverb',
   'prep.': 'preposition',
@@ -143,12 +182,13 @@ function splitPipeLine(line) {
 /**
  * Chuẩn hóa trường word_type về enum hợp lệ (production DB dùng PostgreSQL ENUM).
  * - Nếu là giá trị hợp lệ: giữ nguyên.
- * - Nếu khớp alias (vd "phrasal verb" → "verb"): quy về giá trị enum gần nhất
- *   (identifier để người dùng tự xem lại; KHÔNG làm hỏng INSERT).
+ * - Nếu khớp alias (vd "phrasal verb" → "phrasal_verb", "verb phrase" → "other"):
+ *   quy về giá trị enum hợp lệ (identifier để người dùng tự xem lại; KHÔNG làm
+ *   hỏng INSERT).
  * - Không khớp gì: fallback về 'other' và đánh dấu cảnh báo.
  * @returns {{ value: string, changed: boolean }}
  */
-function normalizeWordType(value) {
+export function normalizeWordType(value) {
   const raw = String(value || '').trim();
   const v = raw.toLowerCase();
   if (VALID_WORD_TYPES.has(v)) return { value: v, changed: false };

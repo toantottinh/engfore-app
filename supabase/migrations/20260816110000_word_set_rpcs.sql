@@ -71,10 +71,10 @@ BEGIN
       WHEN 'phrasal-verb'  THEN 'phrasal_verb'
       WHEN 'phrasalverb'   THEN 'phrasal_verb'
       WHEN 'phrasal verbs' THEN 'phrasal_verb'
-      WHEN 'verb phrase'   THEN 'verb_phrase'
-      WHEN 'verb-phrase'   THEN 'verb_phrase'
-      WHEN 'verbphrase'    THEN 'verb_phrase'
-      WHEN 'verb phrases'  THEN 'verb_phrase'
+      WHEN 'verb phrase'   THEN 'other'
+      WHEN 'verb-phrase'   THEN 'other'
+      WHEN 'verbphrase'    THEN 'other'
+      WHEN 'verb phrases'  THEN 'other'
       WHEN 'v.' THEN 'verb'
       WHEN 'n.' THEN 'noun'
       WHEN 'adj.' THEN 'adjective'
@@ -87,7 +87,7 @@ BEGIN
 
     -- Validate word_type / cefr before enum casts.
     IF v_type NOT IN ('noun','verb','adjective','adverb','preposition','conjunction',
-                      'pronoun','other','determiner','interjection','phrasal_verb','verb_phrase') THEN
+                      'pronoun','other','determiner','interjection','phrasal_verb') THEN
       v_errored := v_errored + 1; CONTINUE;
     END IF;
     IF v_cefr IS NOT NULL AND v_cefr NOT IN ('A1','A2','B1','B2','C1','C2') THEN

@@ -14,6 +14,7 @@ import {
   parseVocabularyText,
   toImportPayload,
   dedupeRows,
+  VALID_WORD_TYPES,
 } from '../../utils/vocabulary-importer.js';
 import { VOCABULARY_AI_PROMPT, copyTextToClipboard } from '../../utils/vocabulary-ai-prompt.js';
 import Button from '../../components/ui/Button.jsx';
@@ -35,21 +36,9 @@ const COLUMN_HEADERS = [
 ];
 
 // Phải khớp chính xác set enum word_type của production DB để tránh lỗi 22P02.
-// (Đã mở rộng thêm determiner, interjection, phrasal_verb, verb_phrase.)
-const WORD_TYPE_OPTIONS = [
-  'noun',
-  'verb',
-  'adjective',
-  'adverb',
-  'preposition',
-  'conjunction',
-  'pronoun',
-  'determiner',
-  'interjection',
-  'phrasal_verb',
-  'verb_phrase',
-  'other',
-];
+// Dùng chung VALID_WORD_TYPES (11 giá trị) từ vocabulary-importer — một nguồn
+// duy nhất, không hardcode danh sách riêng.
+const WORD_TYPE_OPTIONS = Array.from(VALID_WORD_TYPES);
 
 const CEFR_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -65,7 +54,6 @@ function wordTypeLabel(t) {
     determiner: 'Định từ',
     interjection: 'Thán từ',
     phrasal_verb: 'Cụm động từ',
-    verb_phrase: 'Cụm động từ ngữ/Verb phrase',
     other: 'Khác',
   };
   return map[t] || t || '—';

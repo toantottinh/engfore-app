@@ -24,5 +24,3 @@ ALTER TYPE public.word_type ADD VALUE IF NOT EXISTS 'determiner';
 ALTER TYPE public.word_type ADD VALUE IF NOT EXISTS 'interjection';
 
 ALTER TYPE public.word_type ADD VALUE IF NOT EXISTS 'phrasal_verb';
-
-ALTER TYPE public.word_type ADD VALUE IF NOT EXISTS 'verb_phrase';

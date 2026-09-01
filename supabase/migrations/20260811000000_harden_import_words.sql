@@ -83,10 +83,23 @@ BEGIN
             WHEN 'phrasalverb' THEN 'phrasal_verb'
             WHEN 'phrasal verbs' THEN 'phrasal_verb'
 
-            WHEN 'verb phrase' THEN 'verb_phrase'
-            WHEN 'verb-phrase' THEN 'verb_phrase'
-            WHEN 'verbphrase' THEN 'verb_phrase'
-            WHEN 'verb phrases' THEN 'verb_phrase'
+            -- MỌI phrase (verb phrase, noun phrase, ...) -> other
+            -- (verb_phrase KHÔNG còn là Type hợp lệ)
+            WHEN 'verb phrase' THEN 'other'
+            WHEN 'verb-phrase' THEN 'other'
+            WHEN 'verbphrase' THEN 'other'
+            WHEN 'verb phrases' THEN 'other'
+            WHEN 'noun phrase' THEN 'other'
+            WHEN 'noun_phrase' THEN 'other'
+            WHEN 'adjective phrase' THEN 'other'
+            WHEN 'adverb phrase' THEN 'other'
+            WHEN 'prepositional phrase' THEN 'other'
+            WHEN 'phrase' THEN 'other'
+            WHEN 'phrases' THEN 'other'
+            WHEN 'expression' THEN 'other'
+            WHEN 'expressions' THEN 'other'
+            WHEN 'collocation' THEN 'other'
+            WHEN 'collocations' THEN 'other'
 
             WHEN 'v.' THEN 'verb'
             WHEN 'n.' THEN 'noun'
@@ -111,8 +124,7 @@ BEGIN
             'other',
             'determiner',
             'interjection',
-            'phrasal_verb',
-            'verb_phrase'
+            'phrasal_verb'
         ) THEN
             RAISE EXCEPTION 'Loại từ không hợp lệ: %', v_type;
         END IF;
