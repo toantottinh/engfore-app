@@ -5,11 +5,12 @@ import { useAuth } from '../../hooks/useAuth.jsx';
 import {
   getUserVocabulary,
   addWordsToSet,
-  removeFromVocabulary,
+  removeWordCompletely,
   updateUserWord,
 } from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import { VALID_WORD_TYPES } from '../../utils/vocabulary-importer.js';
+import { vocabularyStore } from '../../utils/vocabularyStore.js';
 import { CEFR_LEVELS } from '../../utils/cefr.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
@@ -94,12 +95,18 @@ export default function Vocabulary() {
   const [editingSet, setEditingSet] = useState(null);
   const [deletingSet, setDeletingSet] = useState(null);
 
-  // Load user vocabulary on mount
+  // Load user vocabulary on mount. ALSO subscribe to the shared
+  // vocabulary-store refresh signal so that a word imported (or added /
+  // removed) elsewhere is reflected here without a manual reload — fixes
+  // the stale-view bug where a freshly imported word (e.g. `decide`) does
+  // not appear until the page is hard-reloaded.
   useEffect(() => {
+    let active = true;
     const loadVocabulary = async () => {
       if (!user) {
         setWords([]);
         setLoading(false);
+        setError('');
         return;
       }
       setLoading(true);
@@ -107,15 +114,31 @@ export default function Vocabulary() {
       try {
         const { data, error } = await getUserVocabulary(user.id);
         if (error) throw error;
+        if (!active) return;
         setWords(data || []);
+        if (import.meta.env.DEV) {
+          console.log('[Vocabulary] LOAD RESULT', {
+            count: data?.length ?? 0,
+            error: error ?? null,
+            decide: data?.find((w) => w.word?.toLowerCase() === 'decide'),
+          });
+        }
       } catch (e) {
+        if (!active) return;
         setError('Không thể tải từ vựng. Vui lòng thử lại.');
         setWords([]);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
+
     loadVocabulary();
+    // Re-fetch whenever an import/mutation elsewhere bumps the store.
+    const unsubscribe = vocabularyStore.subscribe(loadVocabulary);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [user]);
 
   const filteredSets = useMemo(() => {
@@ -467,7 +490,9 @@ export default function Vocabulary() {
   const clearWordSelection = () => setSelectedWordIds([]);
 
     const handleRemoveFromVocabulary = async (id) => {
-    const { error: err } = await removeFromVocabulary(id);
+    // "Xóa khỏi kho" — xóa hoàn toàn ownership của user cho từ này:
+    // user_vocabulary + user_progress + set_words của MỌI Set thuộc user.
+    const { error: err } = await removeWordCompletely(user?.id, id);
     if (err) {
       return { error: getAuthErrorMessage(err) };
     }
@@ -717,6 +742,18 @@ export default function Vocabulary() {
                         <span className={`text-${isMastered ? 'green-500' : 'zinc-400'} text-xs font-medium ${isMastered ? 'opacity-80' : ''}`}>
                           {mastery}/5 {isMastered && '🟢'}
                         </span>
+                        <button
+                          type="button"
+                          aria-label={`Xóa khỏi kho ${word.word || ''}`}
+                          title="Xóa khỏi kho"
+                          className="ml-auto rounded-md p-1.5 text-text-secondary hover:text-red-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteWordModal(word);
+                          }}
+                        >
+                          <i className="bx bx-trash text-base"></i>
+                        </button>
                         <input
                           type="checkbox"
                           checked={selectedWordIds.includes(wordId)}
@@ -738,7 +775,7 @@ export default function Vocabulary() {
           <div className="mt-4 p-3 rounded-xl border border-brand-primary/30 bg-brand-primary/5">
             <span className="text-zinc-800">{selectedWordIds.length} từ đã được chọn</span>
             <Button variant="ghost" size="sm" onClick={clearWordSelection} className="ml-2">Bỏ chọn</Button>
-            <Button variant="danger" size="sm" onClick={openBulkDeleteModal}>Xóa khỏi thư viện</Button>
+            <Button variant="danger" size="sm" onClick={openBulkDeleteModal}>Xóa khỏi kho</Button>
             <Button variant="secondary" size="sm" onClick={openAddToSetModal}>Thêm vào bộ từ</Button>
           </div>
         )}
@@ -1030,11 +1067,11 @@ export default function Vocabulary() {
       </Modal>
 
 
-      {/* Modal xác nhận xóa từ đơn */}
+      {/* Modal xác nhận xóa từ đơn — "Xóa khỏi kho" */}
       <Modal
         open={deleteWordOpen}
         onClose={() => setDeleteWordOpen(false)}
-        title="Xóa từ"
+        title="Xóa khỏi kho"
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleteWordOpen(false)}>
@@ -1051,9 +1088,11 @@ export default function Vocabulary() {
         }
       >
         <p className="text-sm text-text-secondary">
-          Bạn có chắc muốn xóa từ{' '}
-          <span className="font-semibold">"{deletingWord?.word || deletingWord?.word_sense_id || ''}"</span>?
-          Hành động này không thể hoàn tác.
+          Xóa khỏi kho?
+        </p>
+        <p className="mt-2 text-sm text-text-secondary">
+          Từ <span className="font-semibold">"{deletingWord?.word || deletingWord?.word_sense_id || ''}"</span> sẽ bị xóa
+          khỏi Kho từ, các Word Set và dữ liệu ôn tập của bạn. Hành động này không thể hoàn tác.
         </p>
         {deleteWordError && <Alert type="error" message={deleteWordError} className="mt-3" />}
       </Modal>
@@ -1062,7 +1101,7 @@ export default function Vocabulary() {
       <Modal
         open={bulkDeleteOpen}
         onClose={() => setBulkDeleteOpen(false)}
-        title="Xóa từ đã chọn"
+        title="Xóa khỏi kho"
         footer={
           <>
             <Button variant="ghost" onClick={() => setBulkDeleteOpen(false)}>
@@ -1079,7 +1118,8 @@ export default function Vocabulary() {
         }
       >
         <p className="text-sm text-text-secondary">
-          Bạn có chắc muốn xóa <span className="font-semibold">{selectedWordIds.length}</span> từ đã chọn?
+          Xóa <span className="font-semibold">{selectedWordIds.length}</span> từ đã chọn khỏi kho?
+          Các từ này sẽ bị xóa khỏi Kho từ, các Word Set và dữ liệu ôn tập của bạn.
           Hành động này không thể hoàn tác.
         </p>
         {bulkDeleteResults && (

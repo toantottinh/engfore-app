@@ -87,18 +87,12 @@ export function AuthProvider({ children, initialUser, initialSession }) {
     navigate('/login', { replace: true });
   }, [navigate]);
 
-  const role = profile?.role;
-  const isAdmin = role === 'admin';
-  console.log(`[DEV] AuthProvider: Role='${role}', IsAdmin=${isAdmin}`);
-
   const value = {
     user,
     session,
     profile,
     loading,
     signOut,
-    role,
-    isAdmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

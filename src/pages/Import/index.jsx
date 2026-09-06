@@ -5,9 +5,6 @@ import {
   getVocabularySets,
   getUserVocabulary,
   importWords,
-  adminImportWords,
-  getAdminAllSets,
-  getTopics,
 } from '../../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../../utils/auth-errors.js';
 import {
@@ -17,6 +14,7 @@ import {
   VALID_WORD_TYPES,
 } from '../../utils/vocabulary-importer.js';
 import { VOCABULARY_AI_PROMPT, copyTextToClipboard } from '../../utils/vocabulary-ai-prompt.js';
+import { refreshVocabulary } from '../../utils/vocabularyStore.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
@@ -60,13 +58,11 @@ function wordTypeLabel(t) {
 }
 
 export default function Import() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [text, setText] = useState('');
   const [sets, setSets] = useState([]);
-  const [allSets, setAllSets] = useState([]); // For admin view
-  const [topics, setTopics] = useState([]);
   const [setId, setSetId] = useState('');
   const [setsLoading, setSetsLoading] = useState(true);
 
@@ -112,16 +108,11 @@ export default function Import() {
   const [destSetId, setDestSetId] = useState('');
   const [newSetName, setNewSetName] = useState('');
   const [lastSetId, setLastSetId] = useState('');
-  
-  // Admin-specific state for creating public sets
-  const [isPublicSet, setIsPublicSet] = useState(false);
-  const [newSetTopicId, setNewSetTopicId] = useState('');
-  const [newSetStatus, setNewSetStatus] = useState('draft');
 
   // Phân loại khi preview: từ trùng trong file / đã có trong Vocabulary / dòng lỗi.
   const [summary, setSummary] = useState(null); // { found, invalid, dupFile, inVocab }
 
-  // Tải danh sách bộ từ của user và (nếu là admin) các bộ từ public + topics.
+  // Tải danh sách bộ từ của user.
   useEffect(() => {
     let active = true;
     if (!user) {
@@ -137,22 +128,8 @@ export default function Import() {
         const { data: userSets, error: userSetsError } = await getVocabularySets(user.id);
         if (!active) return;
         if (userSetsError) throw userSetsError;
-        
+
         setSets(userSets || []);
-
-        if (isAdmin) {
-          const [{ data: allSetsData, error: allSetsError }, { data: topicsData, error: topicsError }] = await Promise.all([
-            getAdminAllSets(),
-            getTopics(),
-          ]);
-
-          if (!active) return;
-          if (allSetsError) throw allSetsError;
-          if (topicsError) throw topicsError;
-          
-          setAllSets(allSetsData || []);
-          setTopics(topicsData || []);
-        }
       } catch (err) {
         if (active) {
           setLoadSetsError(getAuthErrorMessage(err));
@@ -169,7 +146,7 @@ export default function Import() {
     return () => {
       active = false;
     };
-  }, [user, isAdmin]);
+  }, [user]);
 
   const handleParse = useCallback(async () => {
     setError('');
@@ -251,21 +228,11 @@ export default function Import() {
     setImporting(true);
     const payload = toImportPayload(validRows);
 
-    const useAdminFlow = isAdmin && (destMode === 'newSet' || (destMode === 'existingSet' && allSets.find(s => s.id === destSetId && !s.user_id)));
-
-    const { meta, error: err } = useAdminFlow
-      ? await adminImportWords({
-          words: payload,
-          setId: setIdPayload,
-          newSetName: newSetNamePayload,
-          newSetTopicId: newSetNamePayload ? newSetTopicId : null,
-          newSetStatus: newSetNamePayload ? newSetStatus : 'draft',
-        })
-      : await importWords({
-          words: payload,
-          setId: setIdPayload,
-          newSetName: newSetNamePayload,
-        });
+    const { meta, error: err } = await importWords({
+      words: payload,
+      setId: setIdPayload,
+      newSetName: newSetNamePayload,
+    });
 
     setImporting(false);
 
@@ -297,6 +264,12 @@ export default function Import() {
     setParseInfo(null);
     setSummary(null);
     setText('');
+    // Invalidate the shared vocabulary view so the Library (and any other
+    // subscriber) reflects the newly added word on its next render — fixes
+    // the stale-view bug where a just-imported word does not appear until
+    // a manual reload. Fire-and-forget; subscribers re-fetch & skip stale
+    // results internally.
+    refreshVocabulary();
   };
 
   const goToSet = () => {
@@ -367,39 +340,6 @@ export default function Import() {
                 placeholder="Tên Word Set mới, ví dụ: Travel"
                 className="w-full sm:w-80"
               />
-              {isAdmin && (
-                <div className="space-y-2 rounded-md border border-sky-200 bg-sky-50 p-3">
-                  <div className="text-sm font-medium text-sky-800">Admin: Public Set Options</div>
-                   <label className="flex items-center gap-2">
-                      <span className="w-20 text-xs text-zinc-600">Topic:</span>
-                      <select
-                        value={newSetTopicId}
-                        onChange={(e) => setNewSetTopicId(e.target.value)}
-                        className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-64"
-                      >
-                        <option value="">-- No topic --</option>
-                        {topics.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.cefr_level})
-                          </option>
-                        ))}
-                      </select>
-                   </label>
-                   <label className="flex items-center gap-2">
-                      <span className="w-20 text-xs text-zinc-600">Status:</span>
-                       <div className="flex gap-4">
-                         <label className="flex items-center gap-1">
-                           <input type="radio" name="status" value="draft" checked={newSetStatus === 'draft'} onChange={(e) => setNewSetStatus(e.target.value)} />
-                           <span className="text-sm">Draft</span>
-                         </label>
-                         <label className="flex items-center gap-1">
-                           <input type="radio" name="status" value="published" checked={newSetStatus === 'published'} onChange={(e) => setNewSetStatus(e.target.value)} />
-                           <span className="text-sm">Published</span>
-                         </label>
-                       </div>
-                   </label>
-                </div>
-              )}
             </div>
           )}
 
@@ -431,30 +371,11 @@ export default function Import() {
                 className="ml-6 mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-80"
               >
                 <option value="">-- Chọn Word Set --</option>
-                {isAdmin ? (
-                  <>
-                    <optgroup label="Public Sets">
-                      {allSets.filter(s => !s.user_id).map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.word_count ?? 0} từ)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="My Sets">
-                      {allSets.filter(s => s.user_id === user.id).map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.word_count ?? 0} từ)
-                        </option>
-                      ))}
-                    </optgroup>
-                  </>
-                ) : (
-                  sets.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.word_count ?? 0} từ)
-                    </option>
-                  ))
-                )}
+                {sets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.word_count ?? 0} từ)
+                  </option>
+                ))}
               </select>
             ))}
         </div>

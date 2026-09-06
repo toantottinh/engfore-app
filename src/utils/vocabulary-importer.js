@@ -303,6 +303,18 @@ const wt = normalizeWordType(cells[2]);
   return { rows, warnings, hadHeader, format };
 }
 
+const EMBEDDED_TYPE_MARKER_RE = /\s*\((?:adj|n|v|verb|noun|adjective|adverb|adv|prep|preposition|conj|conjunction|pron|pronoun|interj|interjection|det|determiner|phrase|phrasal[_ ]?verb|expression)\)\s*$/i;
+
+export function normalizeWordName(value) {
+  let w = String(value || '').trim().replace(/\s+/g, ' ');
+  for (;;) {
+    if (!EMBEDDED_TYPE_MARKER_RE.test(w)) return w;
+    const stripped = w.replace(EMBEDDED_TYPE_MARKER_RE, '').trim();
+    if (!stripped) return w;
+    w = stripped;
+  }
+}
+
 /**
  * Chuẩn bị dữ liệu để gửi lên importWordsToSet.
  * Loại bỏ trường nội bộ `_warnings`, chỉ giữ 7 trường của schema.
@@ -314,7 +326,9 @@ export function toImportPayload(rows) {
     // chỉnh sửa ô preview thành giá trị không hợp lệ) — tránh lỗi 22P02 enum.
     const wt = normalizeWordType(r.word_type);
     return {
-      word: (r.word || '').trim(),
+      // Word identity phải là canonical English word — KHÔNG nhúng type
+      // vào tên ('average(adj)' -> 'average').
+      word: normalizeWordName(r.word),
       ipa: (r.ipa || '').trim(),
       word_type: wt.value,
       meaning: (r.meaning || '').trim(),

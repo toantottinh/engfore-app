@@ -201,16 +201,26 @@ export async function recordLearningResult({ userId, wordSenseId, correct, ratin
 
 // Base columns guaranteed to exist in the production database.
 // Vocabulary-membership path: `set_words` + `vocabulary_sets` is THE source of
-// truth for whether a user still owns/studies a word_sense. Embedding this
-// path in EVERY SRS select lets PostgREST apply the inner-join filter
-// `word_senses.set_words.vocabulary_sets.user_id`, so deleted vocabulary words
-// (no set_words membership anymore) can NEVER surface in the SRS queue again.
+// truth for whether a user still owns/studies a word_sense.
+//
+// !! CRITICAL — the `!inner` hints are NOT cosmetic:
+//    PostgREST only applies an embedded-resource filter to the PARENT rows when
+//    the embed is declared `!inner`. Without it, a filter like
+//    `word_senses.set_words.vocabulary_sets.user_id=eq.<uid>` merely prunes the
+//    embedded JSON (verified live on this project: a to-one embed filter
+//    returned ALL 1000 parent rows with the embed nulled, vs exactly the
+//    matching row with `!inner`). Without `!inner` the membership guard below
+//    is a NO-OP and deleted vocabulary words keep surfacing in the SRS queue.
+//    With `!inner` the embed becomes an inner join: orphaned user_progress rows
+//    (word removed from every Vocabulary Set) are excluded, and PostgREST still
+//    aggregates to-many children so a word in several Sets is returned ONCE
+//    (verified live: 1 parent row, count `0-0/1`).
 const BASE_PROGRESS_SELECT = `word_sense_id,
         mastery_level,
         review_count,
         review_due_at,
         last_reviewed_at,
-        word_senses (
+        word_senses!inner (
           id,
           word_type,
           meaning,
@@ -221,11 +231,12 @@ const BASE_PROGRESS_SELECT = `word_sense_id,
             ipa,
             cefr_level
           ),
-          set_words (
-            vocabulary_sets (
+          set_words!inner (
+            vocabulary_sets!inner (
               user_id
             )
-          )
+          ),
+          user_vocabulary ( example, memory_clue )
         )`;
 
 // Extended SRS columns from migrations (may not exist in every DB environment).
@@ -241,7 +252,7 @@ const SRS_PROGRESS_SELECT = `word_sense_id,
         lapses,
         state,
         learning_step,
-        word_senses (
+        word_senses!inner (
           id,
           word_type,
           meaning,
@@ -252,25 +263,29 @@ const SRS_PROGRESS_SELECT = `word_sense_id,
             ipa,
             cefr_level
           ),
-          set_words (
-            vocabulary_sets (
+          set_words!inner (
+            vocabulary_sets!inner (
               user_id
             )
-          )
+          ),
+          user_vocabulary ( example, memory_clue )
         )`;
 
 /**
  * Column of the embedded membership path used to scope SRS rows to the user's
- * current vocabulary holdings. Must be present in the matching select string.
+ * current vocabulary holdings. Must be present in the matching select string,
+ * and that select string MUST declare the embed chain with `!inner` (see the
+ * comment above BASE_PROGRESS_SELECT) — otherwise this filter never reaches
+ * the parent rows.
  */
 const VOCAB_MEMBERSHIP_FILTER = {
   column: 'word_senses.set_words.vocabulary_sets.user_id',
   operator: 'eq',
 };
 
-const SRS_COUNT_SELECT = 'word_sense_id,word_senses(id,set_words(vocabulary_sets(user_id)))';
+const SRS_COUNT_SELECT = 'word_sense_id,word_senses!inner(id,set_words!inner(vocabulary_sets!inner(user_id)))';
 
-const SRS_NEXT_DUE_SELECT = 'review_due_at,state,interval_hours,word_senses(id,set_words(vocabulary_sets(user_id)))';
+const SRS_NEXT_DUE_SELECT = 'review_due_at,state,interval_hours,word_senses!inner(id,set_words!inner(vocabulary_sets!inner(user_id)))';
 
 /**
  * Map a raw user_progress row into the unified word shape.
@@ -279,6 +294,11 @@ const SRS_NEXT_DUE_SELECT = 'review_due_at,state,interval_hours,word_senses(id,s
 function mapProgressRow(item) {
   const sense = item.word_senses || {};
   const word = sense.words || {};
+  // USER-OWNED content wins over GLOBAL word_senses content. Empty/null
+  // user-owned values fall back to the global sense values (legacy rows).
+  const uv = sense.user_vocabulary || {};
+  const uvExample = uv?.example ?? null;
+  const uvMemoryClue = uv?.memory_clue ?? null;
   return {
     id: sense.id || item.word_sense_id,
     word: word.word || '',
@@ -286,8 +306,8 @@ function mapProgressRow(item) {
     cefr_level: word.cefr_level || '',
     word_type: sense.word_type || '',
     meaning: sense.meaning || '',
-    memory_clue: sense.description || '',
-    example: sense.example || '',
+    memory_clue: uvMemoryClue || sense.description || '',
+    example: uvExample || sense.example || '',
     mastery_level: item.mastery_level ?? 0,
     review_count: item.review_count ?? 0,
     flashcard_reviews: item.flashcard_reviews ?? 0,
@@ -312,7 +332,7 @@ async function fetchProgressRows(selectText, userId, limit) {
     .from('user_progress')
     .select(selectText)
     .eq('user_id', userId)
-    .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
+    .eq(VOCAB_MEMBERSHIP_FILTER.column, userId)
     .lte('review_due_at', new Date().toISOString())
     .order('review_due_at', { ascending: true })
     .limit(limit);
@@ -322,7 +342,7 @@ async function fetchProgressRows(selectText, userId, limit) {
       .from('user_progress')
       .select(BASE_PROGRESS_SELECT)
       .eq('user_id', userId)
-      .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
+      .eq(VOCAB_MEMBERSHIP_FILTER.column, userId)
       .lte('review_due_at', new Date().toISOString())
       .order('review_due_at', { ascending: true })
       .limit(limit));

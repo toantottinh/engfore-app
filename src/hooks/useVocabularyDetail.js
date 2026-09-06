@@ -3,10 +3,8 @@ import {
   getVocabularySet,
   getWordsInSet,
   addWordToSet,
-  deleteWordFromSet,
+  removeWordFromSet as serviceRemoveWordFromSet,
   updateVocabularySet,
-  adminDeleteWord, // For global deletion by admins
-  removeFromVocabulary as serviceRemoveFromVocabulary,
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
 import { useAuth } from './useAuth.jsx';
@@ -93,27 +91,17 @@ export function useVocabularyDetail(setId) {
   const removeWordFromSet = useCallback(
     async (wordSenseId) => {
       setMutationLoading(true);
-      const { error: err } = await deleteWordFromSet(setId, wordSenseId);
+      // Chỉ bỏ membership của word khỏi Word Set hiện tại. KHÔNG xóa
+      // user_vocabulary / user_progress — từ vẫn còn ở Kho từ + SRS.
+      const { error: err } = await serviceRemoveWordFromSet(user?.id, setId, wordSenseId);
       setMutationLoading(false);
       if (err) return { error: getAuthErrorMessage(err) };
       await loadSetAndWords();
       return { error: null };
     },
-    [setId, loadSetAndWords]
+    [user?.id, setId, loadSetAndWords]
   );
   
-  const deleteSystemWord = useCallback(
-    async (wordId) => {
-      setMutationLoading(true);
-      const { error: err } = await adminDeleteWord(wordId);
-      setMutationLoading(false);
-      if (err) return { error: getAuthErrorMessage(err) };
-      await loadSetAndWords();
-      return { error: null };
-    },
-    [loadSetAndWords]
-  );
-
   const updateSetDetails = useCallback(
     async (updates) => {
       setMutationLoading(true);
@@ -126,22 +114,6 @@ export function useVocabularyDetail(setId) {
     [setId, loadSetAndWords]
   );
 
-  /**
-   * Removes a word from the user's entire vocabulary library.
-   * This is a global removal, not just from the current set.
-   */
-  const removeFromVocabulary = useCallback(
-    async (wordSenseId) => {
-      setMutationLoading(true);
-      const { error: err } = await serviceRemoveFromVocabulary(wordSenseId);
-      setMutationLoading(false);
-      if (err) return { error: getAuthErrorMessage(err) };
-      await loadSetAndWords();
-      return { error: null };
-    },
-    [loadSetAndWords]
-  );
-  
   return {
     set,
     words,
@@ -151,8 +123,6 @@ export function useVocabularyDetail(setId) {
     loadSetAndWords,
     addWord,
     removeWordFromSet,
-    deleteSystemWord,
-    removeFromVocabulary,
     updateSetDetails,
   };
 }

@@ -1,0 +1,24 @@
+{
+  "strict": 0,
+  "arrowOnly": [
+    {
+      "id": "250b5e89-563e-44ff-a590-3f422f2890d9",
+      "word_id": "a69abde2-0221-4393-8df0-ae712c92bcfb",
+      "word_type": "other",
+      "meaning": "nghe thấy",
+      "description": "Ear (tai) thêm H -> Hear",
+      "example": "I hear a sound.",
+      "words": {
+        "id": "a69abde2-0221-4393-8df0-ae712c92bcfb",
+        "word": "hear"
+      },
+      "word": "hear"
+    }
+  ],
+  "dupGroups": [],
+  "classCounts": {
+    "trivial": 0,
+    "mnemonic": 0
+  },
+  "strictLegacy": []
+}

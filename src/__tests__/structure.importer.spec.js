@@ -1,24 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // ------------------------------------------------------------------
-// Tests cho Structure Import Knowledge:
+// Tests cho Structure Import utils:
 //   - utils/structure-importer.js (parser, validator, dedupe, payload)
-//   - services/structure.service.js#importStructures (RPC wrapper)
 //
-// Mock supabase client theo pattern của learning.queue.spec.js — không cần
-// env/DB thật. Các hàm parser là pure nên được test trực tiếp.
+// (Admin import path importStructures/RPC đã bị loại bỏ cùng tính năng
+// Admin — chỉ còn pure utils được dùng bởi ExerciseImport.)
+// Các hàm parser là pure nên được test trực tiếp.
 // ------------------------------------------------------------------
-
-const rpcMock = vi.fn(async () => ({ data: null, error: null }));
-
-vi.mock('../services/supabase.js', () => ({
-  supabase: {
-    rpc: (...args) => rpcMock(...args),
-    from: () => ({
-      select: async () => ({ data: [], error: null }),
-    }),
-  },
-}));
 
 import {
   parseStructureText,
@@ -27,7 +16,6 @@ import {
   toStructureImportPayload,
   structureKey,
 } from '../utils/structure-importer.js';
-import { importStructures } from '../services/structure.service.js';
 
 const VALID_LINE =
   'I want to + V | Tôi muốn... | Dùng để nói về mong muốn | I want to learn English. ;; I want to go home. ;; I want to play football. | A1 | Daily Life';
@@ -214,51 +202,12 @@ describe('toStructureImportPayload — payload cho RPC import_structures', () =>
     expect(payloads[0].pattern).toBe('I want to + V');
   });
 
-  it('re-normalize an toàn khi admin sửa ô tay (pattern thừa khoảng trắng, CEFR thường)', () => {
+  it('re-normalize an toàn khi user sửa ô tay (pattern thừa khoảng trắng, CEFR thường)', () => {
     const { rows } = parseStructureText(VALID_LINE);
     rows[0].pattern = '   I   want   to + V ';
     rows[0].cefr = 'b1';
     const [payload] = toStructureImportPayload(rows);
     expect(payload.pattern).toBe('I want to + V');
     expect(payload.cefr).toBe('B1');
-  });
-});
-
-describe('importStructures — service wrapper (RPC import_structures)', () => {
-  beforeEach(() => {
-    rpcMock.mockClear();
-    rpcMock.mockImplementation(async () => ({ data: null, error: null }));
-  });
-
-  it('gọi đúng RPC với p_rows payload', async () => {
-    const structures = [{ pattern: 'P', meaning: 'M', explanation: null, cefr: 'A1', topic: null, examples: [] }];
-    await importStructures({ structures });
-    expect(rpcMock).toHaveBeenCalledTimes(1);
-    expect(rpcMock).toHaveBeenCalledWith('import_structures', { p_rows: structures });
-  });
-
-  it('trả meta (created/updated/errored) từ dòng đầu của kết quả RPC', async () => {
-    rpcMock.mockImplementation(async () => ({
-      data: [{ created: 2, updated: 1, errored: 0 }],
-      error: null,
-    }));
-    const { data, error, meta } = await importStructures({ structures: [] });
-    expect(error).toBeNull();
-    expect(data).toEqual([{ created: 2, updated: 1, errored: 0 }]);
-    expect(meta).toEqual({ created: 2, updated: 1, errored: 0 });
-  });
-
-  it('RPC lỗi -> trả { data: null, error, meta: null } theo convention service', async () => {
-    const rpcError = { message: 'Only admins can import structures.', code: 'P0001' };
-    rpcMock.mockImplementation(async () => ({ data: null, error: rpcError }));
-    const { data, error, meta } = await importStructures({ structures: [{ pattern: 'P' }] });
-    expect(data).toBeNull();
-    expect(error).toBe(rpcError);
-    expect(meta).toBeNull();
-  });
-
-  it('payload không phải mảng -> vẫn gọi RPC với mảng rỗng (an toàn)', async () => {
-    await importStructures({ structures: null });
-    expect(rpcMock).toHaveBeenCalledWith('import_structures', { p_rows: [] });
   });
 });

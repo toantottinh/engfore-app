@@ -12,10 +12,9 @@ import { AuthProvider } from '../hooks/useAuth.jsx';
 // ------------------------------------------------------------------
 
 const getStructuresForUserMock = vi.fn();
-// Điều khiển được per-test: { data: { role: 'user'|'admin' } | null }
+// Điều khiển được per-test: { data: { id, username } | null } (Admin feature
+// đã bị loại bỏ — profile.role không còn được app đọc để phân quyền).
 const ensureProfileMock = vi.fn(async () => ({ data: null, error: null }));
-// Bulk delete structure (mặc định thành công; chi tiết ở structures.delete.spec.jsx)
-const deleteStructuresMock = vi.fn(async () => ({ data: [{ id: 's1' }], error: null }));
 
 vi.mock('../services/auth.service.js', () => ({
   authService: {
@@ -27,7 +26,6 @@ vi.mock('../services/auth.service.js', () => ({
 
 vi.mock('../services/structure.service.js', () => ({
   getStructuresForUser: (...args) => getStructuresForUserMock(...args),
-  deleteStructures: (...args) => deleteStructuresMock(...args),
 }));
 
 const USER = { id: 'user-1', email: 'test@example.com' };
@@ -70,7 +68,6 @@ function mountLibrary() {
         <Routes>
           <Route path="/structures" element={<Structures />} />
           <Route path="/structures/:structureId" element={<div>DETAIL PAGE</div>} />
-          <Route path="/structures/import" element={<div>KNOWLEDGE IMPORT PAGE</div>} />
           <Route path="/structures/exercises/import" element={<div>EXERCISES IMPORT PAGE</div>} />
         </Routes>
       </AuthProvider>
@@ -213,11 +210,11 @@ describe('Structures Library', () => {
 });
 
 // ------------------------------------------------------------------
-// Admin Import entry (STEP 2/6/8): chỉ admin thấy hành động nhập trên
-// /structures; click điều hướng tới trang import HIỆN CÓ (không /admin).
-// Backend RPC guards vẫn là lớp bảo mật chính — test này chỉ verify UI gate.
+// Import entry (Admin feature removed): "Nhập kiến thức" (global structure
+// import, admin-only trước đây) đã bị loại bỏ cùng tính năng Admin — KHÔNG
+// user nào thấy nó. "Nhập bài tập" VẪN mở cho MỌI user đăng nhập.
 // ------------------------------------------------------------------
-describe('Structures Library — Admin Import entry', () => {
+describe('Structures Library — Import entry (user-only, admin removed)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getStructuresForUserMock.mockResolvedValue({ data: STRUCTURES, error: null });
@@ -225,45 +222,27 @@ describe('Structures Library — Admin Import entry', () => {
   });
   afterEach(() => cleanup());
 
-  it('non-admin KHÔNG thấy "Nhập kiến thức" NHƯNG VẪN thấy "Nhập bài tập"', async () => {
+  it('KHÔNG user nào thấy "Nhập kiến thức" — NHƯNG VẪN thấy "Nhập bài tập"', async () => {
     // "Nhập bài tập" là authoring learning content -> mở cho mọi user;
-    // chỉ "Nhập kiến thức" (tạo global structure mới) là admin-only.
+    // "Nhập kiến thức" (tạo global structure mới) đã bị xóa cùng Admin.
     mountLibrary();
-    await screen.findByText('I want to + V'); // list đã load, profile=user
+    await screen.findByText('I want to + V'); // list đã load
     expect(screen.queryByRole('link', { name: /Nhập kiến thức/ })).toBeNull();
     expect(screen.getByRole('link', { name: /Nhập bài tập/ })).toBeTruthy();
   });
 
-  it('admin THẤY cả hai hành động nhập', async () => {
-    ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role: 'admin' }, error: null });
-    mountLibrary();
-    expect(await screen.findByRole('link', { name: /Nhập kiến thức/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Nhập bài tập/ })).toBeTruthy();
-  });
-
-  it('admin click "Nhập kiến thức" -> mở trang import hiện có (không /admin)', async () => {
+  it('user click "Nhập bài tập" -> mở trang import exercises hiện có', async () => {
     const user = userEvent.setup();
-    ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role: 'admin' }, error: null });
-    mountLibrary();
-    const link = await screen.findByRole('link', { name: /Nhập kiến thức/ });
-    await user.click(link);
-    expect(await screen.findByText('KNOWLEDGE IMPORT PAGE')).toBeTruthy();
-  });
-
-  it('admin click "Nhập bài tập" -> mở trang import exercises hiện có', async () => {
-    const user = userEvent.setup();
-    ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role: 'admin' }, error: null });
     mountLibrary();
     const link = await screen.findByRole('link', { name: /Nhập bài tập/ });
     await user.click(link);
     expect(await screen.findByText('EXERCISES IMPORT PAGE')).toBeTruthy();
   });
 
-  it('hành động nhập hiển thị cả khi library RỖNG (admin cần import đầu tiên)', async () => {
-    ensureProfileMock.mockResolvedValue({ data: { id: USER.id, role: 'admin' }, error: null });
+  it('hành động "Nhập bài tập" hiển thị cả khi library RỖNG', async () => {
     getStructuresForUserMock.mockResolvedValue({ data: [], error: null });
     mountLibrary();
     expect(await screen.findByText('Chưa có cấu trúc câu.')).toBeTruthy();
-    expect(await screen.findByRole('link', { name: /Nhập kiến thức/ })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: /Nhập bài tập/ })).toBeTruthy();
   });
 });

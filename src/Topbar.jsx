@@ -108,7 +108,7 @@ const UserProfile = () => {
 };
 
 export default function Topbar() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [reviewCount, setReviewCount] = useState(0);
 
   useEffect(() => {
@@ -160,7 +160,6 @@ export default function Topbar() {
             </div>
           </NavItem>
           <NavItem to="/grammar" end={false}>Ngữ pháp</NavItem>
-          {isAdmin && <NavItem to="/admin">Admin</NavItem>}
         </ul>
       </nav>
 

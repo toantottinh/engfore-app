@@ -20,7 +20,7 @@ vi.mock('../services/auth.service.js', () => ({
   authService: {
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     getSession: async () => ({ data: { session: null }, error: null }),
-    ensureProfile: async () => ({ data: { id: 'user-1', role: 'admin' }, error: null }),
+    ensureProfile: async () => ({ data: { id: 'user-1', role: 'user' }, error: null }),
   },
 }));
 

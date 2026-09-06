@@ -12,6 +12,7 @@ import {
   toImportPayload,
   dedupeRows,
   normalizeWordType,
+  normalizeWordName,
   VALID_WORD_TYPES,
 } from '../utils/vocabulary-importer.js';
 
@@ -194,12 +195,52 @@ describe('vocabulary-importer: spec compliance', () => {
     });
   });
 
-  it('rejects invalid types that should not be aliases', () => {
+    it('rejects invalid types that should not be aliases', () => {
     ['verb_phrase', 'phrase_type', 'unknown', 'word', 'phrasal'].forEach((invalid) => {
       const r = normalizeWordType(invalid);
       expect(r.value).toBe('other');
       expect(r.changed).toBe(true);
       expect(VALID_WORD_TYPES.has(invalid)).toBe(false);
     });
+  });
+});
+
+describe('vocabulary-importer: normalizeWordName (canonical word identity)', () => {
+  // Data-cleanup regression guard: legacy imports embedded the word type
+  // into the word NAME (`average(adj)`, `average (n)`) creating duplicate
+  // shared `words` rows. The type must live in word_type, never in the name.
+  it('strips embedded type markers from word names', () => {
+    expect(normalizeWordName('average(adj)')).toBe('average');
+    expect(normalizeWordName('average(n)')).toBe('average');
+    expect(normalizeWordName('average (adj)')).toBe('average');
+    expect(normalizeWordName('beautiful (adjective)')).toBe('beautiful');
+    expect(normalizeWordName('run(v)')).toBe('run');
+  });
+
+  it('strips nested markers repeatedly', () => {
+    expect(normalizeWordName('average (adj) (n)')).toBe('average');
+  });
+
+  it('keeps legitimate names untouched', () => {
+    expect(normalizeWordName('age limit')).toBe('age limit');
+    expect(normalizeWordName('all right')).toBe('all right');
+    expect(normalizeWordName('average')).toBe('average');
+    expect(normalizeWordName('  wake  up ')).toBe('wake up');
+  });
+
+  it('does not return an empty string for marker-only input', () => {
+    expect(normalizeWordName('(adj)')).toBe('(adj)');
+    expect(normalizeWordName('')).toBe('');
+    expect(normalizeWordName(null)).toBe('');
+  });
+
+  it('toImportPayload sends canonical word names (no type in the name)', () => {
+    const rows = [
+      { word: 'average(adj)', word_type: 'adjective', meaning: 'trung bình' },
+      { word: 'average(n)', word_type: 'noun', meaning: 'mức trung bình' },
+    ];
+    const payload = toImportPayload(rows);
+    expect(payload.map((r) => r.word)).toEqual(['average', 'average']);
+    expect(payload.map((r) => r.word_type)).toEqual(['adjective', 'noun']);
   });
 });

@@ -6,76 +6,15 @@ import { supabase } from './supabase.js';
  * user_grammar (per-user SRS state).
  *
  * Content model (mirror Sentence Structures):
- *   Knowledge : grammar_topics -> grammar_rules  (global, admin-managed)
+ *   Knowledge : grammar_topics -> grammar_rules  (global reference content)
  *   Exercises : grammar_rules -> grammar_exercises (shared practice bank,
  *               KHÔNG phải SRS item — dùng chung exercise engine hiện có)
  *   SRS       : user_grammar được ghi QUA grammar-learning.service.js bằng
  *               scheduler computeSrsPayload (một SRS engine cho toàn app).
  *
- * File này CHỈ đọc/ghi content + gọi import RPC (admin). Không có logic SRS.
+ * File này CHỈ đọc content (import RPCs đã bị loại bỏ cùng tính năng Admin).
+ * Không có logic SRS.
  */
-
-/**
- * [ADMIN] Import Grammar topics qua RPC import_grammar_topics (SECURITY
- * DEFINER, admin-only bên trong hàm). Upsert-by-title:
- *   - title mới    -> INSERT.
- *   - title có sẵn -> refresh description/cefr/category (never null out).
- * KHÔNG đụng SRS state của user.
- *
- * @param {{ topics: Array<{ title, description?, cefr?, category? }> }} params
- * @returns {Promise<{ data: any, error: any, meta: { created, updated, errored } | null }>}
- */
-export async function importGrammarTopics({ topics }) {
-  const payload = Array.isArray(topics) ? topics : [];
-  const { data, error } = await supabase.rpc('import_grammar_topics', { p_rows: payload });
-  if (error) {
-    if (import.meta.env.DEV) {
-      console.error('[importGrammarTopics] RPC error:', JSON.stringify(error, null, 2));
-    }
-    return { data: null, error, meta: null };
-  }
-  const meta = Array.isArray(data) && data[0] ? data[0] : null;
-  return { data, error: null, meta };
-}
-
-/**
- * [ADMIN] Import Grammar rules qua RPC import_grammar_rules. Topic được resolve
- * phía RPC theo title (phải tồn tại trước — import topics trước rules).
- * Upsert-by-(topic, title). KHÔNG đụng SRS state của user.
- *
- * @param {{ rules: Array<{ topic, title, rule, explanation? }> }} params
- */
-export async function importGrammarRules({ rules }) {
-  const payload = Array.isArray(rules) ? rules : [];
-  const { data, error } = await supabase.rpc('import_grammar_rules', { p_rows: payload });
-  if (error) {
-    if (import.meta.env.DEV) {
-      console.error('[importGrammarRules] RPC error:', JSON.stringify(error, null, 2));
-    }
-    return { data: null, error, meta: null };
-  }
-  const meta = Array.isArray(data) && data[0] ? data[0] : null;
-  return { data, error: null, meta };
-}
-
-/**
- * [ADMIN] Import Grammar exercises qua RPC import_grammar_exercises.
- * Rule được resolve phía RPC theo (topic?, rule title). APPEND-ONLY.
- *
- * @param {{ exercises: Array<{ topic?, rule, type, question, answer?, options?, explanation? }> }} params
- */
-export async function importGrammarExercises({ exercises }) {
-  const payload = Array.isArray(exercises) ? exercises : [];
-  const { data, error } = await supabase.rpc('import_grammar_exercises', { p_rows: payload });
-  if (error) {
-    if (import.meta.env.DEV) {
-      console.error('[importGrammarExercises] RPC error:', JSON.stringify(error, null, 2));
-    }
-    return { data: null, error, meta: null };
-  }
-  const meta = Array.isArray(data) && data[0] ? data[0] : null;
-  return { data, error: null, meta };
-}
 
 const GRAMMAR_TOPIC_SELECT = `
   id, title, description, cefr, category, created_at,

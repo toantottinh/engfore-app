@@ -58,33 +58,6 @@ export async function getVocabularySets(userId) {
   return { data: mapped, error: null };
 }
 
-/** [ADMIN] Lấy TOÀN BỘ danh sách bộ từ (public và của user) kèm thông tin owner. */
-export async function getAdminAllSets() {
-  const { data, error } = await supabase
-    .from('vocabulary_sets')
-    .select(
-      `*,
-       set_words(count),
-       users ( username )
-      `
-    )
-    .order('created_at', { ascending: false });
-
-  if (error) return { data: null, error };
-
-  const mapped = (data || []).map((set) => {
-    const count = set.set_words?.[0]?.count ?? 0;
-    const { set_words: _sw, ...rest } = set;
-    return {
-      ...rest,
-      word_count: count,
-      owner_username: set.users?.username || 'Public', // Public if user is null
-    };
-  });
-
-  return { data: mapped, error: null };
-}
-
 /** Lấy thông tin chi tiết một bộ từ. */
 export async function getVocabularySet(setId) {
   const { data, error } = await supabase
@@ -146,11 +119,23 @@ export async function deleteVocabularySet(setId) {
  * @returns {Promise<{ data: any, error: any, meta: object|null }>}
  */
 export async function importWords({ words, setId = null, newSetName = null }) {
-  // Storage/RPC retains the established `description` column; the application
-  // domain exposes it consistently as `memory_clue`.
-  const storageWords = (words || []).map(({ memory_clue, ...word }) => ({
-    ...word,
-    description: memory_clue ?? word.description ?? null,
+  // Domain model exposes the user-owned content under its canonical field
+  // `memory_clue`. The import_words RPC (migration 20260909+) reads
+  // `v_item->>'memory_clue'` with a fallback to `description`, so the service
+  // forwards the row shape as-is — it no longer remaps memory_clue -> description.
+  // Empty/trimmed strings are coerced to NULL so the RPC won't clobber existing
+  // user-owned content (NULL-safe coalesce in the upsert).
+    const storageWords = (words || []).map((w) => ({
+    word: w.word,
+    ipa: w.ipa || null,
+    word_type: w.word_type || null,
+    meaning: w.meaning || '',
+    example: (w.example || '').trim() || null,
+    // Canonical ownership field. Accept both domain `memory_clue` and the
+    // legacy `description` alias so old callers still work (the RPC reads
+    // `v_item->>'memory_clue'` with a `description` fallback).
+    memory_clue: (w.memory_clue || w.description || '').trim() || null,
+    cefr: w.cefr_level || w.cefr || null,
   }));
 
   const { data, error } = await supabase.rpc('import_words', {
@@ -191,73 +176,6 @@ export async function importWordsToSet(setId, words) {
   return importWords({ words, setId });
 }
 
-/**
- * [ADMIN] Import words, allowing creation of a new public set or adding to an existing public set.
- * Requires admin privileges, enforced by the RPC.
- * @param {{ words: Array, setId?: string|null, newSetName?: string|null, newSetTopicId?: string|null, newSetStatus?: 'draft'|'published' }} params
- */
-export async function adminImportWords({ words, setId = null, newSetName = null, newSetTopicId = null, newSetStatus = 'draft' }) {
-  const storageWords = (words || []).map(({ memory_clue, ...word }) => ({
-    ...word,
-    description: memory_clue ?? word.description ?? null,
-  }));
-
-  const { data, error } = await supabase.rpc('admin_import_words', {
-    p_set_id: setId,
-    p_new_set_name: newSetName,
-    p_words_data: storageWords,
-    p_new_set_topic_id: newSetTopicId,
-    p_new_set_status: newSetStatus,
-  });
-
-  if (error) {
-    if (import.meta.env.DEV) {
-      console.error('[adminImportWords] RPC error:', JSON.stringify(error, null, 2));
-    }
-    return { data: null, error, meta: null };
-  }
-
-  const meta = Array.isArray(data) && data[0] ? data[0] : null;
-  return { data, error: null, meta };
-}
-
-/**
- * [ADMIN] Update a vocabulary set, including admin-only fields like status and topic.
- */
-export async function adminUpdateVocabularySet(setId, updates) {
-  // `updates` can include { name, description, topic_id, status }
-  const { data, error } = await supabase
-    .from('vocabulary_sets')
-    .update(updates)
-    .eq('id', setId)
-    .select()
-    .maybeSingle();
-  return { data, error };
-}
-
-/**
- * [ADMIN] Update a canonical word and its sense. Uses RPC to ensure it runs with correct permissions.
- */
-export async function adminUpdateWord(wordId, senseId, updates) {
-  const { error } = await supabase.rpc('admin_update_word', {
-    p_word_id: wordId,
-    p_sense_id: senseId,
-    p_word_data: updates,
-  });
-  return { error };
-}
-
-/**
- * [ADMIN] Permanently delete a word and its senses from the global tables.
- * This is a destructive action and should be used with care.
- */
-export async function adminDeleteWord(wordId) {
-  // The delete will cascade to word_senses, set_words, user_progress, etc.
-  // RLS policies ensure only admins can do this.
-  const { error } = await supabase.from('words').delete().eq('id', wordId);
-  return { error };
-}
-
 /** Lấy danh sách tất cả các topics. */
 export async function getTopics() {
   const { data, error } = await supabase
@@ -265,33 +183,6 @@ export async function getTopics() {
     .select('*')
     .order('name', { ascending: true });
   return { data, error };
-}
-
-/** [ADMIN] Create a new topic. */
-export async function createTopic(topicData) {
-  const { data, error } = await supabase
-    .from('topics')
-    .insert([topicData])
-    .select()
-    .single();
-  return { data, error };
-}
-
-/** [ADMIN] Update an existing topic. */
-export async function updateTopic(topicId, updates) {
-  const { data, error } = await supabase
-    .from('topics')
-    .update(updates)
-    .eq('id', topicId)
-    .select()
-    .single();
-  return { data, error };
-}
-
-/** [ADMIN] Delete a topic. */
-export async function deleteTopic(topicId) {
-  const { error } = await supabase.from('topics').delete().eq('id', topicId);
-  return { error };
 }
 
 /**
@@ -333,48 +224,50 @@ export async function updateUserWord(senseId, wordId, updates = {}) {
 }
 
 /**
- * Toàn bộ Vocabulary của user: các sense user đang sở hữu qua `set_words` +
- * `vocabulary_sets` (SOURCE OF TRUTH cho membership), kèm tiến trình học
- * (user_progress) và tên các Word Set chứa sense (để hiển thị).
+ * Toàn bộ Vocabulary (Kho từ) của user.
  *
- * Membership được suy từ set_words (không phải user_vocabulary) để trang
- * Vocabulary luôn đồng bộ với SRS Learning Queue: một từ chỉ còn thuộc ít
- * nhất một Set của user thì mới hiển thị; từ đã bị xóa khỏi mọi Set cũng
- * biến mất khỏi đây (memory_clue của từ KHÔNG phải điều kiện membership —
- * từ không có Memory Clue vẫn hiển thị bình thường).
+ * SOURCE OF TRUTH: `user_vocabulary` — một từ thuộc Kho từ khi user có row
+ * ownership trong `user_vocabulary`, DÙ từ đó có còn nằm trong Word Set nào
+ * hay không (orphan ownership vẫn hiển thị). `set_words` + `vocabulary_sets`
+ * chỉ là MEMBERSHIP METADATA để gắn tên Word Set khi hiển thị; KHÔNG quyết
+ * định ownership.
+ *
+ * User-owned content WIN / global fallback: `user_vocabulary.memory_clue` /
+ * `.example` được ưu tiên; `word_senses.description` / `.example` (global)
+ * chỉ dùng khi user-owned value trống (legacy rows).
  * @param {string} userId
  * @returns {Promise<{ data: Array, error: any }>}
  */
 export async function getUserVocabulary(userId) {
   if (!userId) return { data: null, error: null };
 
-  // !inner + eq trên cột embed => chỉ lấy set_words thuộc set của user.
-  // Một sense nằm trong nhiều set sẽ trả nhiều dòng -> dedup bằng seen set
-  // (TEST 7: không bao giờ duplicate item trong Vocabulary).
-  const { data: memberships, error } = await supabase
-    .from('set_words')
+  // SOURCE OF TRUTH = user_vocabulary -> word_senses -> words (đã live-verified
+  // production: GET /rest/v1/user_vocabulary?select=user_id,word_sense_id,
+  // example,memory_clue,created_at,word_senses(id,word_type,meaning,
+  // description,example,words(id,word,ipa,cefr_level))&user_id=eq.<uid> -> 200).
+  // Embed `word_senses` từ user_vocabulary là to-one (object).
+  const { data: ownedRows, error } = await supabase
+    .from('user_vocabulary')
     .select(
-      `word_sense_id,
-       vocabulary_sets!inner ( id, user_id ),
+      `user_id,
+       word_sense_id,
+       example,
+       memory_clue,
+       created_at,
        word_senses (
          id, word_type, meaning, description, example,
          words ( id, word, ipa, cefr_level )
        )`
     )
-    .eq('vocabulary_sets.user_id', userId);
+    .eq('user_id', userId);
 
   if (error) return { data: null, error };
 
-  const seenSenseIds = new Set();
-  const ownedRows = [];
-  for (const m of memberships || []) {
-    const senseId = m.word_sense_id;
-    if (!senseId || seenSenseIds.has(senseId)) continue;
-    seenSenseIds.add(senseId);
-    ownedRows.push(m);
-  }
-
-  const senseIds = ownedRows.map((m) => m.word_sense_id).filter(Boolean);
+  // Mỗi row user_vocabulary là một sense duy nhất (PK user_id+word_sense_id)
+  // nên base query không trùng; sense nằm trong nhiều Set chỉ gộp vào
+  // `set_names` -> 1 item duy nhất (không duplicate trong Kho từ).
+  const rows = ownedRows || [];
+  const senseIds = rows.map((r) => r.word_sense_id).filter(Boolean);
 
   // Progress (graceful fallback khi thiếu cột SRS ở môi trường cũ).
   let progressMap = {};
@@ -428,20 +321,25 @@ export async function getUserVocabulary(userId) {
     });
   }
 
-  const merged = ownedRows.map((m) => {
+    const merged = rows.map((m) => {
     const sense = m.word_senses || {};
     const w = sense.words || {};
     const prog = progressMap[m.word_sense_id];
+    // USER-OWNED content WIN / global fallback (legacy): m là row
+    // user_vocabulary (đã live-verified production columns example/memory_clue).
+    // Global word_senses chỉ fallback khi user-owned value trống.
+    const uvExample = m.example ?? null;
+    const uvMemoryClue = m.memory_clue ?? null;
     return {
-      id: sense.id,
-      word_id: w.id,
+      id: sense.id ?? m.word_sense_id,
+      word_id: w.id ?? null,
       word: w.word || '',
       ipa: w.ipa || '',
       cefr_level: w.cefr_level || '',
       word_type: sense.word_type || '',
       meaning: sense.meaning || '',
-      memory_clue: sense.description || '',
-      example: sense.example || '',
+      memory_clue: uvMemoryClue || sense.description || '',
+      example: uvExample || sense.example || '',
       mastery_level: prog?.mastery_level ?? 0,
       review_due_at: prog?.review_due_at ?? null,
       last_reviewed_at: prog?.last_reviewed_at ?? null,
@@ -477,18 +375,65 @@ export async function addWordsToSet(setId, wordSenseIds) {
 }
 
 /**
- * Xóa một từ khỏi Vocabulary của user (RPC remove_from_vocabulary).
- * Trong 1 transaction: bỏ ownership, xóa progress của user, gỡ khỏi mọi set của user.
- * KHÔNG ảnh hưởng user khác / sense toàn cục.
+ * XÓA KHỎI KHO — xóa hoàn toàn một từ khỏi TÀI KHOẢN user.
+ *
+ * Gọi RPC production `remove_from_vocabulary(p_word_sense_id)` (đã
+ * live-verified: tồn tại + auth-gate). Trong 1 transaction server-side:
+ *   - DELETE user_vocabulary (ownership của user)
+ *   - DELETE user_progress (SRS của user)
+ *   - DELETE set_words của MỌI Word Set thuộc user
+ * KHÔNG đụng `words` / `word_senses` / dữ liệu user khác.
+ *
+ * @param {string} userId - dùng để signature rõ ràng; RPC tự lấy auth.uid()
  * @param {string} wordSenseId
  * @returns {Promise<{ data: any, error: any }>}
  */
-export async function removeFromVocabulary(wordSenseId) { // This function was already correct, but I'm confirming it.
+export async function removeWordCompletely(userId, wordSenseId) {
+  if (!userId) return { error: { message: 'Thiếu userId.' } };
   if (!wordSenseId) return { error: { message: 'Thiếu id của từ.' } };
   const { data, error } = await supabase.rpc('remove_from_vocabulary', {
     p_word_sense_id: wordSenseId,
   });
 
+  return { data, error };
+}
+
+/** Backward-compat alias của removeWordCompletely (RPC tự lấy auth.uid()). */
+export async function removeFromVocabulary(wordSenseId) {
+  if (!wordSenseId) return { error: { message: 'Thiếu id của từ.' } };
+  const { data, error } = await supabase.rpc('remove_from_vocabulary', {
+    p_word_sense_id: wordSenseId,
+  });
+  return { data, error };
+}
+
+/**
+ * XÓA KHỎI MỘT WORD SET — chỉ gỡ membership (row `set_words`) của
+ * (set, sense), CHỈ trên Set thuộc current user.
+ *
+ * Gọi RPC mới `unlink_word_from_set(p_set_id, p_word_sense_id)` (migration
+ * 20260911000000) — SECURITY DEFINER nhưng bắt buộc
+ * `vocabulary_sets.user_id = auth.uid()` nên không thể unlink Set của user
+ * khác. TUYỆT ĐỐI KHÔNG xóa user_vocabulary / user_progress / words /
+ * word_senses: từ VẪN còn ở Kho từ và lịch sử ôn tập.
+ *
+ * KHÔNG dùng `remove_word_from_set` (semantics cũ: xóa cả ownership khi từ
+ * rời Set cuối) và KHÔNG dùng `remove_from_vocabulary`.
+ *
+ * @param {string} userId - RPC tự check auth.uid() làm authorization
+ * @param {string} setId
+ * @param {string} wordSenseId
+ * @returns {Promise<{ data: any, error: any }>}
+ */
+export async function removeWordFromSet(userId, setId, wordSenseId) {
+  if (!userId) return { error: { message: 'Thiếu userId.' } };
+  if (!setId || !wordSenseId) {
+    return { error: { message: 'Thiếu id của bộ từ hoặc của từ.' } };
+  }
+  const { data, error } = await supabase.rpc('unlink_word_from_set', {
+    p_set_id: setId,
+    p_word_sense_id: wordSenseId,
+  });
   return { data, error };
 }
 
@@ -580,25 +525,18 @@ export async function deleteWordFromSet(setId, wordSenseId) {
 export async function getCefrStats(userId) {
   if (!userId) return { data: null, error: null };
 
+  // Thống kê CEFR dựa trên OWNERSHIP (user_vocabulary) — khớp với nguồn
+  // Kho từ. Mỗi row user_vocabulary là một sense duy nhất.
   const { data, error } = await supabase
-    .from('set_words')
+    .from('user_vocabulary')
     .select(
-      `set_id,
-       word_senses (
+      `word_senses (
          words (
            cefr_level
          )
        )`
     )
-    .in(
-      'set_id',
-      (
-        await supabase
-          .from('vocabulary_sets')
-          .select('id')
-          .eq('user_id', userId)
-      ).data?.map((r) => r.id) || []
-    );
+    .eq('user_id', userId);
 
   if (error) return { data: null, error };
 

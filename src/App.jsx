@@ -21,7 +21,6 @@ import FlashcardPractice from './pages/FlashcardPractice/index.jsx';
 import LearningSession from './pages/LearningSession/index.jsx';
 import LearnStructures from './pages/LearnStructures/index.jsx';
 import StructureReview from './pages/StructureReview/index.jsx';
-import StructureImport from './pages/StructureImport/index.jsx';
 import ExerciseImport from './pages/ExerciseImport/index.jsx';
 import Structures from './pages/Structures/index.jsx';
 import StructureDetail from './pages/Structures/StructureDetail.jsx';
@@ -31,12 +30,6 @@ import GrammarTopicDetail from './pages/Grammar/GrammarTopicDetail.jsx';
 import GrammarRuleDetail from './pages/Grammar/GrammarRuleDetail.jsx';
 import GrammarSession from './pages/GrammarSession/index.jsx';
 import Profile from './pages/Profile/index.jsx';
-
-import AdminRoute from './components/AdminRoute.jsx';
-import AdminLayout from './layouts/AdminLayout.jsx';
-import AdminDashboard from './pages/Admin/index.jsx';
-import AdminTopics from './pages/Admin/AdminTopics.jsx';
-import AdminSets from './pages/Admin/AdminSets.jsx';
 
 export default function AppRoutes() {
   return (
@@ -78,14 +71,10 @@ export default function AppRoutes() {
           </Route>
 
           {/* Sentence Structures:
-              - /structures/import (knowledge) là global content -> admin-only.
               - /structures/exercises/import mở cho MỌI user đăng nhập: user tự
                 soạn/nhập bài tập vào shared practice bank (RLS INSERT policy +
                 RPC guard cho phép authenticated — migration 20260831000000). */}
           <Route path="/structures/exercises/import" element={<ExerciseImport />} />
-          <Route element={<AdminRoute />}>
-            <Route path="/structures/import" element={<StructureImport />} />
-          </Route>
 
           {/* Structure Library (cho mọi user đăng nhập) */}
           <Route path="/structures" element={<Structures />} />
@@ -105,15 +94,6 @@ export default function AppRoutes() {
           <Route path="/grammar/session/:ruleId" element={<GrammarSession />} />
 
           <Route path="/profile" element={<Profile />} />
-        </Route>
-        
-        {/* Admin Section */}
-        <Route element={<AdminRoute />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="topics" element={<AdminTopics />} />
-            <Route path="sets" element={<AdminSets />} />
-          </Route>
         </Route>
       </Route>
 

@@ -29,7 +29,7 @@ vi.mock('../services/auth.service.js', () => ({
   authService: {
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     getSession: async () => ({ data: { session: null }, error: null }),
-    ensureProfile: async () => ({ data: { id: 'user-1', role: 'admin' }, error: null }),
+    ensureProfile: async () => ({ data: { id: 'user-1', role: 'user' }, error: null }),
   },
 }));
 
@@ -69,7 +69,6 @@ function mount() {
 }
 
 async function openPromptModal(user) {
-  // Profile admin load bất đồng bộ -> nút chỉ xuất hiện sau khi isAdmin=true.
   const btn = await screen.findByRole('button', { name: 'Lệnh bài tập' });
   await user.click(btn);
   return screen.getByRole('dialog', { name: 'Lệnh bài tập' });

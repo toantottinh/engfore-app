@@ -5,48 +5,9 @@ import { supabase } from './supabase.js';
  * Bảng dùng chung: structures, structure_examples, structure_exercises,
  * user_structures.
  *
- * Scope CHECKPOINT 2 (Import Knowledge): chỉ import + đọc danh sách pattern
- * để preview cảnh báo trùng. Learning session / SRS sẽ vào các checkpoint sau.
+ * Scope: import bài tập (user-facing) + đọc danh sách pattern để preview
+ * cảnh báo trùng + library/detail/SRS read paths.
  */
-
-/**
- * [ADMIN] Import knowledge qua RPC import_structures (SECURITY DEFINER,
- * admin-only bên trong hàm). Upsert-by-pattern:
- *   - pattern mới  -> INSERT (+ examples).
- *   - pattern có sẵn -> UPDATE knowledge fields; thay examples khi row mang
- *     key `examples` (full-sync deterministic).
- * KHÔNG đụng SRS state của user.
- *
- * @param {{ structures: Array<{ pattern, meaning, explanation, cefr, topic, examples: Array<{sentence}> }> }} params
- * @returns {Promise<{ data: any, error: any, meta: { created: number, updated: number, errored: number } | null }>}
- */
-export async function importStructures({ structures }) {
-  const payload = Array.isArray(structures) ? structures : [];
-
-  const { data, error } = await supabase.rpc('import_structures', {
-    p_rows: payload,
-  });
-
-  // Log đầy đủ lỗi thật (message, code, details, hint) dưới dạng CHUỖI — chỉ khi DEV
-  // (cùng convention với importWords trong vocabulary.service.js).
-  if (error) {
-    if (import.meta.env.DEV) {
-      const errInfo = {
-        status: error?.status ?? null,
-        code: error?.code ?? null,
-        message: error?.message ?? null,
-        details: error?.details ?? null,
-        hint: error?.hint ?? null,
-        rowsCount: payload.length,
-      };
-      console.error('[importStructures] RPC error:', JSON.stringify(errInfo, null, 2));
-    }
-    return { data: null, error, meta: null };
-  }
-
-  const meta = Array.isArray(data) && data[0] ? data[0] : null;
-  return { data, error: null, meta };
-}
 
 /**
  * Danh sách pattern hiện có (chỉ cột `pattern`) — dùng cho preview import để
@@ -66,8 +27,9 @@ export async function getStructurePatterns() {
 }
 
 /**
- * [ADMIN] Import exercises qua RPC import_structure_exercises (SECURITY DEFINER,
- * admin-only bên trong hàm). APPEND-ONLY: mỗi row hợp lệ được INSERT mới;
+ * Import exercises qua RPC import_structure_exercises (SECURITY DEFINER,
+ * guard cho phép MỌI authenticated user — migration 20260831000000).
+ * APPEND-ONLY: mỗi row hợp lệ được INSERT mới;
  * structure được resolve phía RPC theo pattern (không gửi structure_id).
  * Validation phía RPC mirror validator của exercise-importer.
  *
@@ -140,72 +102,6 @@ export async function getStructuresForUser(userId) {
       exercise_count: s.structure_exercises?.[0]?.count ?? 0,
     }));
     return { data: mapped, error: null };
-  } catch (e) {
-    return { data: null, error: e };
-  }
-}
-
-/**
- * [ADMIN] Xóa NHIỀU Structure theo danh sách id — MỘT request duy nhất (.in).
- *
- * An toàn phụ thuộc schema HIỆN TẮI (không cần RPC/migration thêm):
- *   - RLS "Admins can manage all structures." FOR ALL -> chỉ admin DELETE được;
- *     non-admin sẽ nhận kết quả 0 dòng (bị lọc bởi RLS) => báo lỗi rõ ràng.
- *   - structure_examples / structure_exercises / user_structures đều
- *     REFERENCES public.structures(id) ON DELETE CASCADE -> xóa structure là
- *     DB tự dọn dependency ATOMIC (không orphan exercises/SRS), và KHÔNG đụng
- *     dữ liệu vocabulary (words/user_vocabulary...).
- *
- * `.select('id')` để phát hiện "0 dòng bị xóa" (id không tồn tại HOẶC không đủ
- * quyền) — không silent failure.
- *
- * @param {string[]} structureIds
- * @returns {Promise<{ data: Array<{id:string}>|null, error: any }>}
- */
-export async function deleteStructures(structureIds) {
-  const ids = Array.isArray(structureIds) ? structureIds.filter(Boolean) : [];
-  if (ids.length === 0) {
-    return { data: null, error: { message: 'Thiếu danh sách cấu trúc cần xóa.' } };
-  }
-  try {
-    const { data, error } = await supabase
-      .from('structures')
-      .delete()
-      .in('id', ids)
-      .select('id');
-
-    if (error) {
-      if (import.meta.env.DEV) {
-        console.error(
-          '[deleteStructures] error:',
-          JSON.stringify(
-            {
-              status: error?.status ?? null,
-              code: error?.code ?? null,
-              message: error?.message ?? null,
-              details: error?.details ?? null,
-              hint: error?.hint ?? null,
-            },
-            null,
-            2
-          )
-        );
-      }
-      return { data: null, error };
-    }
-
-    const deletedCount = Array.isArray(data) ? data.length : 0;
-    if (deletedCount === 0) {
-      return {
-        data: null,
-        error: {
-          message:
-            'Không tìm thấy cấu trúc hoặc bạn không có quyền xóa các cấu trúc này.',
-        },
-      };
-    }
-
-    return { data, error: null };
   } catch (e) {
     return { data: null, error: e };
   }

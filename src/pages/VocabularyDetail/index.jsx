@@ -8,9 +8,7 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import Select from '../../components/ui/Select.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
-import { useAuth } from '../../hooks/useAuth.jsx';
 import { useVocabularyDetail } from '../../hooks/useVocabularyDetail.js';
-import { adminUpdateWord } from '../../services/vocabulary.service.js';
 import { VALID_WORD_TYPES } from '../../utils/vocabulary-importer.js';
 import { cefrBadgeClass, cefrLabel } from '../../utils/cefr.js';
 import { CEFR_LEVELS } from '../../utils/cefr.js';
@@ -35,7 +33,6 @@ const SORT_OPTIONS = [
 export default function VocabularyDetail() {
   const { setId } = useParams();
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
 
   const {
     set,
@@ -45,13 +42,12 @@ export default function VocabularyDetail() {
     mutationLoading,
     addWord,
     removeWordFromSet,
-    deleteSystemWord,
     updateSetDetails,
   } = useVocabularyDetail(setId);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [addEditModalOpen, setAddEditModalOpen] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, word: null, type: 'remove' });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, word: null });
   const [deleteSetModalOpen, setDeleteSetModalOpen] = useState(false);
   const [deleteSetLoading, setDeleteSetLoading] = useState(false);
   const [deleteSetError, setDeleteSetError] = useState(null);
@@ -65,13 +61,9 @@ export default function VocabularyDetail() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('default');
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentWord, setCurrentWord] = useState(null);
   const [formState, setFormState] = useState({
     word: '', ipa: '', word_type: '', meaning: '', example: '', memory_clue: '', cefr_level: ''
   });
-
-  const isPublicSet = set && !set.user_id;
 
   const displayedWords = useMemo(() => {
     let filtered = [...words];
@@ -89,8 +81,6 @@ export default function VocabularyDetail() {
   const resetForm = () => {
     setFormState({ word: '', ipa: '', word_type: '', meaning: '', example: '', memory_clue: '', cefr_level: '' });
     setFormError('');
-    setCurrentWord(null);
-    setIsEditing(false);
   };
 
   const openAddModal = () => {
@@ -98,31 +88,11 @@ export default function VocabularyDetail() {
     setAddEditModalOpen(true);
   };
 
-  const openEditModal = (word) => {
-    resetForm();
-    setIsEditing(true);
-    setCurrentWord(word);
-    setFormState({
-      word: word.word,
-      ipa: word.ipa || '',
-      word_type: word.word_type || '',
-      meaning: word.meaning,
-      example: word.example || '',
-      memory_clue: word.memory_clue || '',
-      cefr_level: word.cefr_level || '',
-    });
-    setAddEditModalOpen(true);
-  };
-  
   const openDeleteModal = (word) => {
-    if (isAdmin && isPublicSet) {
-      setDeleteModal({ isOpen: true, word, type: 'remove' }); // Default to remove, let admin choose
-    } else {
-      setDeleteModal({ isOpen: true, word, type: 'remove' });
-    }
+    setDeleteModal({ isOpen: true, word });
   };
 
-  const closeDeleteModal = () => setDeleteModal({ isOpen: false, word: null, type: 'remove' });
+  const closeDeleteModal = () => setDeleteModal({ isOpen: false, word: null });
 
   const handleAddEditWord = async (e) => {
     e.preventDefault();
@@ -132,32 +102,20 @@ export default function VocabularyDetail() {
       return;
     }
 
-    if (isEditing && currentWord) {
-      if (!isAdmin) {
-        setFormError("You don't have permission to edit this word.");
-        return;
-      }
-      const { error } = await adminUpdateWord(currentWord.word_id, currentWord.id, formState);
-      if (error) { setFormError(getAuthErrorMessage(error)); return; }
-    } else {
-      const { error } = await addWord(formState);
-      if (error) { setFormError(error); return; }
-    }
+    const { error } = await addWord(formState);
+    if (error) { setFormError(error); return; }
 
     setAddEditModalOpen(false);
     resetForm();
   };
 
   const handleDeleteWord = async () => {
-    const { word, type } = deleteModal;
+    const { word } = deleteModal;
     if (!word) return;
 
-    let result;
-    if (type === 'system') {
-      result = await deleteSystemWord(word.word_id);
-    } else {
-      result = await removeWordFromSet(word.id);
-    }
+    // "Xóa khỏi bộ từ" — chỉ gỡ membership (set_words). Từ vẫn còn ở
+    // Kho từ (user_vocabulary) và SRS (user_progress).
+    const result = await removeWordFromSet(word.id);
 
     if (result.error) {
       setFormError(result.error);
@@ -214,7 +172,6 @@ export default function VocabularyDetail() {
           <p className="mt-1 text-text-secondary">{words.length || 0} words</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isAdmin && <Button variant="secondary" size="sm" onClick={() => navigate('/admin/sets')}>Manage Sets</Button>}
           <Button variant="danger" size="sm" onClick={() => setDeleteSetModalOpen(true)}>Delete Set</Button>
         </div>
       </div>
@@ -260,7 +217,6 @@ export default function VocabularyDetail() {
                 <td className="max-w-xs px-4 py-3 align-top text-text-secondary">{word.memory_clue || '—'}</td>
                 <td className="px-4 py-3 align-top text-right">
                   <div className="relative inline-block">
-                    {isAdmin && <button onClick={() => openEditModal(word)} className="rounded-md p-1.5 text-text-secondary hover:text-text-primary"><i className="bx bx-edit-alt text-base"></i></button>}
                     <button onClick={() => openDeleteModal(word)} className="rounded-md p-1.5 text-text-secondary hover:text-red-400"><i className="bx bx-trash text-base"></i></button>
                   </div>
                 </td>
@@ -271,7 +227,7 @@ export default function VocabularyDetail() {
       </div>
 
       {/* Add/Edit Modal */}
-      {addEditModalOpen && <Modal open={addEditModalOpen} onClose={() => setAddEditModalOpen(false)} title={isEditing ? 'Edit Word' : 'Add New Word'} footer={<><Button variant="ghost" onClick={() => setAddEditModalOpen(false)}>Cancel</Button><Button type="submit" form="word-form" loading={mutationLoading}>Save</Button></>}>
+      {addEditModalOpen && <Modal open={addEditModalOpen} onClose={() => setAddEditModalOpen(false)} title="Add New Word" footer={<><Button variant="ghost" onClick={() => setAddEditModalOpen(false)}>Cancel</Button><Button type="submit" form="word-form" loading={mutationLoading}>Save</Button></>}>
         <form id="word-form" onSubmit={handleAddEditWord} className="space-y-4">
           {formError && <Alert type="error" message={formError} />}
           <Input label="Word" name="word" value={formState.word} onChange={(e) => setFormState({...formState, word: e.target.value})} required />
@@ -284,15 +240,15 @@ export default function VocabularyDetail() {
         </form>
       </Modal>}
 
-      {/* Delete Modal */}
-      {deleteModal.isOpen && <Modal open={deleteModal.isOpen} onClose={closeDeleteModal} title="Delete Word" footer={<><Button variant="ghost" onClick={closeDeleteModal}>Cancel</Button><Button variant="danger" onClick={handleDeleteWord} loading={mutationLoading}>Confirm</Button></>}>
-        <p>Are you sure you want to delete "{deleteModal.word?.word}"?</p>
-        {isAdmin && isPublicSet && (
-          <div className="mt-4 space-y-2">
-            <label className="flex items-center gap-2"><input type="radio" name="deleteType" value="remove" checked={deleteModal.type === 'remove'} onChange={() => setDeleteModal(d => ({...d, type: 'remove'}))} /> Remove from this set only</label>
-            <label className="flex items-center gap-2"><input type="radio" name="deleteType" value="system" checked={deleteModal.type === 'system'} onChange={() => setDeleteModal(d => ({...d, type: 'system'}))} /> <span className="font-bold text-red-600">Delete from system (permanent)</span></label>
-          </div>
-        )}
+      {/* Delete Modal — "Xóa khỏi bộ từ" (chỉ gỡ membership; từ VẪN còn ở Kho từ + SRS) */}
+      {deleteModal.isOpen && <Modal open={deleteModal.isOpen} onClose={closeDeleteModal} title="Xóa khỏi bộ từ" footer={<><Button variant="ghost" onClick={closeDeleteModal}>Cancel</Button><Button variant="danger" onClick={handleDeleteWord} loading={mutationLoading}>Confirm</Button></>}>
+        <p>
+          Xóa khỏi bộ từ?
+        </p>
+        <p className="mt-2">
+          Từ "{deleteModal.word?.word}" sẽ được xóa khỏi bộ từ hiện tại.
+          Từ vẫn còn trong Kho từ và lịch sử ôn tập của bạn.
+        </p>
       </Modal>}
       
     </div>

@@ -1,0 +1,20 @@
+=== AUDIT legacy memory-clue descriptions (key: anon) ===
+URL: https://yyfllitihktyrvjssyek.supabase.co
+
+words total: 1853 (reported 1853)
+word_senses total: 2024 (reported 2024)
+
+--- STRICT legacy pattern <word> -> <hint>: 0 rows ---
+classification: trivial(restates meaning)=0, mnemonic(real clue)=0
+
+--- ARROW but NOT strict word->hint (false-positive pool): 1 rows ---
+{"word_sense_id":"250b5e89-563e-44ff-a590-3f422f2890d9","word":"hear","word_type":"other","meaning":"nghe thấy","description":"Ear (tai) thêm H -> Hear"}
+
+--- Duplicate base-word groups: 0 ---
+
+--- "average" family ---
+{"word_id":"bd2555fb-dfd1-4f29-a800-16b54caf39f7","word":"average","word_sense_id":"64bb8000-1bb9-49c1-a8a8-e487e04cbbf0","word_type":"noun","meaning":"mức trung bình","description":"Giá trị ở giữa hoặc mức thông thường của một nhóm","example":"The average age of the students is twenty.","is_legacy_clue":false}
+
+--- Pre-arrow token frequency (top 40) ---
+
+Saved machine-readable output to audit-legacy-clues-result.json

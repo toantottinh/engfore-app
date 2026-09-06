@@ -20,16 +20,12 @@ import { VOCABULARY_AI_PROMPT } from '../utils/vocabulary-ai-prompt.js';
 const getVocabularySetsMock = vi.fn(async () => ({ data: [], error: null }));
 const getUserVocabularyMock = vi.fn(async () => ({ data: [], error: null }));
 const importWordsMock = vi.fn(async () => ({ data: [], error: null, meta: { created: 0, existing: 0 } }));
-const adminImportWordsMock = vi.fn(async () => ({ data: [], error: null, meta: { created: 0, existing: 0 } }));
-const getAdminAllSetsMock = vi.fn(async () => ({ data: [], error: null }));
 const getTopicsMock = vi.fn(async () => ({ data: [], error: null }));
 
 vi.mock('../services/vocabulary.service.js', () => ({
   getVocabularySets: (...a) => getVocabularySetsMock(...a),
   getUserVocabulary: (...a) => getUserVocabularyMock(...a),
   importWords: (...a) => importWordsMock(...a),
-  adminImportWords: (...a) => adminImportWordsMock(...a),
-  getAdminAllSets: (...a) => getAdminAllSetsMock(...a),
   getTopics: (...a) => getTopicsMock(...a),
 }));
 
@@ -37,11 +33,11 @@ vi.mock('../services/auth.service.js', () => ({
   authService: {
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     getSession: async () => ({ data: { session: null }, error: null }),
-    ensureProfile: async () => ({ data: { id: 'user-1', role: 'admin' }, error: null }),
+        ensureProfile: async () => ({ data: { id: 'user-1', role: 'user' }, error: null }),
   },
 }));
 
-const USER = { id: 'user-1', email: 'admin@example.com' };
+const USER = { id: 'user-1', email: 'user@example.com' };
 
 // jsdom mặc định không có navigator.clipboard / execCommand thật.
 const originalClipboard = navigator.clipboard;
@@ -253,9 +249,8 @@ describe('"Sao chép" — clipboard & feedback', () => {
     await user.click(closeButtons[closeButtons.length - 1]);
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    // Thuần UI/clipboard: không RPC import, không đụng data vocabulary.
+        // Thuần UI/clipboard: không RPC import, không đụng data vocabulary.
     expect(importWordsMock).not.toHaveBeenCalled();
-    expect(adminImportWordsMock).not.toHaveBeenCalled();
   });
 });
 
@@ -269,9 +264,8 @@ describe('Behavior import từ vựng — không bị ảnh hưởng bởi nút 
     await user.click(screen.getByRole('button', { name: 'Xem trước' }));
 
     expect(await screen.findByText(/Đã nhận diện 3 từ/)).toBeTruthy();
-    // Chỉ gọi đọc kho từ, KHÔNG gọi import (nút Import không bị auto-click).
+        // Chỉ gọi đọc kho từ, KHÔNG gọi import (nút Import không bị auto-click).
     expect(getUserVocabularyMock).toHaveBeenCalledTimes(1);
     expect(importWordsMock).not.toHaveBeenCalled();
-    expect(adminImportWordsMock).not.toHaveBeenCalled();
   });
 });
