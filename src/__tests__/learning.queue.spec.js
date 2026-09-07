@@ -26,6 +26,9 @@ const tableData = {
 // RPC responses, keyed by function name.
 const rpcData = {};
 
+// Select texts issued per table (lets specs assert embed shapes).
+const selectTexts = [];
+
 // Resolve a (possibly dotted) PostgREST column path against a row,
 // fanning out across embedded arrays. E.g. `word_senses.set_words` is an
 // array, so `word_senses.set_words.vocabulary_sets.user_id` yields every
@@ -60,7 +63,11 @@ const chainableFrom = (tableName) => {
   const filters = [];
   let selectOpts = null;
   const chain = {
-    select(_selectText, opts) { selectOpts = opts || null; return chain; },
+    select(_selectText, opts) {
+      selectTexts.push({ table: tableName, text: _selectText });
+      selectOpts = opts || null;
+      return chain;
+    },
     eq(col, val) { filters.push(['eq', col, val]); return chain; },
     in(col, vals) { filters.push(['in', col, vals]); return chain; },
     lte(col, val) { filters.push(['lte', col, val]); return chain; },
@@ -764,5 +771,180 @@ describe('getLearnSessionQueue — Unified Learn Engine queue builder (mocked da
     // …and its ABSENCE never filters a word out of the queue (TEST 3).
     expect(noClue).toBeDefined();
     expect(noClue.memory_clue).toBe('');
+  });
+});
+
+// ------------------------------------------------------------------
+// REGRESSION — Memory Clue: user_vocabulary → SRS queue → Flashcard.
+//
+// Root cause of the missing Memory Clue: `word_senses.user_vocabulary(...)`
+// is a TO-MANY PostgREST embed (one row PER USER), so PostgREST returns an
+// ARRAY. mapProgressRow used to read it as an object, `uv.memory_clue` was
+// ALWAYS undefined, and every Flashcard silently fell back to the global
+// word_senses.description — the caller's own user_vocabulary.memory_clue
+// was fetched but discarded.
+// ------------------------------------------------------------------
+describe('Memory Clue — user_vocabulary embed reaches the SRS queue (per-user)', () => {
+  const ANNOUNCE = 'announce-sense-id';
+  const USER1_CLUE = 'Chính thức cho mọi người biết một thông tin';
+  const USER2_CLUE = 'clue của user khác — KHÔNG được dùng';
+
+  // Both users' membership links: the membership filter requires at least one
+  // vocabulary_sets.user_id matching the caller (TEST 6 semantics).
+  const BOTH_USERS_SET_WORDS = [
+    { set_id: 'set-owned', vocabulary_sets: [{ user_id: 'user-1' }] },
+    { set_id: 'set-owned-2', vocabulary_sets: [{ user_id: 'user-2' }] },
+  ];
+
+  const announceProgressRow = (userId, senseOverrides = {}) => ({
+    user_id: userId,
+    word_sense_id: ANNOUNCE,
+    state: 'review',
+    review_due_at: new Date(Date.now() - 1000).toISOString(),
+    mastery_level: 2,
+    word_senses: {
+      id: ANNOUNCE,
+      word_type: 'verb',
+      meaning: 'thông báo',
+      words: { word: 'announce', ipa: '/əˈnaʊns/', cefr_level: 'B1' },
+      set_words: BOTH_USERS_SET_WORDS,
+      ...senseOverrides,
+    },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tableData.user_progress = [];
+    tableData.vocabulary_sets = [];
+    tableData.set_words = [];
+    rpcData['get_user_set_learn_priorities'] = [];
+    rpcData['get_new_words_for_session'] = [];
+    selectTexts.length = 0;
+  });
+
+  it('Case 1: memory_clue tồn tại trong user_vocabulary → queue trả ĐÚNG clue của user (array embed = production shape)', async () => {
+    tableData.user_progress = [
+      announceProgressRow('user-1', {
+        user_vocabulary: [
+          {
+            user_id: 'user-1',
+            example: 'They announced the results this morning.',
+            memory_clue: USER1_CLUE,
+          },
+        ],
+      }),
+    ];
+
+    const { data: due, error } = await getDueReviewWords('user-1', 50);
+    expect(error).toBeNull();
+    const word = due.find((w) => w.id === ANNOUNCE);
+    expect(word).toBeDefined();
+    expect(word.memory_clue).toBe(USER1_CLUE);
+    // Example là user-owned content, đi cùng embed — không rơi vào fallback global.
+    expect(word.example).toBe('They announced the results this morning.');
+  });
+
+  it('Case 2: user_vocabulary.memory_clue = NULL → không chế clue giả; fallback đúng luật legacy', async () => {
+    // (a) Clue của user NULL + KHÔNG có description global → clue rỗng ⇒ Flashcard không render block.
+    tableData.user_progress = [
+      announceProgressRow('user-1', {
+        user_vocabulary: [{ user_id: 'user-1', example: null, memory_clue: null }],
+      }),
+    ];
+    const { data: due, error } = await getDueReviewWords('user-1', 50);
+    expect(error).toBeNull();
+    expect(due.find((w) => w.id === ANNOUNCE).memory_clue).toBe('');
+
+    // (b) Clue của user NULL + có description global (legacy row) → description là fallback đọc được.
+    tableData.user_progress = [
+      announceProgressRow('user-1', {
+        description: 'legacy global clue',
+        user_vocabulary: [{ user_id: 'user-1', example: null, memory_clue: null }],
+      }),
+    ];
+    const { data: due2, error: error2 } = await getDueReviewWords('user-1', 50);
+    expect(error2).toBeNull();
+    expect(due2.find((w) => w.id === ANNOUNCE).memory_clue).toBe('legacy global clue');
+  });
+
+  it('Case 3: SRS progress tồn tại nhưng user_vocabulary không có row → KHÔNG crash, từ vẫn vào queue', async () => {
+    // (a) Embed hoàn toàn vắng mặt trong payload.
+    tableData.user_progress = [announceProgressRow('user-1')];
+    let { data: due, error } = await getDueReviewWords('user-1', 50);
+    expect(error).toBeNull();
+    expect(due).toHaveLength(1);
+    expect(due[0].id).toBe(ANNOUNCE);
+    expect(due[0].memory_clue).toBe('');
+
+    // (b) Embed trả về mảng rỗng (RLS lọc hết row).
+    tableData.user_progress = [announceProgressRow('user-1', { user_vocabulary: [] })];
+    ({ data: due, error } = await getDueReviewWords('user-1', 50));
+    expect(error).toBeNull();
+    expect(due).toHaveLength(1);
+    expect(due[0].memory_clue).toBe('');
+
+    // LEARNING queue cũng không crash với embed rỗng.
+    // NOTE: state/review_due_at là CỘT của row user_progress (không phải của
+    // word_senses) → ghi đè trực tiếp trên row sau khi build fixture.
+    const learningRow = announceProgressRow('user-1', { user_vocabulary: [] });
+    learningRow.state = 'learning';
+    learningRow.review_due_at = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+    tableData.user_progress = [learningRow];
+    const { data: learning, error: learningError } = await getLearningWords('user-1', null, 50);
+    expect(learningError).toBeNull();
+    expect(learning.map((w) => w.id)).toEqual([ANNOUNCE]);
+  });
+
+  it('Case 4: hai user cùng word_sense_id, clue khác nhau → mỗi user nhận clue của CHÍNH MÌNH', async () => {
+    // Cả hai row (mỗi user một row user_progress) nhúng embed chứa clue của
+    // CẢ HAI user. Production RLS chỉ trả row của caller, nhưng client PHẢI
+    // resolve theo (user_id + word_sense_id) để không bao giờ dùng clue của
+    // user khác kể cả khi embed lộ nhiều row.
+    const cluesForBothUsers = {
+      user_vocabulary: [
+        { user_id: 'user-1', example: null, memory_clue: USER1_CLUE },
+        { user_id: 'user-2', example: null, memory_clue: USER2_CLUE },
+      ],
+    };
+    tableData.user_progress = [
+      announceProgressRow('user-1', cluesForBothUsers),
+      announceProgressRow('user-2', cluesForBothUsers),
+    ];
+
+    const { data: forUser1, error: e1 } = await getDueReviewWords('user-1', 50);
+    expect(e1).toBeNull();
+    expect(forUser1.find((w) => w.id === ANNOUNCE).memory_clue).toBe(USER1_CLUE);
+
+    const { data: forUser2, error: e2 } = await getDueReviewWords('user-2', 50);
+    expect(e2).toBeNull();
+    expect(forUser2.find((w) => w.id === ANNOUNCE).memory_clue).toBe(USER2_CLUE);
+  });
+
+  it('Embed select yêu cầu user_id trong user_vocabulary (resolve theo user_id + word_sense_id)', async () => {
+    tableData.user_progress = [announceProgressRow('user-1')];
+    await getDueReviewWords('user-1', 50);
+    const progressSelects = selectTexts
+      .filter((s) => s.table === 'user_progress')
+      .map((s) => s.text);
+    expect(progressSelects.length).toBeGreaterThan(0);
+    expect(progressSelects.some((text) => /user_vocabulary\s*\(\s*user_id,/.test(text))).toBe(
+      true
+    );
+  });
+
+  it('LEGACY: user_vocabulary trả về OBJECT (shape cũ/mocked) → vẫn đọc được clue, không crash', async () => {
+    tableData.user_progress = [
+      announceProgressRow('user-1', {
+        user_vocabulary: {
+          user_id: 'user-1',
+          example: 'obj ex',
+          memory_clue: 'object-shape clue',
+        },
+      }),
+    ];
+    const { data: due, error } = await getDueReviewWords('user-1', 50);
+    expect(error).toBeNull();
+    expect(due[0].memory_clue).toBe('object-shape clue');
+    expect(due[0].example).toBe('obj ex');
   });
 });

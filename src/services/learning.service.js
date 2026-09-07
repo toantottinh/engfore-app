@@ -236,7 +236,7 @@ const BASE_PROGRESS_SELECT = `word_sense_id,
               user_id
             )
           ),
-          user_vocabulary ( example, memory_clue )
+          user_vocabulary ( user_id, example, memory_clue )
         )`;
 
 // Extended SRS columns from migrations (may not exist in every DB environment).
@@ -268,7 +268,7 @@ const SRS_PROGRESS_SELECT = `word_sense_id,
               user_id
             )
           ),
-          user_vocabulary ( example, memory_clue )
+          user_vocabulary ( user_id, example, memory_clue )
         )`;
 
 /**
@@ -290,13 +290,32 @@ const SRS_NEXT_DUE_SELECT = 'review_due_at,state,interval_hours,word_senses!inne
 /**
  * Map a raw user_progress row into the unified word shape.
  * Falls back to safe defaults for any SRS columns that may be missing.
+ *
+ * MEMORY CLUE / EXAMPLE OWNERSHIP:
+ *   `word_senses.user_vocabulary(...)` is a TO-MANY PostgREST embed (one
+ *   word_sense → one user_vocabulary row PER USER), so PostgREST returns an
+ *   ARRAY (RLS-scoped to the caller). The embed now also carries `user_id`
+ *   so the caller's own row is resolved explicitly by (user_id +
+ *   word_sense_id) — never another user's row — instead of being silently
+ *   dropped (regression: reading `array.memory_clue` always yielded
+ *   undefined and every Flashcard fell back to the global
+ *   `word_senses.description`). An object shape is still accepted for
+ *   backward compatibility with legacy/mocked payloads.
  */
-function mapProgressRow(item) {
+function mapProgressRow(item, userId) {
   const sense = item.word_senses || {};
   const word = sense.words || {};
   // USER-OWNED content wins over GLOBAL word_senses content. Empty/null
   // user-owned values fall back to the global sense values (legacy rows).
-  const uv = sense.user_vocabulary || {};
+  const uvRows = Array.isArray(sense.user_vocabulary)
+    ? sense.user_vocabulary
+    : sense.user_vocabulary
+      ? [sense.user_vocabulary]
+      : [];
+  const uv =
+    (userId ? uvRows.find((row) => row?.user_id === userId) : null) ||
+    uvRows[0] ||
+    {};
   const uvExample = uv?.example ?? null;
   const uvMemoryClue = uv?.memory_clue ?? null;
   return {
@@ -362,7 +381,7 @@ export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
   const { data, error } = await fetchProgressRows(SRS_PROGRESS_SELECT, userId, limit);
   if (error) return { data: null, error };
 
-  const merged = data.map(mapProgressRow);
+  const merged = data.map((row) => mapProgressRow(row, userId));
   return { data: merged, error: null };
 }
 
@@ -397,7 +416,7 @@ export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE
     .limit(limit);
   if (error) return { data: null, error };
 
-  return { data: (data || []).map(mapProgressRow), error: null };
+  return { data: (data || []).map((row) => mapProgressRow(row, userId)), error: null };
 }
 
 
@@ -477,12 +496,12 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
 
     ({ data, error } = await fallbackQuery);
     if (error) return { data: null, error };
-    return { data: (data || []).map(mapProgressRow), error: null };
+    return { data: (data || []).map((row) => mapProgressRow(row, userId)), error: null };
   }
 
   if (error) return { data: null, error };
 
-  return { data: (data || []).map(mapProgressRow), error: null };
+  return { data: (data || []).map((row) => mapProgressRow(row, userId)), error: null };
 }
 
 /**
