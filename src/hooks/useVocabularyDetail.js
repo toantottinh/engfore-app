@@ -4,6 +4,8 @@ import {
   getWordsInSet,
   addWordToSet,
   removeWordFromSet as serviceRemoveWordFromSet,
+  removeWordsFromSet as serviceRemoveWordsFromSet,
+  updateUserVocabularyWord,
   updateVocabularySet,
 } from '../services/vocabulary.service.js';
 import { getAuthErrorMessage } from '../utils/auth-errors.js';
@@ -20,6 +22,7 @@ export function useVocabularyDetail(setId) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mutationLoading, setMutationLoading] = useState(false);
+  const [selectedWordSenseIds, setSelectedWordSenseIds] = useState([]);
 
   const loadSetAndWords = useCallback(async () => {
     if (!setId) {
@@ -76,6 +79,11 @@ export function useVocabularyDetail(setId) {
     loadSetAndWords();
   }, [loadSetAndWords]);
 
+  // Đổi Set (hoặc reload do setId thay đổi) → reset selection để tránh xóa nhầm.
+  useEffect(() => {
+    setSelectedWordSenseIds([]);
+  }, [setId]);
+
   const addWord = useCallback(
     async (wordData) => {
       setMutationLoading(true);
@@ -93,15 +101,49 @@ export function useVocabularyDetail(setId) {
       setMutationLoading(true);
       // Chỉ bỏ membership của word khỏi Word Set hiện tại. KHÔNG xóa
       // user_vocabulary / user_progress — từ vẫn còn ở Kho từ + SRS.
-      const { error: err } = await serviceRemoveWordFromSet(user?.id, setId, wordSenseId);
+      // RPC tự xác thực auth.uid() — không truyền userId từ frontend.
+      const { error: err } = await serviceRemoveWordFromSet({ setId, wordSenseId });
       setMutationLoading(false);
       if (err) return { error: getAuthErrorMessage(err) };
       await loadSetAndWords();
       return { error: null };
     },
-    [user?.id, setId, loadSetAndWords]
+    [setId, loadSetAndWords]
   );
-  
+
+  // --- Selection state cho bulk actions ---
+  const toggleWordSelection = useCallback((wordSenseId) => {
+    setSelectedWordSenseIds((prev) =>
+      prev.includes(wordSenseId)
+        ? prev.filter((id) => id !== wordSenseId)
+        : [...prev, wordSenseId]
+    );
+  }, []);
+
+  const selectAllWords = useCallback((allWordSenseIds) => {
+    setSelectedWordSenseIds(allWordSenseIds);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedWordSenseIds([]);
+  }, []);
+
+  const removeSelectedWords = useCallback(
+    async (wordSenseIds) => {
+      setMutationLoading(true);
+      // Bulk unlink: chỉ gỡ membership (set_words) của các từ đã chọn.
+      // KHÔNG xóa user_vocabulary / user_progress — từ VẪN còn ở Kho từ + SRS.
+      // RPC tự xác thực auth.uid() — không truyền userId từ frontend.
+      const { error: err } = await serviceRemoveWordsFromSet({ setId, wordSenseIds });
+      setMutationLoading(false);
+      if (err) return { error: getAuthErrorMessage(err) };
+      setSelectedWordSenseIds([]);
+      await loadSetAndWords();
+      return { error: null };
+    },
+    [setId, loadSetAndWords]
+  );
+
   const updateSetDetails = useCallback(
     async (updates) => {
       setMutationLoading(true);
@@ -114,6 +156,25 @@ export function useVocabularyDetail(setId) {
     [setId, loadSetAndWords]
   );
 
+  // --- Edit word (user-owned content qua RPC update_user_word_content) ---
+  // Chỉ cập nhật example/memory_clue trong user_vocabulary của chính user —
+  // KHÔNG update global dictionary, KHÔNG đụng SRS.
+  const updateWord = useCallback(
+    async (senseId, updates = {}) => {
+      setMutationLoading(true);
+      const { error: err } = await updateUserVocabularyWord({
+        wordSenseId: senseId,
+        example: updates.example ?? null,
+        memoryClue: updates.memoryClue ?? null,
+      });
+      setMutationLoading(false);
+      if (err) return { error: getAuthErrorMessage(err) };
+      await loadSetAndWords();
+      return { error: null };
+    },
+    [loadSetAndWords]
+  );
+
   return {
     set,
     words,
@@ -124,5 +185,11 @@ export function useVocabularyDetail(setId) {
     addWord,
     removeWordFromSet,
     updateSetDetails,
+    updateWord,
+    selectedWordSenseIds,
+    toggleWordSelection,
+    selectAllWords,
+    clearSelection,
+    removeSelectedWords,
   };
 }

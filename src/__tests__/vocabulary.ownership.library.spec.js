@@ -233,7 +233,7 @@ describe('DELETE B — removeWordFromSet ("Xóa khỏi bộ từ")', () => {
   it('gọi RPC unlink_word_from_set(p_set_id, p_word_sense_id) — KHÔNG gọi remove_from_vocabulary', async () => {
     rpcHandlers.unlink_word_from_set = async () => ({ data: [{ removed_count: 1 }], error: null });
 
-    const { data, error } = await removeWordFromSet('user-1', 'set-a', 'apple');
+    const { data, error } = await removeWordFromSet({ setId: 'set-a', wordSenseId: 'apple' });
     expect(error).toBeNull();
     expect(rpcCalls).toEqual([['unlink_word_from_set', { p_set_id: 'set-a', p_word_sense_id: 'apple' }]]);
     expect(data[0].removed_count).toBe(1);
@@ -243,9 +243,9 @@ describe('DELETE B — removeWordFromSet ("Xóa khỏi bộ từ")', () => {
     rpcHandlers.unlink_word_from_set = async () => {
       throw new Error('RPC must not be called');
     };
-    const { error: e1 } = await removeWordFromSet(null, 'set-a', 'apple');
-    const { error: e2 } = await removeWordFromSet('user-1', null, 'apple');
-    const { error: e3 } = await removeWordFromSet('user-1', 'set-a', null);
+    const { error: e1 } = await removeWordFromSet({});
+    const { error: e2 } = await removeWordFromSet({ setId: 'set-a' });
+    const { error: e3 } = await removeWordFromSet({ setId: 'set-a', wordSenseId: null });
     expect(e1).toBeDefined();
     expect(e2).toBeDefined();
     expect(e3).toBeDefined();
@@ -255,7 +255,7 @@ describe('DELETE B — removeWordFromSet ("Xóa khỏi bộ từ")', () => {
 
   it('Case D — chỉ gỡ membership: từ vẫn còn ở Kho từ (user_vocabulary + progress giữ nguyên)', async () => {
     rpcHandlers.unlink_word_from_set = async () => ({ data: [{ removed_count: 1 }], error: null });
-    await removeWordFromSet('user-1', 'set-a', 'apple');
+    await removeWordFromSet({ setId: 'set-a', wordSenseId: 'apple' });
 
     // Ownership KHÔNG bị xóa; chỉ set_words link của set-a bị RPC gỡ.
     rowsByTable.user_vocabulary = [UV('user-1', 'apple')];
@@ -271,7 +271,7 @@ describe('DELETE B — removeWordFromSet ("Xóa khỏi bộ từ")', () => {
   it('không bao giờ delete trực tiếp từ frontend (chỉ RPC) — authorization server-side', async () => {
     rpcHandlers.unlink_word_from_set = async () => ({ data: [{ removed_count: 1 }], error: null });
     rpcHandlers.remove_from_vocabulary = async () => ({ data: null, error: null });
-    await removeWordFromSet('user-1', 'set-a', 'apple');
+    await removeWordFromSet({ setId: 'set-a', wordSenseId: 'apple' });
     await removeWordCompletely('user-1', 'apple');
     expect(deleteCalls).toEqual([]);
   });

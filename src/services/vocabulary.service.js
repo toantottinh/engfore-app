@@ -420,19 +420,81 @@ export async function removeFromVocabulary(wordSenseId) {
  * KHÔNG dùng `remove_word_from_set` (semantics cũ: xóa cả ownership khi từ
  * rời Set cuối) và KHÔNG dùng `remove_from_vocabulary`.
  *
- * @param {string} userId - RPC tự check auth.uid() làm authorization
- * @param {string} setId
- * @param {string} wordSenseId
+ * Không truyền userId từ frontend — RPC tự xác thực bằng auth.uid().
+ *
+ * @param {object} params
+ * @param {string} params.setId
+ * @param {string} params.wordSenseId
  * @returns {Promise<{ data: any, error: any }>}
  */
-export async function removeWordFromSet(userId, setId, wordSenseId) {
-  if (!userId) return { error: { message: 'Thiếu userId.' } };
+export async function removeWordFromSet({ setId, wordSenseId }) {
   if (!setId || !wordSenseId) {
     return { error: { message: 'Thiếu id của bộ từ hoặc của từ.' } };
   }
   const { data, error } = await supabase.rpc('unlink_word_from_set', {
     p_set_id: setId,
     p_word_sense_id: wordSenseId,
+  });
+  return { data, error };
+}
+
+/**
+ * BULK XÓA KHỎI MỘT WORD SET — chỉ gỡ membership (rows `set_words`) của
+ * (set, wordSenses) trên Set thuộc current user.
+ *
+ * Gọi RPC `unlink_words_from_set(p_set_id, p_word_sense_ids)` (migration
+ * 20260913000000) — SECURITY DEFINER + ownership gate. TUYỆT ĐỐI KHÔNG xóa
+ * user_vocabulary / user_progress / words / word_senses: từ VẪN còn ở Kho
+ * từ và lịch sử ôn tập.
+ *
+ * Không truyền userId từ frontend — RPC tự xác thực bằng auth.uid().
+ *
+ * @param {object} params
+ * @param {string} params.setId
+ * @param {string[]} params.wordSenseIds
+ * @returns {Promise<{ data: any, error: any }>}
+ */
+export async function removeWordsFromSet({ setId, wordSenseIds }) {
+  if (!setId) return { error: { message: 'Thiếu id của bộ từ.' } };
+  if (!wordSenseIds || wordSenseIds.length === 0) {
+    return { error: { message: 'Chưa chọn từ để xóa.' } };
+  }
+  const { data, error } = await supabase.rpc('unlink_words_from_set', {
+    p_set_id: setId,
+    p_word_sense_ids: wordSenseIds,
+  });
+  return { data, error };
+}
+
+/**
+ * EDIT WORD (user-owned content) — cập nhật Example / Memory Clue của user
+ * cho một word sense.
+ *
+ * SERVER HANDLER: RPC `update_user_word_content` (migration
+ * 20260914000000) — SECURITY DEFINER + auth.uid() gate. CHỈ ghi vào
+ * `user_vocabulary` (bảng user-owned) của CHÍNH user gọi RPC:
+ *   - KHÔNG update global `words` / `word_senses` (global dictionary).
+ *   - KHÔNG đụng `user_progress` (SRS giữ nguyên).
+ *   - KHÔNG tạo/không sửa row của user khác.
+ *
+ * LƯU Ý schema: `meaning` nằm ở `word_senses` (GLOBAL) → KHÔNG expose như
+ * user-editable field; UI hiển thị read-only. `example`/`memory_clue` là
+ * user-owned (`user_vocabulary.example` / `.memory_clue`).
+ *
+ * @param {object} params
+ * @param {string} params.wordSenseId
+ * @param {string|null} [params.example]
+ * @param {string|null} [params.memoryClue]
+ * @returns {Promise<{ data: any, error: any }>}
+ */
+export async function updateUserVocabularyWord({ wordSenseId, example, memoryClue }) {
+  if (!wordSenseId) {
+    return { error: { message: 'Thiếu id của từ.' } };
+  }
+  const { data, error } = await supabase.rpc('update_user_word_content', {
+    p_word_sense_id: wordSenseId,
+    p_example: example?.trim() || null,
+    p_memory_clue: memoryClue?.trim() || null,
   });
   return { data, error };
 }
