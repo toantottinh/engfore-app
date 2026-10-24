@@ -584,7 +584,7 @@ export default function Import() {
       >
         <p className="mb-3 text-xs text-text-secondary">
           Copy toàn bộ nội dung bên dưới và dán cho AI (ChatGPT, Gemini, Claude...) để tạo / chuẩn
-          hóa danh sách từ vựng đúng chuẩn import của EngFore. Kết quả do AI trả về dán trực tiếp
+          hóa danh sách từ vựng đúng chuẩn import của eVocaLoop. Kết quả do AI trả về dán trực tiếp
           vào ô nhập phía trên rồi bấm &quot;Xem trước&quot;.
         </p>
         <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap rounded-lg bg-surface-sidebar p-3 text-left text-xs leading-relaxed text-text-primary">

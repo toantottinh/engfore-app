@@ -173,7 +173,7 @@ const { error: err } = await authService.resendConfirmation({ email: email.trim(
             E
           </div>
           <h1 className="mt-4 text-2xl font-bold text-zinc-900">Đăng nhập</h1>
-          <p className="mt-1 text-sm text-zinc-500">Chào mừng trở lại với EngFore!</p>
+          <p className="mt-1 text-sm text-zinc-500">Chào mừng trở lại với eVocaLoop!</p>
         </div>
 
         {error && <Alert type="error" message={error} className="mt-5" />}

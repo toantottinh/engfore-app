@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 const features = [
   {
     title: 'Học chủ động',
-    desc: 'Không cần suy nghĩ hôm nay học gì. Mở EngFore và bắt đầu luyện tập ngay với các bộ từ vựng của bạn.',
+    desc: 'Không cần suy nghĩ hôm nay học gì. Mở eVocaLoop và bắt đầu luyện tập ngay với các bộ từ vựng của bạn.',
   },
   {
     title: 'Ghi nhớ lâu dài',
@@ -34,7 +34,7 @@ export default function Home() {
               <span className="text-indigo-600">không còn nhàm chán</span>
             </h1>
             <p className="mt-4 text-lg text-zinc-600">
-              EngFore giúp bạn ghi nhớ từ vựng qua luyện tập chủ động — gõ từ và thẻ ghi nhớ.
+              eVocaLoop giúp bạn ghi nhớ từ vựng qua luyện tập chủ động — gõ từ và thẻ ghi nhớ.
               Đúng với triết lý: <strong>Chơi mà học</strong>.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -59,7 +59,7 @@ export default function Home() {
       <section className="border-t border-zinc-200 bg-zinc-50">
         <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
           <h2 className="text-center text-2xl font-bold text-zinc-900">
-            Vì sao chọn EngFore?
+            Vì sao chọn eVocaLoop?
           </h2>
           <div className="mt-8 grid gap-6 sm:grid-cols-3">
             {features.map((f) => (

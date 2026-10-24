@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import VocabularyAnswerDetails from "../VocabularyAnswerDetails.jsx";
 
 export default function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const ratingRef = useRef(null);
 
   useEffect(() => {
     setSelected(null);
@@ -74,6 +75,14 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
     return () => window.removeEventListener("keydown", handler);
   }, [submitted, options, choose]);
 
+  useEffect(() => {
+    if (!submitted) return;
+    const t = setTimeout(() => {
+      ratingRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [submitted]);
+
   // Phím tắt số 1-4 để đánh giá SRS sau khi đã trả lời
   useEffect(() => {
     if (!submitted) return;
@@ -89,7 +98,7 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
   }, [submitted, rate]);
 
   return (
-    <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mt-6 text-center">
+    <div className={`max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 ${submitted ? 'p-4 sm:p-5 mt-4' : 'p-6 sm:p-8 mt-6'} text-center`}>
       <p className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-2">
         CHỌN NGHĨA TIẾNG VIỆT CHÍNH XÁC
       </p>
@@ -126,7 +135,7 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
         <p className="text-xs text-gray-400 mb-4">{pos}</p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 mt-6">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${submitted ? 'gap-2 mb-3 mt-2' : 'gap-3 mb-6 mt-6'}`}>
         {options.map((opt, idx) => {
           const isCorrectOption = opt === ((item && (item.meaning || item.vietnamese || item.definition_vi || item.definitionVi)) || "");
           const isSelected = idx === selected;
@@ -156,7 +165,7 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
               type="button"
               onClick={() => choose(idx)}
               disabled={submitted}
-              className={`relative flex items-center justify-center p-4 min-h-[68px] rounded-xl border-2 transition-all ${stateClasses}`}
+              className={`relative flex items-center justify-center p-4 ${submitted ? 'min-h-[48px]' : 'min-h-[68px]'} rounded-xl border-2 transition-all ${stateClasses}`}
             >
               <span className="absolute left-4 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-gray-100 text-xs font-semibold text-gray-500">
                 {idx + 1}
@@ -168,13 +177,13 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
       </div>
 
       {isAnswered && (
-        <div className="mt-5 mb-5">
+        <div className={`${submitted ? 'mt-3 mb-3' : 'mt-5 mb-5'}`}>
           <VocabularyAnswerDetails word={item} />
         </div>
       )}
 
       {submitted && (
-        <div className="mt-2">
+        <div ref={ratingRef} className="mt-2">
           {ratingSection ?? (
             <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
               <button

@@ -40,6 +40,7 @@ const LearningSession = () => {
   const { setId } = useParams();
   const navigate = useNavigate();
   const inputRef = useRef(null);
+  const ratingRef = useRef(null);
 
   const {
     loading,
@@ -96,6 +97,14 @@ const LearningSession = () => {
       inputRef.current.focus();
     }
   }, [mode, isAnswerRevealed, currentWord]);
+
+  useEffect(() => {
+    if (mode !== 'typing' || !isAnswerRevealed) return;
+    const t = setTimeout(() => {
+      ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [mode, isAnswerRevealed]);
 
     const speakWord = useCallback(() => {
     if (!currentWord) return;
@@ -332,7 +341,7 @@ const LearningSession = () => {
             key={btn.key}
             onClick={() => handleRating(btn.key)}
             disabled={isRating}
-            className={`flex flex-col items-center rounded-xl border px-2 py-2.5 text-sm font-medium shadow-sm transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`flex flex-col items-center rounded-xl border px-2 py-2 text-sm font-medium shadow-sm transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${
               btn.key === 'again'
                 ? 'border-danger/30 bg-danger-soft text-danger'
                 : btn.key === 'hard'
@@ -366,13 +375,13 @@ const LearningSession = () => {
   );
 
   const renderRatingSection = () => (
-    <div className="space-y-4 text-center">
+    <div className="space-y-3 text-center">
       {ratingError && <Alert type="error" message={ratingError} className="text-left" />}
 
       {!isRated && renderRatingButtons()}
 
       {isRated && lastReviewResult && (
-        <div className="rounded-lg border border-border-color bg-surface-sidebar p-4 text-center shadow-sm">
+        <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
           <p className="text-sm text-text-secondary">
             Lịch ôn tập tiếp theo:{' '}
             <span className="font-semibold text-brand-primary">
@@ -391,7 +400,7 @@ const LearningSession = () => {
   return (
     <div className="flex min-h-screen flex-col bg-surface-default text-text-primary">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border-color bg-surface-sidebar px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between border-b border-border-color bg-surface-sidebar px-4 py-2 shadow-sm">
         <button
           onClick={handleExit}
           className="inline-flex items-center gap-1 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
@@ -416,7 +425,7 @@ const LearningSession = () => {
       </div>
 
       {/* Learn Mode Selector (Limited / Unlimited) */}
-      <div className="flex flex-col gap-3 px-4 py-3">
+      <div className="flex flex-col gap-2 px-4 py-2">
         <div className="flex items-center justify-center gap-2">
           <span className="text-xs font-medium text-text-secondary">Chế độ học:</span>
           <div className="inline-flex items-center gap-1 rounded-lg border border-border-color bg-surface-default p-1 text-sm font-medium">
@@ -457,27 +466,6 @@ const LearningSession = () => {
         </div>
       </div>
 
-      {/* Vocabulary Stats */}
-      <div className="border-b border-border-color bg-surface-sidebar px-4 py-4">
-        <h3 className="mb-3 text-center text-xs font-bold uppercase tracking-wider text-text-secondary">
-          Vốn từ của bạn
-        </h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-xl font-bold text-text-primary">{formatNumber(vocabularyStats.total)}</p>
-            <p className="text-xs text-text-secondary">Tổng cộng</p>
-          </div>
-          <div>
-            <p className="text-xl font-bold text-sky-500">{formatNumber(vocabularyStats.learning)}</p>
-            <p className="text-xs text-text-secondary">Đang học</p>
-          </div>
-          <div>
-            <p className="text-xl font-bold text-green-500">{formatNumber(vocabularyStats.new)}</p>
-            <p className="text-xs text-text-secondary">Từ mới</p>
-          </div>
-        </div>
-      </div>
-
       {noWords ? (
         <div className="py-10 text-center">
           <i className="bx bx-info-circle text-3xl text-text-secondary"></i>
@@ -491,8 +479,8 @@ const LearningSession = () => {
           )}
         </div>
       ) : (
-      <div className="flex flex-1 flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-5 py-4">
+      <div className="flex flex-1 flex-col items-center justify-center p-3">
+        <div className={`w-full ${mode === 'flashcard' ? 'max-w-md' : 'max-w-2xl'} space-y-3 py-2`}>
                     {/* Status counts (small, non-intrusive) */}
           <div className="space-y-2">
             {/* Current card type indicator */}
@@ -576,21 +564,21 @@ const LearningSession = () => {
           {mode === 'typing' && (
             <>
               {/* Question Area */}
-              <div className="rounded-lg border border-border-color bg-surface-sidebar p-6 text-center shadow-sm">
+              <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-widest text-text-secondary">
                     Nghĩa tiếng Việt
                   </p>
-                  <h3 className="mt-2 text-3xl font-bold tracking-tight text-text-primary">
+                  <h3 className="mt-1 text-2xl font-bold tracking-tight text-text-primary">
                     {currentWord.meaning}
                   </h3>
                 </div>
                 {currentWord.memory_clue && (
-                  <div className="mt-4 border-t border-border-color pt-4">
+                  <div className="mt-2 border-t border-border-color pt-2">
                     <p className="text-xs font-medium uppercase tracking-widest text-text-secondary">
                       💡 Gợi ý
                     </p>
-                    <p className="mt-1 text-sm text-text-secondary">{currentWord.memory_clue}</p>
+                    <p className="mt-0.5 text-sm text-text-secondary">{currentWord.memory_clue}</p>
                   </div>
                 )}
               </div>
@@ -603,7 +591,7 @@ const LearningSession = () => {
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   placeholder="Nhập từ tiếng Anh..."
-                  className="w-full rounded-xl py-3 text-center text-xl"
+                  className="w-full rounded-xl py-2 text-center text-lg"
                   disabled={isAnswerRevealed}
                 />
                 {!isAnswerRevealed && (
@@ -620,9 +608,9 @@ const LearningSession = () => {
 
               {/* Answer Feedback */}
               {isAnswerRevealed && (
-                <div className="space-y-4 text-center">
+                <div className="space-y-3 text-center">
                   <p
-                    className={`text-xl font-bold ${
+                    className={`text-lg font-bold ${
                       isCorrect ? 'text-green-500' : 'text-red-500'
                     }`}
                   >
@@ -636,7 +624,7 @@ const LearningSession = () => {
                   )}
 
                   {renderAnswerDetails({ hideMeaning: true, hideClue: true })}
-                  {renderRatingSection()}
+                  <div ref={ratingRef}>{renderRatingSection()}</div>
                 </div>
               )}
             </>

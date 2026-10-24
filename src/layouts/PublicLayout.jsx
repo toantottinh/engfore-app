@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
+import Logo from '../components/common/Logo.jsx';
 
 /**
  * Layout công khai (trang landing, đăng nhập, đăng ký).
@@ -12,11 +13,8 @@ export default function PublicLayout() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-2 text-lg font-bold text-indigo-600">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
-              E
-            </span>
-            EngFore
+          <Link to="/" className="flex items-center">
+            <Logo size="md" />
           </Link>
           <nav className="flex items-center gap-2">
             {user ? (
@@ -52,7 +50,7 @@ export default function PublicLayout() {
 
       <footer className="border-t border-zinc-200 bg-white py-6">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 sm:flex-row sm:px-6">
-          <p className="text-sm text-zinc-500">© 2026 EngFore. Học từ vựng không còn nhàm chán.</p>
+          <p className="text-sm text-zinc-500">© 2026 eVocaLoop. Học từ vựng không còn nhàm chán.</p>
           <div className="flex items-center gap-4 text-sm text-zinc-500">
             <Link to="/login" className="hover:text-zinc-800">
               Đăng nhập

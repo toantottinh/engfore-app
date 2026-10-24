@@ -16,10 +16,10 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false, hid
   if (!word) return null;
 
   return (
-    <div className="rounded-card border border-border-color bg-surface-sidebar p-5 text-left text-sm text-text-secondary shadow-sm">
+    <div className="rounded-card border border-border-color bg-surface-sidebar p-4 text-left text-sm text-text-secondary shadow-sm">
       {/* Word + TTS */}
       <div className="flex items-center gap-2">
-        <h4 className="text-2xl font-bold tracking-tight text-text-primary">
+        <h4 className="text-xl font-bold tracking-tight text-text-primary">
           {word.word}
         </h4>
         <button
@@ -41,7 +41,7 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false, hid
 
       {/* Type + CEFR badges */}
       {(word.word_type || word.cefr_level) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           {word.word_type && (
             <span className="rounded-md bg-surface-hover px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-text-secondary">
               {word.word_type.replace(/_/g, ' ')}
@@ -62,14 +62,14 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false, hid
       {/* Meaning + Memory Clue — cùng một khu vực thông tin ngữ nghĩa.
           Gợi ý xuất hiện ngay bên dưới Nghĩa, giữ là hai field riêng biệt. */}
       {word.meaning && !hideMeaning && (
-        <div className="mt-3 text-lg font-semibold text-text-primary">
+        <div className="mt-2 text-base font-semibold text-text-primary">
           {word.meaning}
         </div>
       )}
 
       {/* Memory Clue (chỉ hiện khi có; không render block rỗng) */}
       {word.memory_clue && !hideClue && (
-        <div className="mt-2 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-zinc-700">
+        <div className="mt-1.5 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-zinc-700">
           <span className="text-sm font-semibold text-amber-800">
             💡 Gợi ý
           </span>
@@ -79,7 +79,7 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false, hid
 
       {/* Example */}
       {(word.example || word.example_sentence) && (
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-1.5">
           <span className="italic text-gray-700 text-sm sm:text-base">
             “{word.example || word.example_sentence}”
           </span>

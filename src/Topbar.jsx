@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import Logo from './components/common/Logo.jsx';
 import { getDueReviewWordsCount } from './services/learning.service.js'; // Giả sử đường dẫn này đúng
 
 const NavItem = ({ to, children, end = true }) => (
@@ -134,8 +135,7 @@ export default function Topbar() {
       {/* Left: Logo */}
       <div className="flex items-center">
         <Link to="/app" className="flex items-center gap-3 text-xl font-bold text-text-primary">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-primary font-bold">E</span>
-          <span className="hidden sm:inline">EngFore</span>
+          <Logo size="md" />
         </Link>
       </div>
 

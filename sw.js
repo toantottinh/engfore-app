@@ -78,7 +78,7 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     console.log('[Service Worker] Push Received.', data);
 
-    const title = data.title || 'EngFore';
+    const title = data.title || 'eVocaLoop';
     const options = {
         body: data.body || 'Bạn có từ vựng cần ôn tập!',
         icon: '/assets/icons/icon-192x192.png',
