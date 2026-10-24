@@ -200,22 +200,28 @@ export function useLearningSession(setId) {
   const quizOptions = useMemo(() => {
     if (!currentWord) return [];
 
+    const getMeaning = (w) =>
+      (w && (w.meaning || w.vietnamese || w.definition_vi || w.definitionVi)) || '';
+
+    const currentMeaning = getMeaning(currentWord);
     const distractors = [...new Set(
       allWords
-        .map((word) => word.word)
-        .filter((word) => word && word !== currentWord.word)
+        .map((word) => getMeaning(word))
+        .filter((m) => m && m !== currentMeaning)
     )];
     for (let i = distractors.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
     }
 
-    const options = [...distractors.slice(0, 3), currentWord.word];
-    for (let i = options.length - 1; i > 0; i -= 1) {
+    const options = [...distractors.slice(0, 3), currentMeaning];
+    // Guard: if not enough distractors, pad? Keep as is; filter empties
+    const cleaned = options.filter(Boolean);
+    for (let i = cleaned.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
-      [options[i], options[j]] = [options[j], options[i]];
+      [cleaned[i], cleaned[j]] = [cleaned[j], cleaned[i]];
     }
-    return options;
+    return cleaned;
   }, [allWords, currentWord]);
 
   // Preview intervals: dự đoán review_due_at cho từng rating button

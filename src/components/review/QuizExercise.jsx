@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import VocabularyAnswerDetails from "../VocabularyAnswerDetails.jsx";
 
 export default function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered }) {
   const [selected, setSelected] = useState(null);
@@ -7,9 +8,12 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
   useEffect(() => {
     setSelected(null);
     setSubmitted(false);
-  }, [item.id]);
+  }, [item?.id]);
 
-  const correct = submitted && selected !== null && options[selected] === item.word;
+  const correct = submitted && selected !== null && options[selected] === ((item && (item.meaning || item.vietnamese || item.definition_vi || item.definitionVi)) || "");
+
+  const getWord = (it) => (it && (it.word || it.english)) || "";
+  const word = getWord(item);
 
   const level = (item && (item.cefr_level || item.level || item.cefr)) || "";
   const clue =
@@ -25,11 +29,15 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
   const hasAudio =
     typeof window !== "undefined" && "speechSynthesis" in window;
   const playAudio = () => {
-    if (!hasAudio || !item?.word) return;
+    if (!hasAudio || !word) return;
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(item.word));
+    const u = new SpeechSynthesisUtterance(word);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    window.speechSynthesis.speak(u);
   };
 
+  const ipa = item && (item.ipa || item.IPA);
   const pos = item && (item.part_of_speech || item.pos || item.word_type);
   const example = item && (item.example || item.example_sentence);
   const exampleVi = item && (item.example_vi || item.example_meaning);
@@ -83,7 +91,7 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
   return (
     <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mt-6 text-center">
       <p className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-2">
-        Chọn từ tiếng Anh chính xác
+        CHỌN NGHĨA TIẾNG VIỆT CHÍNH XÁC
       </p>
 
       {level && (
@@ -92,19 +100,35 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
         </span>
       )}
 
-      <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
-        {item.meaning}
-      </h2>
+      <div className="flex items-center justify-center gap-2 mb-4">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">
+          {word}
+        </h2>
+        {hasAudio && (
+          <button
+            type="button"
+            onClick={playAudio}
+            aria-label="Phát âm từ"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200"
+          >
+            🔊
+          </button>
+        )}
+      </div>
 
-      {clue && (
-        <p className="text-sm sm:text-base text-gray-500 font-normal italic max-w-md mx-auto mt-2 leading-relaxed">
-          {clue}
+      {ipa && (
+        <p className="text-sm font-mono text-gray-500 italic mb-4">
+          /{ipa}/
         </p>
+      )}
+
+      {pos && (
+        <p className="text-xs text-gray-400 mb-4">{pos}</p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 mt-6">
         {options.map((opt, idx) => {
-          const isCorrectOption = opt === item.word;
+          const isCorrectOption = opt === ((item && (item.meaning || item.vietnamese || item.definition_vi || item.definitionVi)) || "");
           const isSelected = idx === selected;
 
           let stateClasses = "border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/40 cursor-pointer";
@@ -144,42 +168,8 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
       </div>
 
       {isAnswered && (
-        <div className="mt-5 mb-5 p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-left animate-fadeIn">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl font-bold text-gray-900">{item.word}</span>
-            {hasAudio && (
-              <button
-                type="button"
-                onClick={playAudio}
-                aria-label="Phát âm từ"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200"
-              >
-                🔊
-              </button>
-            )}
-            {item.ipa && (
-              <span className="text-sm font-mono text-gray-500 italic ml-2.5">
-                /{item.ipa}/
-              </span>
-            )}
-            {pos && (
-              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700 font-medium ml-2">
-                {pos}
-              </span>
-            )}
-          </div>
-
-          {example && (
-            <p className="text-sm sm:text-base font-medium text-gray-800 mt-2.5 flex items-start gap-1.5">
-              <span>“{example}”</span>
-            </p>
-          )}
-
-          {exampleVi && (
-            <p className="text-xs sm:text-sm text-gray-500 italic mt-0.5 pl-4">
-              {exampleVi}
-            </p>
-          )}
+        <div className="mt-5 mb-5">
+          <VocabularyAnswerDetails word={item} />
         </div>
       )}
 
