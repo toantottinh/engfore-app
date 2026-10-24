@@ -77,6 +77,23 @@ const LearningSession = () => {
 
   const [exitModalOpen, setExitModalOpen] = useState(false);
   const [flipped, setFlipped] = useState(false);
+  const [autoEvalEnabled, setAutoEvalEnabled] = useState(() => {
+    try {
+      return window.localStorage.getItem('engfore.autoEvaluationEnabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [autoEvalModalOpen, setAutoEvalModalOpen] = useState(false);
+  const toggleAutoEval = useCallback(() => {
+    setAutoEvalEnabled((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem('engfore.autoEvaluationEnabled', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // Reset flip state khi đổi từ
   useEffect(() => {
@@ -148,7 +165,13 @@ const LearningSession = () => {
   const handleSubmit = useCallback(() => {
     submitAnswer();
     speakWordAndExample();
-  }, [submitAnswer, speakWordAndExample]);
+    if (autoEvalEnabled && currentWord) {
+      const userAnswer = userInput.trim().toLowerCase();
+      const correctAnswer = (currentWord.word || '').trim().toLowerCase();
+      const correct = userAnswer === correctAnswer;
+      handleRating(correct ? 'good' : 'again');
+    }
+  }, [submitAnswer, speakWordAndExample, autoEvalEnabled, currentWord, userInput, handleRating]);
 
   // Flashcard: chỉ tự phát âm khi lật từ mặt trước sang mặt reveal.
   const handleFlip = useCallback(() => {
@@ -184,7 +207,14 @@ const LearningSession = () => {
   // continue (sau rating), 1-4 = rating. Space không bao giờ submit hoặc rating.
   useEffect(() => {
     const handler = (e) => {
-      if (isSessionComplete) return;
+      if (isSessionComplete) {
+        if (e.repeat) return;
+        if (e.code === 'Space' || e.key === ' ') {
+          e.preventDefault();
+          restartSession();
+        }
+        return;
+      }
 
       const el = document.activeElement;
       const isTyping =
@@ -251,7 +281,7 @@ const LearningSession = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [
     mode, isAnswerRevealed, isRated, isRating, flipped,
-    isSessionComplete, handleSubmit, handleFlip, handleRating, commitProceed,
+    isSessionComplete, handleSubmit, handleFlip, handleRating, commitProceed, restartSession,
   ]);
 
   if (loading) {
@@ -300,8 +330,8 @@ const LearningSession = () => {
           </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button variant="secondary" onClick={restartSession}>
-              <i className="bx bx-rotate-left text-lg"></i>
-              <span>Học lại</span>
+              <i className="bx bx-right-arrow-alt text-lg"></i>
+              <span>Học tiếp · Space</span>
             </Button>
             <Button onClick={() => navigate(setId ? `/vocabulary/${setId}` : '/app')}>
               <i className="bx bx-folder-open text-lg"></i>
@@ -378,7 +408,7 @@ const LearningSession = () => {
     <div className="space-y-3 text-center">
       {ratingError && <Alert type="error" message={ratingError} className="text-left" />}
 
-      {!isRated && renderRatingButtons()}
+      {(!autoEvalEnabled || mode === 'flashcard' || isRated) && !isRated && renderRatingButtons()}
 
       {isRated && lastReviewResult && (
         <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
@@ -411,8 +441,18 @@ const LearningSession = () => {
         <h2 className="truncate px-2 text-base font-semibold text-text-primary">
           {currentWord?.set_name || 'Phiên học'}
         </h2>
-        <div className="flex w-16 items-center justify-end text-sm font-semibold text-text-secondary">
-          {wordsRemaining > 0 && `${wordsRemaining}`}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAutoEvalModalOpen(true)}
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${autoEvalEnabled ? 'border-brand-primary bg-brand-primary-soft text-brand-primary' : 'border-border-color bg-surface-default text-text-secondary hover:text-text-primary'}`}
+            title="Chế độ tự đánh giá"
+          >
+            <i className={`bx ${autoEvalEnabled ? 'bx-toggle-right' : 'bx-toggle-left'} text-base`}></i>
+            <span className="hidden sm:inline">Tự đánh giá</span>
+          </button>
+          <div className="w-16 text-right text-sm font-semibold text-text-secondary">
+            {wordsRemaining > 0 && `${wordsRemaining}`}
+          </div>
         </div>
       </div>
 
@@ -638,11 +678,41 @@ const LearningSession = () => {
               onSubmitRating={(rating) => handleRating(rating)}
               ratingSection={renderRatingSection()}
               onAnswered={speakWordAndExample}
+              autoEvaluationEnabled={autoEvalEnabled}
             />
           )}
         </div>
       </div>
       )}
+
+      {/* Auto Evaluation Modal */}
+      <Modal
+        open={autoEvalModalOpen}
+        onClose={() => setAutoEvalModalOpen(false)}
+        title="Chế độ tự đánh giá"
+      >
+        <div className="space-y-3 text-sm text-text-secondary">
+          <p>
+            Khi bật chế độ này trong bài Trắc nghiệm và Gõ từ:
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>Trả lời sai: Hệ thống tự động đánh giá là 'Again'.</li>
+            <li>Trả lời đúng: Hệ thống tự động đánh giá là 'Good'.</li>
+          </ul>
+          <div className="flex items-center justify-between rounded-lg border border-border-color bg-surface-default p-3">
+            <span className="font-medium text-text-primary">Chế độ tự đánh giá</span>
+            <button
+              onClick={toggleAutoEval}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoEvalEnabled ? 'bg-brand-primary' : 'bg-gray-300'}`}
+              aria-pressed={autoEvalEnabled}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoEvalEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Exit Confirmation Modal */}
       <Modal

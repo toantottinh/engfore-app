@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import VocabularyAnswerDetails from "../VocabularyAnswerDetails.jsx";
 
-export default function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered }) {
+export default function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered, autoEvaluationEnabled }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const ratingRef = useRef(null);
@@ -15,6 +15,8 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
 
   const getWord = (it) => (it && (it.word || it.english)) || "";
   const word = getWord(item);
+
+  const meaning = (item && (item.meaning || item.vietnamese || item.definition_vi || item.definitionVi)) || "";
 
   const level = (item && (item.cefr_level || item.level || item.cefr)) || "";
   const clue =
@@ -49,9 +51,13 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
       if (!options || idx < 0 || idx >= options.length) return;
       setSelected(idx);
       setSubmitted(true);
+      const isCorrect = options[idx] === meaning;
+      if (autoEvaluationEnabled && typeof onSubmitRating === 'function') {
+        onSubmitRating(isCorrect ? 'good' : 'again');
+      }
       if (typeof onAnswered === 'function') onAnswered();
     },
-    [submitted, options, onAnswered]
+    [submitted, options, autoEvaluationEnabled, onSubmitRating, meaning, onAnswered]
   );
 
   const rate = useCallback(
@@ -85,7 +91,7 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
 
   // Phím tắt số 1-4 để đánh giá SRS sau khi đã trả lời
   useEffect(() => {
-    if (!submitted) return;
+    if (!submitted || autoEvaluationEnabled) return;
     const handler = (e) => {
       const map = { "1": "again", "2": "hard", "3": "good", "4": "easy" };
       if (map[e.key]) {
@@ -95,7 +101,7 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [submitted, rate]);
+  }, [submitted, rate, autoEvaluationEnabled]);
 
   return (
     <div className={`max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 ${submitted ? 'p-4 sm:p-5 mt-4' : 'p-6 sm:p-8 mt-6'} text-center`}>

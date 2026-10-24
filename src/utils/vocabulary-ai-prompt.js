@@ -16,4 +16,34 @@
 
 export const VOCABULARY_AI_PROMPT = `định dạng theo mẫu art | /ɑːt/ | noun | nghệ thuật | She loves modern art. | Hoạt động tạo ra tác phẩm để thể hiện ý tưởng hoặc cảm xúc | A1`;
 
-export { copyTextToClipboard } from './exercise-ai-prompt.js';
+export async function copyTextToClipboard(text) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Clipboard API bị chặn/từ chối -> rơi xuống fallback bên dưới.
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = String(text ?? '');
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } finally {
+      document.body.removeChild(ta);
+    }
+    return ok;
+  } catch {
+    return false;
+  }
+}

@@ -385,6 +385,9 @@ export function useLearningSession(setId) {
 
       setIsRating(true);
       setRatingError(null);
+      // Optimistic UI: show result + next button immediately.
+      setIsRated(true);
+      setLastReviewResult({ review_due_at: previewIntervals[rating] || null });
 
       recordProgress(currentWord.id, {
         rating: RATING_MAP[rating],
@@ -392,6 +395,8 @@ export function useLearningSession(setId) {
       }).then(({ progress, error: srsError }) => {
         if (srsError) {
           setRatingError('Không thể lưu tiến trình học. Vui lòng thử lại.');
+          setIsRated(false);
+          setLastReviewResult(null);
           setIsRating(false);
           return;
         }
@@ -502,17 +507,18 @@ export function useLearningSession(setId) {
           setSessionQueue(newQueue);
         }
 
-        setLastReviewResult(progress);
-        setIsRated(true);
+        setLastReviewResult(progress || lastReviewResult);
         setIsRating(false);
       }).catch(() => {
         // Keep the current card and its revealed answer intact so the learner
         // can choose a rating again after a transient/network failure.
         setRatingError('Không thể lưu tiến trình học. Vui lòng thử lại.');
+        setIsRated(false);
+        setLastReviewResult(null);
         setIsRating(false);
       });
     },
-    [currentWord, isRating, isRated, recordProgress, isFlashcard, sessionQueue, currentIndex, refreshVocabularyStats]
+    [currentWord, isRating, isRated, recordProgress, isFlashcard, sessionQueue, currentIndex, refreshVocabularyStats, previewIntervals]
   );
 
   // Proceed to next word (only after rating or "Again" re-queue)
@@ -547,6 +553,8 @@ export function useLearningSession(setId) {
 
   // Restart the session
   const restartSession = useCallback(() => {
+    hasLoadedRef.current = false;
+    loadKeyRef.current = null;
     loadWords();
   }, [loadWords]);
 

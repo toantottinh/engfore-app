@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import {
@@ -104,7 +104,7 @@ export default function Import() {
   };
 
   // Destination Word Set — TÙY CHỌN, không bắt buộc.
-  const [destMode, setDestMode] = useState('vocab'); // 'vocab' | 'newSet' | 'existingSet'
+  const [destMode, setDestMode] = useState('existingSet'); // 'newSet' | 'existingSet'
   const [destSetId, setDestSetId] = useState('');
   const [newSetName, setNewSetName] = useState('');
   const [lastSetId, setLastSetId] = useState('');
@@ -252,11 +252,9 @@ export default function Import() {
 
     const created = meta?.created ?? 0;
     const existing = meta?.existing ?? 0;
-    setSuccess(
-      `Đã nhập thành công: ${created} từ mới, ${existing} từ đã có (gộp vào kho).${
-        destMode !== 'vocab' ? ' Đã thêm vào Word Set.' : ' Đã thêm vào Vocabulary.'
-      }`
-    );
+     setSuccess(
+       `Đã nhập thành công: ${created} từ mới, ${existing} từ đã có (gộp vào kho). Đã thêm vào Word Set.`
+     );
     setLastSetId(meta?.set_id ?? (destMode === 'existingSet' ? destSetId : ''));
     setPreviewRows([]);
     setPreviewed(false);
@@ -303,24 +301,48 @@ export default function Import() {
       {error && <Alert type="error" message={error} className="mb-4" />}
       {success && <Alert type="success" message={success} className="mb-4" />}
 
-      {/* Bước 1: Đích nhập (Word Set — TÙY CHỌN, không bắt buộc) */}
+      {/* Bước 1: Đích nhập (Word Set — bắt buộc) */}
       <div className="mb-5 rounded-xl border border-zinc-200 bg-white p-5">
         <div className="text-sm font-medium text-zinc-700">Thêm vào đâu?</div>
         <p className="mt-1 mb-3 text-xs text-zinc-500">
-          Bạn có thể chỉ thêm vào Vocabulary (toàn bộ kho từ), chọn sẵn Word Set, hoặc tạo Word Set
-          mới — việc chọn Word Set là tùy chọn.
+          Bắt buộc chọn một Word Set có sẵn hoặc tạo Word Set mới để chứa các từ vựng này.
         </p>
         <div className="space-y-2">
           <label className="flex items-start gap-2">
             <input
               type="radio"
               name="dest"
-              checked={destMode === 'vocab'}
-              onChange={() => setDestMode('vocab')}
+              checked={destMode === 'existingSet'}
+              onChange={() => setDestMode('existingSet')}
               className="mt-1"
             />
-            <span className="text-sm text-zinc-700">Chỉ thêm vào Vocabulary</span>
+            <span className="text-sm text-zinc-700">Thêm vào Word Set có sẵn</span>
           </label>
+          {destMode === 'existingSet' &&
+            (setsLoading ? (
+              <div className="ml-6 mt-1">
+                <Spinner />
+              </div>
+            ) : sets.length === 0 ? (
+              <Alert
+                type="info"
+                className="ml-6 mt-1"
+                message="Bạn chưa có Word Set nào. Chọn 'Tạo Word Set mới'."
+              />
+            ) : (
+              <select
+                value={destSetId}
+                onChange={(e) => setDestSetId(e.target.value)}
+                className="ml-6 mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-80"
+              >
+                <option value="">-- Chọn Word Set --</option>
+                {sets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.word_count ?? 0} từ)
+                  </option>
+                ))}
+              </select>
+            ))}
 
           <label className="flex items-start gap-2">
             <input
@@ -342,42 +364,6 @@ export default function Import() {
               />
             </div>
           )}
-
-          <label className="flex items-start gap-2">
-            <input
-              type="radio"
-              name="dest"
-              checked={destMode === 'existingSet'}
-              onChange={() => setDestMode('existingSet')}
-              className="mt-1"
-            />
-            <span className="text-sm text-zinc-700">Thêm vào Word Set có sẵn</span>
-          </label>
-          {destMode === 'existingSet' &&
-            (setsLoading ? (
-              <div className="ml-6 mt-1">
-                <Spinner />
-              </div>
-            ) : sets.length === 0 ? (
-              <Alert
-                type="info"
-                className="ml-6 mt-1"
-                message="Bạn chưa có Word Set nào. Chọn 'Tạo Word Set mới' hoặc 'Chỉ thêm vào Vocabulary'."
-              />
-            ) : (
-              <select
-                value={destSetId}
-                onChange={(e) => setDestSetId(e.target.value)}
-                className="ml-6 mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 sm:w-80"
-              >
-                <option value="">-- Chọn Word Set --</option>
-                {sets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.word_count ?? 0} từ)
-                  </option>
-                ))}
-              </select>
-            ))}
         </div>
       </div>
 
