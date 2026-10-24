@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 
-export default function QuizExercise({ item, options, onSubmitRating, ratingSection }) {
+export default function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
@@ -40,8 +40,9 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
       if (!options || idx < 0 || idx >= options.length) return;
       setSelected(idx);
       setSubmitted(true);
+      if (typeof onAnswered === 'function') onAnswered();
     },
-    [submitted, options]
+    [submitted, options, onAnswered]
   );
 
   const rate = useCallback(

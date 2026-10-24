@@ -649,6 +649,7 @@ const LearningSession = () => {
               options={quizOptions}
               onSubmitRating={(rating) => handleRating(rating)}
               ratingSection={renderRatingSection()}
+              onAnswered={speakWordAndExample}
             />
           )}
         </div>
