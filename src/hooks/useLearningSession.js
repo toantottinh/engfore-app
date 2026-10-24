@@ -181,14 +181,42 @@ export function useLearningSession(setId) {
     return sessionQueue[currentIndex];
   }, [sessionQueue, currentIndex]);
 
-  // Mode: Flashcard cho 2 lần review đầu, sau đó chuyển sang Typing
+  // Progression is based on total recorded reviews, not flashcard-only reviews:
+  // 0-1 flashcard, 2 typing, 3 quiz, then alternate typing and quiz.
   const mode = useMemo(() => {
     if (!currentWord) return 'typing';
-    const reviews = currentWord.session_flashcard_reviews ?? currentWord.flashcard_reviews ?? 0;
-    return reviews < FLASHCARD_REVIEWS_THRESHOLD ? 'flashcard' : 'typing';
+    const rawReviewCount = currentWord.review_count ?? currentWord.flashcard_reviews ?? 0;
+    const reviewCount = Number.isFinite(Number(rawReviewCount))
+      ? Math.max(0, Number(rawReviewCount))
+      : 0;
+    if (reviewCount < FLASHCARD_REVIEWS_THRESHOLD) return 'flashcard';
+    if (reviewCount === FLASHCARD_REVIEWS_THRESHOLD) return 'typing';
+    if (reviewCount === FLASHCARD_REVIEWS_THRESHOLD + 1) return 'quiz';
+    return reviewCount % 2 === 0 ? 'typing' : 'quiz';
   }, [currentWord]);
 
   const isFlashcard = mode === 'flashcard';
+
+  const quizOptions = useMemo(() => {
+    if (!currentWord) return [];
+
+    const distractors = [...new Set(
+      allWords
+        .map((word) => word.word)
+        .filter((word) => word && word !== currentWord.word)
+    )];
+    for (let i = distractors.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+    }
+
+    const options = [...distractors.slice(0, 3), currentWord.word];
+    for (let i = options.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [options[i], options[j]] = [options[j], options[i]];
+    }
+    return options;
+  }, [allWords, currentWord]);
 
   // Preview intervals: dự đoán review_due_at cho từng rating button
   const previewIntervals = useMemo(() => {
@@ -541,6 +569,7 @@ export function useLearningSession(setId) {
     noWords,
     ratingError,
     currentWord,
+    quizOptions,
     userInput,
     isAnswerRevealed,
     isCorrect,

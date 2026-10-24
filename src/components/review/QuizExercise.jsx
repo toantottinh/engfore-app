@@ -24,11 +24,43 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
   const isAnswered = submitted;
   const hasAudio =
     typeof window !== "undefined" && "speechSynthesis" in window;
-  const playAudio = () => {
+
+  const playAudio = useCallback(() => {
     if (!hasAudio || !item?.word) return;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(item.word));
-  };
+    const synth = window.speechSynthesis;
+    synth.cancel();
+
+    const wordText = item.word;
+    const exampleText = item.example || item.example_sentence;
+
+    const wordUtterance = new SpeechSynthesisUtterance(wordText);
+    wordUtterance.lang = "en-US";
+    wordUtterance.rate = 0.9;
+
+    if (exampleText) {
+      wordUtterance.onend = () => {
+        window.setTimeout(() => {
+          const exampleUtterance = new SpeechSynthesisUtterance(exampleText);
+          exampleUtterance.lang = "en-US";
+          exampleUtterance.rate = 0.9;
+          synth.speak(exampleUtterance);
+        }, 300);
+      };
+    }
+
+    synth.speak(wordUtterance);
+  }, [hasAudio, item]);
+
+  // Tự động phát âm từ vựng + ví dụ sau khi trả lời
+  useEffect(() => {
+    if (!isAnswered || !item) return;
+    playAudio();
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [isAnswered, item, playAudio]);
 
   const pos = item && (item.part_of_speech || item.pos || item.word_type);
   const example = item && (item.example || item.example_sentence);
