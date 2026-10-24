@@ -78,9 +78,36 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false, hid
       )}
 
       {/* Example */}
-      {word.example && (
-        <div className="mt-2 text-sm italic text-text-secondary">
-          “{word.example}”
+      {(word.example || word.example_sentence) && (
+        <div className="flex items-center gap-2 mt-2">
+          <span className="italic text-gray-700 text-sm sm:text-base">
+            “{word.example || word.example_sentence}”
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const exampleText = word.example || word.example_sentence;
+              if (exampleText) ttsService.speak(exampleText);
+            }}
+            className="p-1 text-gray-400 hover:text-indigo-600 rounded hover:bg-gray-100 transition-colors"
+            title="Nghe câu ví dụ"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          </button>
         </div>
       )}
     </div>

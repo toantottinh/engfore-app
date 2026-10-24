@@ -10,6 +10,7 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import StatusCounts from '../../components/ui/StatusCounts.jsx';
 import VocabularyAnswerDetails from '../../components/VocabularyAnswerDetails.jsx';
+import QuizExercise from '../../components/review/QuizExercise.jsx';
 import { cefrBadgeClass, cefrLabel } from '../../utils/cefr.js';
 
 const RATING_BUTTONS = [
@@ -45,6 +46,7 @@ const LearningSession = () => {
     error,
     ratingError,
     currentWord,
+    quizOptions,
     userInput,
     isAnswerRevealed,
     isCorrect,
@@ -80,6 +82,15 @@ const LearningSession = () => {
     setFlipped(false);
   }, [currentWord?.id]);
 
+  // Dọn dẹp phát âm khi unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (mode === 'typing' && !isAnswerRevealed && inputRef.current) {
       inputRef.current.focus();
@@ -95,11 +106,40 @@ const LearningSession = () => {
     }
   }, [currentWord]);
 
+  // Typing: phát âm từ vựng + ví dụ ngay sau khi submit/reveal.
+  const speakWordAndExample = useCallback(() => {
+    if (!currentWord || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+
+    const textToSpeak = currentWord.word || currentWord.english || '';
+    const exampleToSpeak = currentWord.example || currentWord.example_sentence || '';
+
+    if (textToSpeak) {
+      const wordUtterance = new SpeechSynthesisUtterance(textToSpeak);
+      wordUtterance.lang = 'en-US';
+      wordUtterance.rate = 0.9;
+
+      if (exampleToSpeak) {
+        wordUtterance.onend = () => {
+          window.setTimeout(() => {
+            const exUtterance = new SpeechSynthesisUtterance(exampleToSpeak);
+            exUtterance.lang = 'en-US';
+            exUtterance.rate = 0.9;
+            synth.speak(exUtterance);
+          }, 300);
+        };
+      }
+
+      synth.speak(wordUtterance);
+    }
+  }, [currentWord]);
+
   // Typing: phát âm ngay trong user action submit/reveal, đúng từ hiện tại.
   const handleSubmit = useCallback(() => {
     submitAnswer();
-    speakWord();
-  }, [submitAnswer, speakWord]);
+    speakWordAndExample();
+  }, [submitAnswer, speakWordAndExample]);
 
   // Flashcard: chỉ tự phát âm khi lật từ mặt trước sang mặt reveal.
   const handleFlip = useCallback(() => {
@@ -600,6 +640,16 @@ const LearningSession = () => {
                 </div>
               )}
             </>
+          )}
+
+          {/* QUIZ MODE */}
+          {mode === 'quiz' && currentWord && (
+            <QuizExercise
+              item={currentWord}
+              options={quizOptions}
+              onSubmitRating={(rating) => handleRating(rating)}
+              ratingSection={renderRatingSection()}
+            />
           )}
         </div>
       </div>
