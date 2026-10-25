@@ -70,7 +70,6 @@ const LearningSession = () => {
     submitAnswer,
     handleRating,
     proceedToNext,
-    restartSession,
     sessionQueueLength,
     noWords,
   } = useLearningSession(setId);
@@ -211,7 +210,7 @@ const LearningSession = () => {
         if (e.repeat) return;
         if (e.code === 'Space' || e.key === ' ') {
           e.preventDefault();
-          restartSession();
+          window.location.reload();
         }
         return;
       }
@@ -281,7 +280,7 @@ const LearningSession = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [
     mode, isAnswerRevealed, isRated, isRating, flipped,
-    isSessionComplete, handleSubmit, handleFlip, handleRating, commitProceed, restartSession,
+    isSessionComplete, handleSubmit, handleFlip, handleRating, commitProceed,
   ]);
 
   if (loading) {
@@ -329,7 +328,7 @@ const LearningSession = () => {
             )}
           </div>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Button variant="secondary" onClick={restartSession}>
+            <Button variant="secondary" onClick={() => window.location.reload()}>
               <i className="bx bx-right-arrow-alt text-lg"></i>
               <span>Học tiếp · Space</span>
             </Button>
