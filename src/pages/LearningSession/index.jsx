@@ -131,10 +131,8 @@ const LearningSession = () => {
     const speakWord = useCallback(() => {
     if (!currentWord) return;
     const text = currentWord.word;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
     // Phát âm thanh ở macrotask để không chặn render chuyển câu.
+    // Hủy âm thanh cũ chỉ khi âm thanh mới thực sự bắt đầu (trong ttsService).
     setTimeout(() => {
       try {
         ttsService.speak(text);
@@ -148,14 +146,16 @@ const LearningSession = () => {
   const speakWordAndExample = useCallback(() => {
     if (!currentWord || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const synth = window.speechSynthesis;
-    // Hủy ngay các luồng âm thanh đang phát dở.
-    synth.cancel();
 
     const textToSpeak = currentWord.word || currentWord.english || '';
     const exampleToSpeak = currentWord.example || currentWord.example_sentence || '';
 
     // Bọc trong setTimeout(0) để trình duyệt render xong UI trước, âm thanh chạy nền.
+    // Hủy âm thanh cũ chỉ ngay trước khi giọng đọc mới thực sự bắt đầu.
     setTimeout(() => {
+      try {
+        synth.cancel();
+      } catch (e) {}
       if (textToSpeak) {
         const wordUtterance = new SpeechSynthesisUtterance(textToSpeak);
         wordUtterance.lang = 'en-US';
@@ -203,9 +203,7 @@ const LearningSession = () => {
   const commitProceed = useCallback(() => {
     if (!advanceRef.current) return;
     advanceRef.current = false;
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    // Không hủy âm thanh ở đây: để giọng đọc từ trước tự phát hết.
     flushSync(() => {
       proceedToNext();
     });
