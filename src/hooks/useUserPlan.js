@@ -67,6 +67,7 @@ export function useUserPlan() {
   }, []);
 
   const fetchPlan = useCallback(async () => {
+    if (!user) return;
     if (!user?.id) {
       setWordQuota(DEFAULT_WORD_QUOTA);
       setAdFreeUntil(null);
@@ -97,13 +98,18 @@ export function useUserPlan() {
         setAdFreeUntil(null);
       }
 
-      // Đếm số từ hiện có
+      // Đếm số từ hiện có (giống Dashboard: tổng set_words count trên các vocabulary_sets của user)
       try {
-        const { count } = await supabase
-          .from('words')
-          .select('*', { count: 'exact', head: true })
+        const { data, error } = await supabase
+          .from('vocabulary_sets')
+          .select('*, set_words(count)')
           .eq('user_id', user.id);
-        setCurrentWordsCount(count ?? 0);
+        if (error) throw error;
+        const totalWords = (data || []).reduce(
+          (sum, set) => sum + (set.set_words?.[0]?.count ?? 0),
+          0
+        );
+        setCurrentWordsCount(totalWords);
       } catch {
         setCurrentWordsCount(0);
       }
@@ -113,10 +119,33 @@ export function useUserPlan() {
   }, [user]);
 
   useEffect(() => {
+    if (!user?.id) return;
+    let channel;
+    try {
+      channel = supabase
+        .channel(`user-plan-${user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'set_words' }, () => {
+          fetchPlan();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'vocabulary_sets', filter: `user_id=eq.${user.id}` }, () => {
+          fetchPlan();
+        })
+        .subscribe();
+    } catch {
+      channel = null;
+    }
+    return () => {
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch {}
+      }
+    };
+  }, [user, fetchPlan]);
+  useEffect(() => {
     fetchPlan();
   }, [fetchPlan]);
 
-  const remainingQuota = (wordQuota ?? DEFAULT_WORD_QUOTA) - (currentWordsCount ?? 0);
+
+  const remainingQuota = Math.max(0, (wordQuota ?? DEFAULT_WORD_QUOTA) - (currentWordsCount ?? 0));
   const isAdFree = !!adFreeUntil && new Date(adFreeUntil) > new Date();
   const shortUserId = user?.id ? String(user.id).slice(0, 6) : '';
 

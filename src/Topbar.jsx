@@ -173,12 +173,12 @@ export default function Topbar() {
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden flex-col items-end md:flex">
-            <span className="text-xs font-medium text-text-secondary">
+            <span className={`text-xs font-medium ${plan.currentWordsCount >= (plan.wordQuota || 1) ? 'text-orange-500' : 'text-text-secondary'}`}>
               {plan.currentWordsCount}/{plan.wordQuota} từ
             </span>
             <div className="mt-0.5 h-1.5 w-24 overflow-hidden rounded-full bg-surface-hover">
               <div
-                className="h-full rounded-full bg-brand-primary"
+                 className={`h-full rounded-full ${plan.currentWordsCount >= (plan.wordQuota || 1) ? 'bg-orange-500' : 'bg-brand-primary'}`}
                 style={{ width: `${Math.min(100, (plan.currentWordsCount / (plan.wordQuota || 1)) * 100)}%` }}
               />
             </div>
