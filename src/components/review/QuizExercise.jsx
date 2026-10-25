@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, memo } from "react";
+import { flushSync } from "react-dom";
 import VocabularyAnswerDetails from "../VocabularyAnswerDetails.jsx";
 
 function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered, autoEvaluationEnabled }) {
@@ -34,10 +35,12 @@ function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered
   const playAudio = () => {
     if (!hasAudio || !word) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word);
-    u.lang = "en-US";
-    u.rate = 0.9;
-    window.speechSynthesis.speak(u);
+    setTimeout(() => {
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = "en-US";
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }, 0);
   };
 
   const ipa = item && (item.ipa || item.IPA);
@@ -49,12 +52,14 @@ function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered
     (idx) => {
       if (submitted) return;
       if (!options || idx < 0 || idx >= options.length) return;
-      setSelected(idx);
-      setSubmitted(true);
       const isCorrect = options[idx] === meaning;
-      if (autoEvaluationEnabled && typeof onSubmitRating === 'function') {
-        onSubmitRating(isCorrect ? 'good' : 'again');
-      }
+      flushSync(() => {
+        setSelected(idx);
+        setSubmitted(true);
+        if (autoEvaluationEnabled && typeof onSubmitRating === 'function') {
+          onSubmitRating(isCorrect ? 'good' : 'again');
+        }
+      });
       if (typeof onAnswered === 'function') onAnswered();
     },
     [submitted, options, autoEvaluationEnabled, onSubmitRating, meaning, onAnswered]
@@ -83,10 +88,9 @@ function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered
 
   useEffect(() => {
     if (!submitted) return;
-    const t = setTimeout(() => {
-      ratingRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }, 120);
-    return () => clearTimeout(t);
+    requestAnimationFrame(() => {
+      ratingRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    });
   }, [submitted]);
 
   // Phím tắt số 1-4 để đánh giá SRS sau khi đã trả lời

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLearningSession } from '../../hooks/useLearningSession.js';
 import { ttsService } from '../../../tts.service.js';
@@ -76,6 +77,7 @@ const LearningSession = () => {
   } = useLearningSession(setId);
 
   const [exitModalOpen, setExitModalOpen] = useState(false);
+  const isReadyToProceed = isRated && !isRating;
   const [helpOpen, setHelpOpen] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [autoEvalEnabled, setAutoEvalEnabled] = useState(() => {
@@ -119,59 +121,74 @@ const LearningSession = () => {
   useEffect(() => {
     if (mode !== 'typing' || !isAnswerRevealed) return;
     const t = setTimeout(() => {
-      ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      requestAnimationFrame(() => {
+        ratingRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      });
     }, 120);
     return () => clearTimeout(t);
   }, [mode, isAnswerRevealed]);
 
     const speakWord = useCallback(() => {
     if (!currentWord) return;
-    try {
-      ttsService.speak(currentWord.word);
-    } catch (e) {
-      // TTS không được hỗ trợ — không làm gián đoạn học tập
+    const text = currentWord.word;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
+    // Phát âm thanh ở macrotask để không chặn render chuyển câu.
+    setTimeout(() => {
+      try {
+        ttsService.speak(text);
+      } catch (e) {
+        // TTS không được hỗ trợ — không làm gián đoạn học tập
+      }
+    }, 0);
   }, [currentWord]);
 
   // Typing: phát âm từ vựng + ví dụ ngay sau khi submit/reveal.
   const speakWordAndExample = useCallback(() => {
     if (!currentWord || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const synth = window.speechSynthesis;
+    // Hủy ngay các luồng âm thanh đang phát dở.
     synth.cancel();
 
     const textToSpeak = currentWord.word || currentWord.english || '';
     const exampleToSpeak = currentWord.example || currentWord.example_sentence || '';
 
-    if (textToSpeak) {
-      const wordUtterance = new SpeechSynthesisUtterance(textToSpeak);
-      wordUtterance.lang = 'en-US';
-      wordUtterance.rate = 0.9;
+    // Bọc trong setTimeout(0) để trình duyệt render xong UI trước, âm thanh chạy nền.
+    setTimeout(() => {
+      if (textToSpeak) {
+        const wordUtterance = new SpeechSynthesisUtterance(textToSpeak);
+        wordUtterance.lang = 'en-US';
+        wordUtterance.rate = 0.9;
 
-      if (exampleToSpeak) {
-        wordUtterance.onend = () => {
-          window.setTimeout(() => {
-            const exUtterance = new SpeechSynthesisUtterance(exampleToSpeak);
-            exUtterance.lang = 'en-US';
-            exUtterance.rate = 0.9;
-            synth.speak(exUtterance);
-          }, 300);
-        };
+        if (exampleToSpeak) {
+          wordUtterance.onend = () => {
+            window.setTimeout(() => {
+              const exUtterance = new SpeechSynthesisUtterance(exampleToSpeak);
+              exUtterance.lang = 'en-US';
+              exUtterance.rate = 0.9;
+              synth.speak(exUtterance);
+            }, 300);
+          };
+        }
+
+        synth.speak(wordUtterance);
       }
-
-      synth.speak(wordUtterance);
-    }
+    }, 0);
   }, [currentWord]);
 
   // Typing: phát âm ngay trong user action submit/reveal, đúng từ hiện tại.
   const handleSubmit = useCallback(() => {
-    submitAnswer();
+    flushSync(() => {
+      submitAnswer();
+      if (autoEvalEnabled && currentWord) {
+        const userAnswer = userInput.trim().toLowerCase();
+        const correctAnswer = (currentWord.word || '').trim().toLowerCase();
+        const correct = userAnswer === correctAnswer;
+        handleRating(correct ? 'good' : 'again');
+      }
+    });
     speakWordAndExample();
-    if (autoEvalEnabled && currentWord) {
-      const userAnswer = userInput.trim().toLowerCase();
-      const correctAnswer = (currentWord.word || '').trim().toLowerCase();
-      const correct = userAnswer === correctAnswer;
-      handleRating(correct ? 'good' : 'again');
-    }
   }, [submitAnswer, speakWordAndExample, autoEvalEnabled, currentWord, userInput, handleRating]);
 
   // Flashcard: chỉ tự phát âm khi lật từ mặt trước sang mặt reveal.
@@ -186,7 +203,12 @@ const LearningSession = () => {
   const commitProceed = useCallback(() => {
     if (!advanceRef.current) return;
     advanceRef.current = false;
-    proceedToNext();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    flushSync(() => {
+      proceedToNext();
+    });
   }, [proceedToNext]);
 
   useEffect(() => {
@@ -457,7 +479,15 @@ const LearningSession = () => {
               {formatReviewDue(lastReviewResult.review_due_at)}
             </span>
           </p>
-          <Button onClick={commitProceed} className="mt-3 w-full">
+          <Button
+            onClick={commitProceed}
+            disabled={!isReadyToProceed}
+            className={`mt-3 w-full ${
+              isReadyToProceed
+                ? 'bg-indigo-600 opacity-100 cursor-pointer shadow-md'
+                : 'bg-indigo-400 opacity-50 cursor-not-allowed pointer-events-none'
+            }`}
+          >
             <i className="bx bx-arrow-right text-lg"></i>
             <span>Tiếp tục · Space</span>
           </Button>

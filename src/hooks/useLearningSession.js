@@ -204,27 +204,36 @@ export function useLearningSession(setId) {
     return [...new Set(allWords.map(getMeaning).filter(Boolean))];
   }, [allWords]);
 
-  const quizOptions = useMemo(() => {
-    if (!currentWord) return [];
-
+  // Precompute quiz options for EVERY word once, at session init time, so that
+  // looking up the options for the current/next word is an O(1) property access
+  // (no `words.filter(...)` / whole-vocabulary shuffle on question change).
+  const quizOptionsByWordId = useMemo(() => {
     const getMeaning = (w) =>
       (w && (w.meaning || w.vietnamese || w.definition_vi || w.definitionVi)) || '';
-
-    const currentMeaning = getMeaning(currentWord);
-    const distractors = allMeanings.filter((m) => m !== currentMeaning);
-    // Fisher-Yates only on the (small) distractor list, not the whole word list.
-    for (let i = distractors.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+    const map = {};
+    if (!allWords.length || !allMeanings.length) return map;
+    for (const word of allWords) {
+      const currentMeaning = getMeaning(word);
+      const distractors = allMeanings.filter((m) => m !== currentMeaning);
+      // Fisher-Yates only on the (small) distractor list.
+      for (let i = distractors.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+      }
+      const options = [...distractors.slice(0, 3), currentMeaning].filter(Boolean);
+      for (let i = options.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [options[i], options[j]] = [options[j], options[i]];
+      }
+      map[word.id] = options;
     }
+    return map;
+  }, [allWords, allMeanings]);
 
-    const options = [...distractors.slice(0, 3), currentMeaning].filter(Boolean);
-    for (let i = options.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [options[i], options[j]] = [options[j], options[i]];
-    }
-    return options;
-  }, [allMeanings, currentWord]);
+  const quizOptions = useMemo(() => {
+    if (!currentWord) return [];
+    return quizOptionsByWordId[currentWord.id] ?? [];
+  }, [quizOptionsByWordId, currentWord]);
 
   // Preview intervals: dự đoán review_due_at cho từng rating button
   const previewIntervals = useMemo(() => {
@@ -385,7 +394,7 @@ export function useLearningSession(setId) {
     (rating) => {
       if (!currentWord || isRating || isRated) return;
 
-      setIsRating(true);
+      setIsRating(false);
       setRatingError(null);
       // Optimistic UI: show result + next button immediately.
       setIsRated(true);
@@ -498,15 +507,8 @@ export function useLearningSession(setId) {
         }
 
         if (shouldRepeatAfterAgain) {
-          const newQueue = [...sessionQueue];
-          // Again is the only rating that requeues a card inside this session.
-          // Hard/Good/Easy keep the scheduler's due time and never become Again.
-          const insertIndex = Math.min(
-            currentIndex + Math.floor(newQueue.length / 3) + 1,
-            newQueue.length
-          );
-          newQueue.splice(insertIndex, 0, updatedWord);
-          setSessionQueue(newQueue);
+          // Đơn giản hoá: đẩy từ hiện tại vào CUỐI danh sách, không sort/filter/rebalance.
+          setSessionQueue((prev) => [...prev, updatedWord]);
         }
 
         setLastReviewResult(progress || lastReviewResult);
@@ -523,35 +525,25 @@ export function useLearningSession(setId) {
     [currentWord, isRating, isRated, recordProgress, isFlashcard, sessionQueue, currentIndex, refreshVocabularyStats, previewIntervals]
   );
 
-  // Proceed to next word (only after rating or "Again" re-queue)
-  const proceedToNext = useCallback(
-    (queueLengthOverride) => {
-      const queueLen =
-        typeof queueLengthOverride === 'number' ? queueLengthOverride : sessionQueue.length;
-      const newCurrentIndex = currentIndex + 1;
+  // Proceed to next word (only after rating or "Again" re-queue).
+  // Kept intentionally minimal: bump the index and reset the revealed/rated flags.
+  // No queue sort/filter/rebalance here — those would stall the UI thread.
+  const proceedToNext = useCallback(() => {
+    setCurrentIndex((prev) => prev + 1);
+    setUserInput('');
+    setIsAnswerRevealed(false);
+    setIsCorrect(false);
+    setIsRated(false);
+    setLastReviewResult(null);
+    setRatingError(null);
+  }, []);
 
-      // Safety net: the session is only complete when no card ahead of us is
-      // still red (🔴 Again) or waiting for an in-session retry (🟡 review).
-      const remaining = sessionQueue.slice(newCurrentIndex);
-      const hasPendingRetry = remaining.some(
-        (w) => w.sessionStatus === 'again' || w.sessionStatus === 'review'
-      );
-
-      if (newCurrentIndex >= queueLen && !hasPendingRetry) {
-        setIsSessionComplete(true);
-        return;
-      }
-
-      setCurrentIndex(newCurrentIndex);
-      setUserInput('');
-      setIsAnswerRevealed(false);
-      setIsCorrect(false);
-      setIsRated(false);
-      setLastReviewResult(null);
-      setRatingError(null);
-    },
-    [currentIndex, sessionQueue.length]
-  );
+  // Mark the session complete once the cursor runs past the (possibly grown) queue.
+  useEffect(() => {
+    if (sessionQueue.length > 0 && currentIndex >= sessionQueue.length) {
+      setIsSessionComplete(true);
+    }
+  }, [currentIndex, sessionQueue.length]);
 
   // Restart the session
   const restartSession = useCallback(() => {
