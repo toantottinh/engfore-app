@@ -23,6 +23,8 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import HelpModal, { HelpButton } from '../../components/HelpModal.jsx';
+import useUserPlan from '../../hooks/useUserPlan.js';
+import UpgradeModal from '../../components/UpgradeModal.jsx';
 
 const COLUMN_HEADERS = [
   { key: 'word', label: 'Từ', required: true },
@@ -61,8 +63,13 @@ function wordTypeLabel(t) {
 export default function Import() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const plan = useUserPlan();
 
   const [text, setText] = useState('');
+  const [upgradeTab, setUpgradeTab] = useState('words');
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [pendingValidRows, setPendingValidRows] = useState([]);
+  const [quotaChoiceOpen, setQuotaChoiceOpen] = useState(false);
   const [sets, setSets] = useState([]);
   const [setId, setSetId] = useState('');
   const [setsLoading, setSetsLoading] = useState(true);
@@ -204,10 +211,11 @@ export default function Import() {
     setPreviewRows((rows) => rows.filter((_, i) => i !== index));
   };
 
-  const handleImport = async () => {
+
+  const runImport = async (rowsToImport) => {
     setError('');
     setSuccess('');
-    const validRows = previewRows.filter((r) => (r.word || '').trim());
+    const validRows = (rowsToImport || []).filter((r) => (r.word || '').trim());
     if (validRows.length === 0) {
       setError('Không có từ hợp lệ nào để nhập.');
       return;
@@ -220,7 +228,7 @@ export default function Import() {
     } else if (destMode === 'newSet') {
       newSetNamePayload = newSetName.trim();
     }
-    
+
     if ((destMode === 'newSet' || destMode === 'existingSet') && !setIdPayload && !newSetNamePayload) {
       setError('Vui lòng chọn Word Set hoặc nhập tên Word Set mới.');
       return;
@@ -264,12 +272,47 @@ export default function Import() {
     setParseInfo(null);
     setSummary(null);
     setText('');
-    // Invalidate the shared vocabulary view so the Library (and any other
-    // subscriber) reflects the newly added word on its next render — fixes
-    // the stale-view bug where a just-imported word does not appear until
-    // a manual reload. Fire-and-forget; subscribers re-fetch & skip stale
-    // results internally.
     refreshVocabulary();
+    plan.refetchPlan?.();
+  };
+
+  const handleImport = async () => {
+    setError('');
+    setSuccess('');
+    const validRows = previewRows.filter((r) => (r.word || '').trim());
+    if (validRows.length === 0) {
+      setError('Không có từ hợp lệ nào để nhập.');
+      return;
+    }
+
+    const remaining = plan.remainingQuota ?? Math.max(0, (plan.wordQuota || 500) - (plan.currentWordsCount || 0));
+    if (plan.currentWordsCount + validRows.length > plan.wordQuota) {
+      if (remaining <= 0) {
+        setError(`Bạn chỉ còn lưu được thêm ${remaining} từ. Cần nâng cấp để lưu thêm.`);
+        setUpgradeTab('words');
+        setUpgradeOpen(true);
+        return;
+      }
+      setPendingValidRows(validRows);
+      setQuotaChoiceOpen(true);
+      return;
+    }
+
+    await runImport(validRows);
+  };
+
+  const handleImportRemaining = async () => {
+    const remaining = plan.remainingQuota ?? Math.max(0, (plan.wordQuota || 500) - (plan.currentWordsCount || 0));
+    const trimmed = pendingValidRows.slice(0, Math.max(0, remaining));
+    setQuotaChoiceOpen(false);
+    setPendingValidRows([]);
+    await runImport(trimmed);
+  };
+
+  const handleUpgradeFromQuota = () => {
+    setQuotaChoiceOpen(false);
+    setUpgradeTab('words');
+    setUpgradeOpen(true);
   };
 
   const goToSet = () => {
@@ -595,6 +638,27 @@ export default function Import() {
           { title: 'Dán nội dung', text: 'Copy toàn bộ kết quả từ AI và dán vào ô nhập liệu bên dưới.' },
           { title: 'Xem trước & Nhập', text: 'Bấm "Xem trước" để rà soát lại danh sách lần cuối, sau đó bấm "Nhập từ" để lưu vào hệ thống.' },
         ]}
+      />
+      <Modal
+        open={quotaChoiceOpen}
+        onClose={() => setQuotaChoiceOpen(false)}
+        title="Vượt quá dung lượng lưu trữ"
+        footer={
+          <>
+            <Button variant="secondary" onClick={handleUpgradeFromQuota}>Nâng cấp gói</Button>
+            <Button onClick={handleImportRemaining}>Chỉ nhập đủ số từ còn lại</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-text-secondary">
+          Bạn chỉ còn lưu được thêm {plan.remainingQuota} từ. Cần nâng cấp để lưu thêm.
+        </p>
+      </Modal>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        initialTab={upgradeTab}
       />
     </div>
   );

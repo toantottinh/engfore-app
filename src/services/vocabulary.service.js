@@ -266,68 +266,115 @@ export async function updateUserWord(senseId, wordId, updates = {}) {
  * @param {string} userId
  * @returns {Promise<{ data: Array, error: any }>}
  */
-export async function getUserVocabulary(userId) {
-  if (!userId) return { data: null, error: null };
+export async function getUserVocabulary(userId, options = {}) {
+  if (!userId) return { data: null, count: 0, error: null };
 
-  // SOURCE OF TRUTH = user_vocabulary -> word_senses -> words (đã live-verified
-  // production: GET /rest/v1/user_vocabulary?select=user_id,word_sense_id,
-  // example,memory_clue,created_at,word_senses(id,word_type,meaning,
-  // description,example,words(id,word,ipa,cefr_level))&user_id=eq.<uid> -> 200).
-  // Embed `word_senses` từ user_vocabulary là to-one (object).
-  const { data: ownedRows, error } = await supabase
-    .from('user_vocabulary')
-    .select(
-      `user_id,
-       word_sense_id,
-       example,
-       memory_clue,
-       created_at,
-       word_senses (
-         id, word_type, meaning, description, example,
-         words ( id, word, ipa, cefr_level )
-       )`
-    )
-    .eq('user_id', userId);
+  const {
+    search = '',
+    filter = 'all',
+    page = 0,
+    pageSize = 40,
+  } = options || {};
 
-  if (error) return { data: null, error };
+  const normalizedSearch = String(search || '').trim();
+  const safePage = Math.max(0, Number(page) || 0);
+  const safePageSize = Math.max(1, Number(pageSize) || 40);
+  const from = safePage * safePageSize;
+  const to = from + safePageSize - 1;
 
-  // Mỗi row user_vocabulary là một sense duy nhất (PK user_id+word_sense_id)
-  // nên base query không trùng; sense nằm trong nhiều Set chỉ gộp vào
-  // `set_names` -> 1 item duy nhất (không duplicate trong Kho từ).
-  const rows = ownedRows || [];
-  const senseIds = rows.map((r) => r.word_sense_id).filter(Boolean);
+  // 1) Nếu có từ khóa tìm kiếm, thu thập trước các word_sense_id khớp
+  //    (theo `words.word` hoặc `word_senses.meaning`) để lọc server-side.
+  let searchSenseIds = null;
+  if (normalizedSearch) {
+    const like = `%${normalizedSearch}%`;
+    const senseIdSet = new Set();
 
-  // Progress (graceful fallback khi thiếu cột SRS ở môi trường cũ).
-  let progressMap = {};
-  if (senseIds.length > 0) {
-    const BASE_PRO = 'word_sense_id, mastery_level, review_due_at, last_reviewed_at';
-    const SRS_PRO = `${BASE_PRO}, repetitions, interval_hours, ease_factor, lapses, state, learning_step, flashcard_reviews`;
-    let { data: prog, error: progError } = await supabase
-      .from('user_progress')
-      .select(SRS_PRO)
-      .in('word_sense_id', senseIds)
-      .eq('user_id', userId);
-    if (progError) {
-      const fallback = await supabase
-        .from('user_progress')
-        .select(BASE_PRO)
-        .in('word_sense_id', senseIds)
-        .eq('user_id', userId);
-      if (!fallback.error) {
-        prog = fallback.data;
-        progError = null;
-      }
+    const { data: byMeaning } = await supabase
+      .from('word_senses')
+      .select('id')
+      .ilike('meaning', like);
+    (byMeaning || []).forEach((r) => senseIdSet.add(r.id));
+
+    const { data: words } = await supabase
+      .from('words')
+      .select('id')
+      .ilike('word', like);
+    const wordIds = (words || []).map((w) => w.id).filter(Boolean);
+
+    const CHUNK = 100;
+    for (let i = 0; i < wordIds.length; i += CHUNK) {
+      const chunk = wordIds.slice(i, i + CHUNK);
+      const { data: senses } = await supabase
+        .from('word_senses')
+        .select('id')
+        .in('word_id', chunk);
+      (senses || []).forEach((s) => senseIdSet.add(s.id));
     }
-    if (!progError) {
-      progressMap = (prog || []).reduce((acc, p) => {
-        acc[p.word_sense_id] = p;
-        return acc;
-      }, {});
+
+    searchSenseIds = Array.from(senseIdSet);
+    if (searchSenseIds.length === 0) {
+      return { data: [], count: 0, error: null };
     }
   }
 
-  // Map sense -> tên các Word Set của user chứa sense đó.
-  const setNamesMap = {};
+  const BASE_PRO = 'user_id, mastery_level, review_due_at, last_reviewed_at';
+  const SRS_PRO = `${BASE_PRO}, repetitions, interval_hours, ease_factor, lapses, state, learning_step, flashcard_reviews`;
+
+  const buildSelect = (progCols) => `
+    user_id,
+    word_sense_id,
+    example,
+    memory_clue,
+    created_at,
+    word_senses (
+      id, word_type, meaning, description, example,
+      words ( id, word, ipa, cefr_level ),
+      user_progress ( ${progCols} )
+    )
+  `;
+
+  const applyFilters = (query) => {
+    let q = query.eq('user_id', userId);
+
+    if (searchSenseIds) {
+      q = q.in('word_sense_id', searchSenseIds);
+    }
+
+    const nowIso = new Date().toISOString();
+    if (filter === 'new') {
+      q = q.is('word_senses.user_progress.user_id', null);
+    } else if (filter === 'learning') {
+      q = q.in('word_senses.user_progress.state', ['learning', 'relearning']);
+    } else if (filter === 'due') {
+      q = q
+        .in('word_senses.user_progress.state', ['learning', 'relearning'])
+        .lte('word_senses.user_progress.review_due_at', nowIso);
+    } else if (filter === 'mastered') {
+      q = q.gte('word_senses.user_progress.mastery_level', 4);
+    }
+
+    return q.order('created_at', { ascending: false }).range(from, to);
+  };
+
+  let progCols = SRS_PRO;
+  let exec = await applyFilters(
+    supabase.from('user_vocabulary').select(buildSelect(progCols), { count: 'exact' })
+  );
+
+  if (exec.error && /column .* does not exist/i.test(exec.error?.message || '')) {
+    progCols = BASE_PRO;
+    exec = await applyFilters(
+      supabase.from('user_vocabulary').select(buildSelect(progCols), { count: 'exact' })
+    );
+  }
+
+  if (exec.error) return { data: null, count: 0, error: exec.error };
+
+  const rows = exec.data || [];
+  const totalCount = exec.count ?? rows.length;
+
+  const senseIds = rows.map((r) => r.word_sense_id).filter(Boolean);
+
   const { data: mySets } = await supabase
     .from('vocabulary_sets')
     .select('id, name')
@@ -337,11 +384,14 @@ export async function getUserVocabulary(userId) {
     return acc;
   }, {});
   const mySetIds = Object.keys(setIdName);
-  if (mySetIds.length > 0) {
+
+  const setNamesMap = {};
+  if (mySetIds.length > 0 && senseIds.length > 0) {
     const { data: links } = await supabase
       .from('set_words')
       .select('set_id, word_sense_id')
-      .in('set_id', mySetIds);
+      .in('set_id', mySetIds)
+      .in('word_sense_id', senseIds);
     (links || []).forEach((l) => {
       if (setIdName[l.set_id]) {
         (setNamesMap[l.word_sense_id] = setNamesMap[l.word_sense_id] || []).push(setIdName[l.set_id]);
@@ -349,13 +399,11 @@ export async function getUserVocabulary(userId) {
     });
   }
 
-    const merged = rows.map((m) => {
+  const merged = rows.map((m) => {
     const sense = m.word_senses || {};
     const w = sense.words || {};
-    const prog = progressMap[m.word_sense_id];
-    // USER-OWNED content WIN / global fallback (legacy): m là row
-    // user_vocabulary (đã live-verified production columns example/memory_clue).
-    // Global word_senses chỉ fallback khi user-owned value trống.
+    const progRaw = sense.user_progress;
+    const prog = Array.isArray(progRaw) ? progRaw[0] : progRaw;
     const uvExample = m.example ?? null;
     const uvMemoryClue = m.memory_clue ?? null;
     return {
@@ -382,15 +430,9 @@ export async function getUserVocabulary(userId) {
     };
   });
 
-  return { data: merged, error: null };
+  return { data: merged, count: totalCount, error: null };
 }
 
-/**
- * Thêm nhiều sense (đã thuộc Vocabulary của user) vào một Word Set — idempotent.
- * @param {string} setId
- * @param {Array<string>} wordSenseIds
- * @returns {Promise<{ error: any }>}
- */
 export async function addWordsToSet(setId, wordSenseIds) {
   if (!setId || !wordSenseIds || wordSenseIds.length === 0) {
     return { error: { message: 'Cần chọn Word Set và ít nhất một từ.' } };
@@ -615,32 +657,56 @@ export async function deleteWordFromSet(setId, wordSenseId) {
 export async function getCefrStats(userId) {
   if (!userId) return { data: null, error: null };
 
-  // Thống kê CEFR dựa trên OWNERSHIP (user_vocabulary) — khớp với nguồn
-  // Kho từ. Mỗi row user_vocabulary là một sense duy nhất.
-  const { data, error } = await supabase
-    .from('user_vocabulary')
-    .select(
-      `word_senses (
-         words (
-           cefr_level
-         )
-       )`
-    )
+  const counts = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, UNKNOWN: 0, total: 0 };
+
+  // 1) Lấy các Word Set thuộc về user hiện tại (nguồn sự thật cho Dashboard).
+  const { data: sets, error: setsError } = await supabase
+    .from('vocabulary_sets')
+    .select('id')
     .eq('user_id', userId);
 
-  if (error) return { data: null, error };
+  if (setsError) return { data: null, error: setsError };
 
-  const counts = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0, UNKNOWN: 0, total: 0 };
-  (data || []).forEach((item) => {
-    const level = item.word_senses?.words?.cefr_level;
-    counts.total += 1;
-    const key = String(level || '').trim().toUpperCase();
-    if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(key)) {
-      counts[key] += 1;
-    } else {
-      counts.UNKNOWN += 1;
-    }
-  });
+  const setIds = (sets || []).map((s) => s.id).filter(Boolean);
+  if (setIds.length === 0) {
+    return { data: counts, error: null };
+  }
+
+  // 2) Duyệt tất cả membership (set_words) của các Set đó, phân trang để
+  //    tránh giới hạn mặc định 1000 rows của Supabase/PostgREST.
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('set_words')
+      .select(
+        `word_sense_id,
+         word_senses (
+           words (
+             cefr_level
+           )
+         )`
+      )
+      .in('set_id', setIds)
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) return { data: null, error };
+
+    const rows = data || [];
+    rows.forEach((item) => {
+      const level = item.word_senses?.words?.cefr_level;
+      counts.total += 1;
+      const key = String(level || '').trim().toUpperCase();
+      if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(key)) {
+        counts[key] += 1;
+      } else {
+        counts.UNKNOWN += 1;
+      }
+    });
+
+    if (rows.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
 
   return { data: counts, error: null };
 }

@@ -43,6 +43,13 @@ export default function Vocabulary() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 40;
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filter, searchTerm]);
   const [selectedWordIds, setSelectedWordIds] = useState([]);
   const [viewMode, setViewMode] = useState('library');
   const [createOpen, setCreateOpen] = useState(false);
@@ -99,14 +106,13 @@ export default function Vocabulary() {
 
   // Load user vocabulary on mount. ALSO subscribe to the shared
   // vocabulary-store refresh signal so that a word imported (or added /
-  // removed) elsewhere is reflected here without a manual reload — fixes
-  // the stale-view bug where a freshly imported word (e.g. `decide`) does
-  // not appear until the page is hard-reloaded.
+  // removed) elsewhere is reflected here without a manual reload.
   useEffect(() => {
     let active = true;
     const loadVocabulary = async () => {
       if (!user) {
         setWords([]);
+        setTotalCount(0);
         setLoading(false);
         setError('');
         return;
@@ -114,34 +120,41 @@ export default function Vocabulary() {
       setLoading(true);
       setError('');
       try {
-        const { data, error } = await getUserVocabulary(user.id);
+        const { data, count, error } = await getUserVocabulary(user.id, {
+          search: searchTerm,
+          filter,
+          page,
+          pageSize: PAGE_SIZE,
+        });
         if (error) throw error;
         if (!active) return;
         setWords(data || []);
+        setTotalCount(count ?? (data?.length ?? 0));
         if (import.meta.env.DEV) {
           console.log('[Vocabulary] LOAD RESULT', {
             count: data?.length ?? 0,
+            total: count ?? 0,
             error: error ?? null,
-            decide: data?.find((w) => w.word?.toLowerCase() === 'decide'),
           });
         }
       } catch (e) {
         if (!active) return;
-        setError('Không thể tải từ vựng. Vui lòng thử lại.');
+        setError('Khong the tai tu vung. Vui long thu lai.');
         setWords([]);
+        setTotalCount(0);
       } finally {
         if (active) setLoading(false);
       }
     };
 
     loadVocabulary();
-    // Re-fetch whenever an import/mutation elsewhere bumps the store.
     const unsubscribe = vocabularyStore.subscribe(loadVocabulary);
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [user]);
+  }, [user, searchTerm, filter, page, PAGE_SIZE]);
+
 
   const filteredSets = useMemo(() => {
     if (!searchTerm.trim()) return sets;
@@ -467,38 +480,8 @@ export default function Vocabulary() {
   };
 
   // --- Vocabulary Library derived data & helpers ---
-  const filteredWords = useMemo(() => {
-    if (!words.length) return [];
-    const now = new Date();
-    return words.filter((word) => {
-      const state = word.state ?? 'new';
-      const mastery = word.mastery_level ?? 0;
-      const dueDate = word.review_due_at;
-      if (filter === 'all') return true;
-      if (filter === 'new') return state === 'new';
-      if (filter === 'learning') return state === 'learning' || state === 'relearning';
-      if (filter === 'due') {
-        if (state === 'new' || state === 'mastered') return false;
-        if (!dueDate) return false;
-        return new Date(dueDate) <= now;
-      }
-      if (filter === 'mastered') return mastery >= 4;
-      return true;
-    });
-  }, [words, filter]);
-
-  const searchAndFilter = useMemo(() => {
-    let result = filteredWords;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(
-        (w) =>
-          (w.word || '').toLowerCase().includes(term) ||
-          (w.meaning || '').toLowerCase().includes(term)
-      );
-    }
-    return result;
-  }, [filteredWords, searchTerm]);
+  const filteredWords = words;
+  const searchAndFilter = words;
 
   const toggleSelect = (id) => {
     setSelectedWordIds((prev) =>
@@ -516,6 +499,7 @@ export default function Vocabulary() {
       return { error: getAuthErrorMessage(err) };
     }
     setWords((prev) => prev.filter((w) => (w.id ?? w.word_sense_id) !== id));
+    setTotalCount((prev) => Math.max(0, prev - 1));
     return { error: null };
   };
 
@@ -713,8 +697,8 @@ export default function Vocabulary() {
   );
 
   const renderLibrary = () => {
-    const displayWords = searchTerm ? searchAndFilter : filteredWords;
-    const hasWords = words.length > 0;
+    const displayWords = words;
+    const hasWords = totalCount > 0 || words.length > 0;
 
     return (
       <div>
@@ -789,6 +773,29 @@ export default function Vocabulary() {
           </div>
         ) : (
           <Alert type="info" message="Thư viện của bạn đang trống. Hãy nhập từ mới hoặc import từ vựng." />
+        )}
+        {totalCount > PAGE_SIZE && (
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              Trước
+            </Button>
+            <span className="text-sm text-text-secondary">
+              Trang {page + 1} / {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={(page + 1) * PAGE_SIZE >= totalCount}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Sau
+            </Button>
+          </div>
         )}
         {selectedWordIds.length > 0 && (
           <div className="mt-4 p-3 rounded-xl border border-brand-primary/30 bg-brand-primary/5">
