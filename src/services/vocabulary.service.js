@@ -26,6 +26,8 @@ export async function getVocabularySets(userId) {
 
   if (error) return { data: null, error };
 
+  const setIds = (data || []).map((s) => s.id);
+
   // Fetch user-specific learn priorities (lower = earlier in NEW selection).
   // Non-fatal: if the RPC/table is unavailable, every set defaults to
   // priority 999 and falls back to created_at ordering below.
@@ -34,12 +36,38 @@ export async function getVocabularySets(userId) {
     (priorities || []).map((p) => [p.set_id, Number(p.learn_priority)])
   );
 
+  // Fetch membership (set_id -> word_sense_id) and the user's progress rows so
+  // we can derive how many words in each set have been studied at least once.
+  let membershipBySet = new Map();
+  let studiedSenseIds = new Set();
+  if (setIds.length > 0) {
+    const { data: links } = await supabase
+      .from('set_words')
+      .select('set_id, word_sense_id')
+      .in('set_id', setIds);
+    for (const link of links || []) {
+      if (!membershipBySet.has(link.set_id)) membershipBySet.set(link.set_id, []);
+      membershipBySet.get(link.set_id).push(link.word_sense_id);
+    }
+
+    const { data: progressRows } = await supabase
+      .from('user_progress')
+      .select('word_sense_id')
+      .eq('user_id', userId);
+    for (const row of progressRows || []) {
+      if (row?.word_sense_id) studiedSenseIds.add(row.word_sense_id);
+    }
+  }
+
   const mapped = (data || []).map((set) => {
     const count = set.set_words?.[0]?.count ?? 0;
+    const senseIds = membershipBySet.get(set.id) || [];
+    const learned = senseIds.filter((id) => studiedSenseIds.has(id)).length;
     const { set_words: _sw, ...rest } = set;
     return {
       ...rest,
       word_count: count,
+      learned_words: learned,
       learn_priority: prioMap.get(set.id) ?? 999,
     };
   });

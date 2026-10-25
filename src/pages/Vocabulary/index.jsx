@@ -274,6 +274,18 @@ export default function Vocabulary() {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
+    const totalWords = set.word_count || 0;
+    const learnedWords = set.learned_words ?? 0;
+    let statusLabel = 'Chưa học';
+    let statusClasses = 'bg-white border-slate-200';
+    if (totalWords > 0 && learnedWords === totalWords) {
+      statusLabel = 'Đã học';
+      statusClasses = 'bg-slate-100/90 border-slate-200 text-slate-600';
+    } else if (learnedWords > 0) {
+      statusLabel = 'Đang học';
+      statusClasses = 'bg-amber-50/80 border-amber-200';
+    }
+
     useEffect(() => {
       const handleClickOutside = (event) => {
         if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -285,7 +297,7 @@ export default function Vocabulary() {
         }, []);
 
     return (
-      <div className="flex flex-col rounded-xl border border-border-color bg-surface-sidebar p-5 transition-shadow hover:shadow-lg">
+      <div className={`flex flex-col rounded-xl border p-5 transition-shadow hover:shadow-lg ${statusClasses}`}>
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-2">
             <input
@@ -296,7 +308,12 @@ export default function Vocabulary() {
               aria-label={`Chọn bộ ${set.name}`}
               className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-zinc-300 text-brand-primary focus:ring-brand-primary"
             />
-            <h3 className="font-semibold text-text-primary">{set.name}</h3>
+            <div className="flex flex-col">
+              <h3 className="font-semibold text-text-primary">{set.name}</h3>
+              <span className="mt-1 inline-flex w-fit items-center rounded-full border border-border-color bg-surface-default px-2 py-0.5 text-xs font-medium text-text-secondary">
+                {statusLabel}
+              </span>
+            </div>
           </div>
           <div className="relative" ref={menuRef}>
             <button
