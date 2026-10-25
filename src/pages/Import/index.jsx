@@ -23,6 +23,8 @@ import Spinner from '../../components/ui/Spinner.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import Modal from '../../components/ui/Modal.jsx';
 import HelpModal, { HelpButton } from '../../components/HelpModal.jsx';
+import useUserPlan from '../../hooks/useUserPlan.js';
+import UpgradeModal from '../../components/UpgradeModal.jsx';
 
 const COLUMN_HEADERS = [
   { key: 'word', label: 'Từ', required: true },
@@ -61,8 +63,11 @@ function wordTypeLabel(t) {
 export default function Import() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const plan = useUserPlan();
 
   const [text, setText] = useState('');
+  const [upgradeTab, setUpgradeTab] = useState('words');
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [sets, setSets] = useState([]);
   const [setId, setSetId] = useState('');
   const [setsLoading, setSetsLoading] = useState(true);
@@ -213,6 +218,15 @@ export default function Import() {
       return;
     }
 
+    // Chặn khi vượt hạn mức từ vựng.
+    const wordsToImport = validRows;
+    if (plan.currentWordsCount + wordsToImport.length > plan.wordQuota) {
+      setError(`Bạn cần thêm dung lượng để lưu ${wordsToImport.length} từ mới`);
+      setUpgradeTab('words');
+      setUpgradeOpen(true);
+      return;
+    }
+
     let setIdPayload = null;
     let newSetNamePayload = null;
     if (destMode === 'existingSet') {
@@ -270,6 +284,7 @@ export default function Import() {
     // a manual reload. Fire-and-forget; subscribers re-fetch & skip stale
     // results internally.
     refreshVocabulary();
+    plan.refetchPlan?.();
   };
 
   const goToSet = () => {
@@ -595,6 +610,11 @@ export default function Import() {
           { title: 'Dán nội dung', text: 'Copy toàn bộ kết quả từ AI và dán vào ô nhập liệu bên dưới.' },
           { title: 'Xem trước & Nhập', text: 'Bấm "Xem trước" để rà soát lại danh sách lần cuối, sau đó bấm "Nhập từ" để lưu vào hệ thống.' },
         ]}
+      />
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        initialTab={upgradeTab}
       />
     </div>
   );

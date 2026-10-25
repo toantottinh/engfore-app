@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { useUserPlan } from './hooks/useUserPlan.js';
+import UpgradeModal from './components/UpgradeModal.jsx';
 import Logo from './components/common/Logo.jsx';
 import { getDueReviewWordsCount } from './services/learning.service.js'; // Giả sử đường dẫn này đúng
 
@@ -110,7 +112,9 @@ const UserProfile = () => {
 
 export default function Topbar() {
   const { user } = useAuth();
+  const plan = useUserPlan();
   const [reviewCount, setReviewCount] = useState(0);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -167,7 +171,28 @@ export default function Topbar() {
             className="h-9 w-64 rounded-md border border-border-color bg-surface-default py-2 pl-10 pr-4 text-sm text-text-primary placeholder-text-secondary transition-colors focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
           />
         </div>
-        <UserProfile />
+        <div className="flex items-center gap-3">
+          <div className="hidden flex-col items-end md:flex">
+            <span className="text-xs font-medium text-text-secondary">
+              {plan.currentWordsCount}/{plan.wordQuota} từ
+            </span>
+            <div className="mt-0.5 h-1.5 w-24 overflow-hidden rounded-full bg-surface-hover">
+              <div
+                className="h-full rounded-full bg-brand-primary"
+                style={{ width: `${Math.min(100, (plan.currentWordsCount / (plan.wordQuota || 1)) * 100)}%` }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUpgradeOpen(true)}
+            className="rounded-md bg-brand-primary px-3 py-1.5 text-sm font-medium text-white"
+          >
+            Nâng cấp
+          </button>
+          <UserProfile />
+        </div>
+        <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
       </div>
     </header>
   );
