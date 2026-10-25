@@ -16,6 +16,7 @@ import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Textarea from '../../components/ui/Textarea.jsx';
 import Modal from '../../components/ui/Modal.jsx';
+import HelpModal, { HelpButton } from '../../components/HelpModal.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import Select from '../../components/ui/Select.jsx';
@@ -45,6 +46,7 @@ export default function Vocabulary() {
   const [selectedWordIds, setSelectedWordIds] = useState([]);
   const [viewMode, setViewMode] = useState('library');
   const [createOpen, setCreateOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [formError, setFormError] = useState('');
@@ -812,12 +814,15 @@ export default function Vocabulary() {
           <h1 className="text-2xl font-bold text-text-primary">Từ vựng</h1>
           <p className="mt-1 text-text-secondary">Quản lý từ vựng và bộ từ của bạn.</p>
         </div>
-        {viewMode === 'sets' && (
-          <Button onClick={openCreate}>
-            <i className="bx bx-plus text-lg"></i>
-            <span>Tạo bộ từ</span>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <HelpButton onClick={() => setHelpOpen(true)} label="Hướng dẫn" />
+          {viewMode === 'sets' && (
+            <Button onClick={openCreate}>
+              <i className="bx bx-plus text-lg"></i>
+              <span>Tạo bộ từ</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabs: Library vs Word Sets */}
@@ -1259,6 +1264,29 @@ export default function Vocabulary() {
         </form>
       </Modal>
 
+      <HelpModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Hướng dẫn Quản lý Bộ từ"
+        items={[
+          {
+            title: 'Màu sắc trạng thái',
+            bullets: [
+              'Trắng: Bộ từ mới, chưa học từ nào.',
+              'Vàng: Đang học dở dang (đã học ít nhất 1 từ).',
+              'Xám: Đã hoàn thành 100% từ trong bộ.',
+            ],
+          },
+          {
+            title: 'Điều chỉnh thứ tự học',
+            text: 'Dùng 2 nút mũi tên lên/xuống (↑/↓) ở góc dưới mỗi thẻ để sắp xếp độ ưu tiên bộ từ nào sẽ được học trước trong luồng ôn tập.',
+          },
+          {
+            title: 'Học theo bộ',
+            text: 'Bấm "Bắt đầu học" để ôn tập riêng lẻ từng bộ từ hoặc chọn nhiều bộ cùng lúc để học gộp.',
+          },
+        ]}
+      />
     </div>
   );
 }

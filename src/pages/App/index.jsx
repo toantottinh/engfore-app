@@ -4,17 +4,9 @@ import { useAuth } from '../../hooks/useAuth.jsx';
 import { getCefrStats, getVocabularySets } from '../../services/vocabulary.service.js';
 import { getSrsDashboardStats } from '../../services/learning.service.js';
 import { getDailyGoalProgress, getBusinessDateKey } from '../../services/dailyGoal.service.js';
-import { cefrBadgeClass } from '../../utils/cefr.js';
-import Spinner from '../../components/ui/Spinner.jsx';
+import HelpModal, { HelpButton } from '../../components/HelpModal.jsx';
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'UNKNOWN'];
-
-const StatCard = ({ title, value, className = '' }) => (
-  <div className={`rounded-xl border border-border-color bg-surface-sidebar p-5 ${className}`}>
-    <p className="text-sm text-text-secondary">{title}</p>
-    <p className="mt-1 text-3xl font-bold text-text-primary">{value}</p>
-  </div>
-);
 
 export default function App() {
   const { user, profile } = useAuth();
@@ -46,6 +38,7 @@ export default function App() {
   const [srsLoading, setSrsLoading] = useState(true);
   const [srsError, setSrsError] = useState(null);
   const [srsStats, setSrsStats] = useState(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -138,123 +131,194 @@ export default function App() {
   }, [user?.id]);
 
   const firstName = profile?.username || user?.email?.split('@')[0] || 'bạn';
+  const dueCount = srsStats?.due ?? 0;
+  const newCount = srsStats?.new ?? 0;
+  const learningCount = srsStats?.learning ?? 0;
+  const relearningCount = srsStats?.relearning ?? 0;
+  const reviewCount = srsStats?.review ?? 0;
+  const taskTotal = newCount + dueCount;
+
+  const dailyLearned = dailyGoal?.words_learned ?? 0;
+  const dailyGoalTotal = dailyGoal?.daily_goal ?? 0;
+  const dailyPercent =
+    dailyGoalTotal > 0 ? Math.min(100, Math.round((dailyLearned / dailyGoalTotal) * 100)) : 0;
+
+  const cefrTotal = cefrStats?.total ?? 0;
+  const cefrColors = {
+    A1: 'bg-emerald-500',
+    A2: 'bg-green-500',
+    B1: 'bg-blue-500',
+    B2: 'bg-violet-400',
+    C1: 'bg-purple-600',
+    C2: 'bg-orange-500',
+    UNKNOWN: 'bg-slate-400',
+  };
+  const cefrBadgeColors = {
+    A1: 'bg-emerald-100 text-emerald-700',
+    A2: 'bg-green-100 text-green-700',
+    B1: 'bg-blue-100 text-blue-700',
+    B2: 'bg-violet-100 text-violet-700',
+    C1: 'bg-purple-100 text-purple-700',
+    C2: 'bg-orange-100 text-orange-700',
+    UNKNOWN: 'bg-slate-100 text-slate-700',
+  };
+
+
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-lg text-text-secondary">Chào mừng trở lại 👋</p>
-        <h1 className="text-3xl font-bold text-text-primary capitalize">{firstName}</h1>
-      </div>
-
-      {/* Thống kê tổng quan */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard title="Bộ từ" value={vocabStats.sets} />
-        <StatCard title="Từ vựng" value={vocabStats.words} />
-        {/* Mục tiêu hôm nay — đọc từ RPC get_daily_goal_progress (ngày VN) */}
-        <div
-          className={`rounded-xl border bg-surface-sidebar p-5 ${
-            dailyGoal?.completed ? 'border-green-500/30 bg-green-500/10' : 'border-border-color'
-          }`}
-        >
-          <p className="text-sm text-text-secondary">Mục tiêu hôm nay</p>
-          <p className="mt-1 text-3xl font-bold text-text-primary">
-            {dailyGoalLoading
-              ? '…'
-              : `${dailyGoal?.words_learned ?? 0} / ${dailyGoal?.daily_goal ?? 0}`}
-          </p>
-          {!dailyGoalLoading && dailyGoal && dailyGoal.daily_goal > 0 && (
-            <p
-              className={`mt-1 text-xs font-medium ${
-                dailyGoal.completed ? 'text-green-400' : 'text-text-secondary'
-              }`}
-            >
-              {dailyGoal.completed ? 'Đã hoàn thành hôm nay ✅' : 'Chưa hoàn thành hôm nay'}
+      {/* Hero: lời chào + hành động nhanh */}
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-lg text-text-secondary">Chào mừng trở lại 👋</p>
+            <h1 className="text-3xl font-bold text-text-primary capitalize">{firstName}</h1>
+            <p className="text-base text-text-secondary">
+              Bạn có <span className="font-semibold text-brand-primary">{dueCount}</span> từ cần ôn tập hôm nay.
             </p>
-          )}
-        </div>
-      </div>
-
-      {/* Hôm nay */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-text-primary">Hôm nay</h2>
-        {srsLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="h-24 animate-pulse rounded-xl bg-surface-sidebar"></div>
-            <div className="h-24 animate-pulse rounded-xl bg-surface-sidebar"></div>
-            <div className="h-24 animate-pulse rounded-xl bg-surface-sidebar"></div>
           </div>
-        ) : srsError ? (
-          <div className="text-sm text-red-500">Không thể tải số liệu học tập.</div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard title="Cần học" value={srsStats?.new ?? 0} />
-            <StatCard title="Cần ôn" value={srsStats?.due ?? 0} />
-            <StatCard
-              title="Tổng cộng"
-              value={(srsStats?.new ?? 0) + (srsStats?.due ?? 0)}
-              className="border-brand-primary bg-brand-primary/10"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Ôn tập SRS */}
-      <div className="space-y-4 rounded-xl border border-border-color bg-surface-sidebar p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="text-xl font-semibold text-text-primary">Ôn tập (SRS)</h2>
-          {srsStats && srsStats.due > 0 && (
-            <Link
-              to="/learn"
-              className="inline-flex items-center justify-center rounded-lg bg-brand-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-primary/80"
-            >
-              Bắt đầu ôn tập
-            </Link>
-          )}
-        </div>
-
-        {srsLoading ? (
-          <div className="flex h-16 items-center justify-center">
-            <Spinner />
-          </div>
-        ) : srsError ? (
-          <div className="text-sm text-red-500">Không thể tải số liệu ôn tập.</div>
-        ) : srsStats ? (
-          srsStats.due === 0 && srsStats.new === 0 ? (
-             <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4 text-center">
-                <p className="text-sm font-medium text-green-300">Bạn đã hoàn thành mọi thứ cho hôm nay! 🎉</p>
-             </div>
-          ) : (
-            <div className="flex flex-wrap gap-3">
-              {[
-                { label: 'Đến hạn', value: srsStats.due },
-                { label: 'Mới', value: srsStats.new },
-                { label: 'Đang học', value: srsStats.learning },
-                { label: 'Học lại', value: srsStats.relearning },
-                { label: 'Trưởng thành', value: srsStats.review },
-              ].map((stat) => (
-                <div key={stat.label} className="flex items-center gap-2 rounded-md bg-surface-default px-3 py-1.5">
-                  <span className="text-xs text-text-secondary">{stat.label}</span>
-                  <span className="text-sm font-semibold text-text-primary">{stat.value}</span>
-                </div>
-              ))}
+          <div className="flex flex-col items-start gap-2 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <HelpButton onClick={() => setHelpOpen(true)} label="Hướng dẫn" />
+              <Link
+                to="/profile"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+              >
+                <svg className="mr-1.5 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                Từ mới mỗi ngày
+              </Link>
+              <Link
+                to="/learn"
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-3 text-base font-semibold text-white shadow-md transition-all hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg active:scale-95"
+              >
+                Bắt đầu ôn tập
+              </Link>
             </div>
-          )
-        ) : null}
+          </div>
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          {[
+            { label: 'Đến hạn', value: dueCount, color: 'bg-rose-100 text-rose-700' },
+            { label: 'Mới', value: newCount, color: 'bg-sky-100 text-sky-700' },
+          ].map((stat) => (
+            <span
+              key={stat.label}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${stat.color}`}
+            >
+              {stat.label}
+              <span className="font-semibold">{stat.value}</span>
+            </span>
+          ))}
+        </div>
       </div>
 
-      {/* Thống kê theo cấp độ CEFR */}
+      {/* Metrics grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary">Tổng bộ từ</p>
+              <p className="text-2xl font-bold text-text-primary">{vocabStats.sets}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary">Tổng từ vựng</p>
+              <p className="text-2xl font-bold text-text-primary">{vocabStats.words}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary">Nhiệm vụ hôm nay</p>
+              <p className="text-2xl font-bold text-text-primary">{taskTotal}</p>
+              <p className="text-xs text-text-secondary">{dueCount} từ đến hạn</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-text-secondary">Mục tiêu hôm nay</p>
+              <p className="text-2xl font-bold text-text-primary">
+                {dailyGoalLoading ? '…' : `${dailyLearned} / ${dailyGoalTotal}`}
+              </p>
+              {!dailyGoalLoading && dailyGoalTotal > 0 && (
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${dailyPercent}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Phân bố cấp độ CEFR */}
       {cefrStats && cefrStats.total > 0 && (
-        <div className="space-y-4 rounded-xl border border-border-color bg-surface-sidebar p-5">
+        <div className="space-y-4 rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-semibold text-text-primary">Phân bố cấp độ CEFR</h2>
             <span className="text-sm text-text-secondary">{cefrStats.total} từ</span>
           </div>
+
+          {/* Stacked progress bar */}
+          <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+            {CEFR_ORDER.map((level) => {
+              const count = cefrStats[level] ?? 0;
+              const pct = cefrTotal > 0 ? (count / cefrTotal) * 100 : 0;
+              if (pct <= 0) return null;
+              return (
+                <div
+                  key={level}
+                  className={`${cefrColors[level]} h-full`}
+                  style={{ width: `${pct}%` }}
+                  title={`${level === 'UNKNOWN' ? 'Chưa xác định' : level}: ${count}`}
+                />
+              );
+            })}
+          </div>
+
           <div className="flex flex-wrap gap-3">
             {CEFR_ORDER.map((level) => {
               const count = cefrStats[level] ?? 0;
               return (
-                <div key={level} className="flex items-center gap-2 rounded-md bg-surface-default px-3 py-1.5">
-                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${cefrBadgeClass(level === 'UNKNOWN' ? null : level)}`}>
+                <div key={level} className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-1.5">
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${cefrBadgeColors[level]}`}>
                     {level === 'UNKNOWN' ? 'Chưa xác định' : level}
                   </span>
                   <span className="text-sm font-semibold text-text-primary">{count}</span>
@@ -264,7 +328,16 @@ export default function App() {
           </div>
         </div>
       )}
-
+      <HelpModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Hướng dẫn Trang chủ & Chỉ số"
+        items={[
+          { title: 'Theo dõi chỉ số', text: 'Nắm nhanh số từ đến hạn ôn tập hôm nay và tiến độ hoàn thành mục tiêu ngày.' },
+          { title: 'Thuật toán SRS', text: 'Hệ thống tự động căn thời điểm vàng để nhắc bạn ôn tập trước khi từ vựng bị quên lãng.' },
+          { title: 'Từ mới mỗi ngày', text: 'Bấm nút "Từ mới mỗi ngày" để vào trang Hồ sơ chỉnh sửa hạn mức nạp từ theo khả năng.' },
+        ]}
+      />
     </div>
   );
 }

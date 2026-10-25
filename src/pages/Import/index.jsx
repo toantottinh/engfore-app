@@ -22,6 +22,7 @@ import Alert from '../../components/ui/Alert.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import EmptyState from '../../components/ui/EmptyState.jsx';
 import Modal from '../../components/ui/Modal.jsx';
+import HelpModal, { HelpButton } from '../../components/HelpModal.jsx';
 
 const COLUMN_HEADERS = [
   { key: 'word', label: 'Từ', required: true },
@@ -80,6 +81,7 @@ export default function Import() {
   // Modal hiển thị prompt chuẩn cho AI xử lý từ vựng. Thuần UI/clipboard:
   // KHÔNG gọi API/Supabase khi chỉ mở hoặc copy; KHÔNG đổi dữ liệu vocabulary.
   const [promptOpen, setPromptOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
 
@@ -287,9 +289,12 @@ export default function Import() {
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-zinc-900">Nhập từ vựng</h1>
           {/* DUY NHẤT MỘT nút prompt — mở modal hiển thị + copy "Lệnh vocabulary". */}
-          <Button variant="secondary" onClick={openPromptModal}>
-            Lệnh vocabulary
-          </Button>
+          <div className="flex items-center gap-2">
+            <HelpButton onClick={() => setHelpOpen(true)} label="Hướng dẫn" />
+            <Button variant="secondary" onClick={openPromptModal}>
+              Lệnh vocabulary
+            </Button>
+          </div>
         </div>
         <p className="mt-1 text-sm text-zinc-500">
           Dán danh sách từ (mỗi dòng một từ) hoặc format pipe 7 cột vào ô bên dưới, xem trước, chỉnh
@@ -577,6 +582,20 @@ export default function Import() {
           {VOCABULARY_AI_PROMPT}
         </pre>
       </Modal>
+      <HelpModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Quy trình tạo & nhập từ vựng bằng AI"
+        steps={[
+          { title: 'Sao chép lệnh', text: 'Bấm nút "Lệnh vocabulary" ở góc trên để copy prompt mẫu chuẩn của hệ thống.' },
+          { title: 'Gửi cho AI', text: 'Mở ứng dụng chat AI (ChatGPT, Claude, Gemini...) và dán prompt vừa copy vào.' },
+          { title: 'Nhập chủ đề', text: 'Nhắn chủ đề bạn muốn học hoặc liệt kê danh sách các từ bạn muốn tạo cho AI xử lý.' },
+          { title: 'Kiểm tra định dạng', text: 'Kiểm tra kết quả AI trả về xem đã đúng định dạng bảng/cột chuẩn mẫu hay chưa.' },
+          { title: 'Chọn bộ từ', text: 'Quay lại web, chọn một bộ từ có sẵn hoặc bấm tạo nhanh bộ từ mới.' },
+          { title: 'Dán nội dung', text: 'Copy toàn bộ kết quả từ AI và dán vào ô nhập liệu bên dưới.' },
+          { title: 'Xem trước & Nhập', text: 'Bấm "Xem trước" để rà soát lại danh sách lần cuối, sau đó bấm "Nhập từ" để lưu vào hệ thống.' },
+        ]}
+      />
     </div>
   );
 }

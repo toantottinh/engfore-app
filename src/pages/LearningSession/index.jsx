@@ -6,6 +6,7 @@ import { formatReviewDue } from '../../utils/progress.js';
 import Button from '../../components/ui/Button.jsx';
 import Input from '../../components/ui/Input.jsx';
 import Modal from '../../components/ui/Modal.jsx';
+import HelpModal, { HelpButton } from '../../components/HelpModal.jsx';
 import Spinner from '../../components/ui/Spinner.jsx';
 import Alert from '../../components/ui/Alert.jsx';
 import StatusCounts from '../../components/ui/StatusCounts.jsx';
@@ -75,6 +76,7 @@ const LearningSession = () => {
   } = useLearningSession(setId);
 
   const [exitModalOpen, setExitModalOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [flipped, setFlipped] = useState(false);
   const [autoEvalEnabled, setAutoEvalEnabled] = useState(() => {
     try {
@@ -441,6 +443,7 @@ const LearningSession = () => {
           {currentWord?.set_name || 'Phiên học'}
         </h2>
         <div className="flex items-center gap-2">
+          <HelpButton onClick={() => setHelpOpen(true)} label="Hướng dẫn" className="px-2 py-1 text-xs" />
           <button
             onClick={() => setAutoEvalModalOpen(true)}
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors ${autoEvalEnabled ? 'border-brand-primary bg-brand-primary-soft text-brand-primary' : 'border-border-color bg-surface-default text-text-secondary hover:text-text-primary'}`}
@@ -733,6 +736,18 @@ const LearningSession = () => {
           Bạn có chắc muốn thoát phiên học này không? Các rating đã lưu vẫn được giữ lại.
         </p>
       </Modal>
+
+      <HelpModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Mẹo luyện tập & Phím tắt nhanh"
+        items={[
+          { title: 'Chế độ tự đánh giá', text: 'Khi bật, câu trả lời sai tự nhận "Again", câu đúng tự nhận "Good" giúp tiết kiệm thao tác.' },
+          { title: 'Phím Space', text: 'Nhấn để xem kết quả, chuyển sang từ kế tiếp hoặc nạp phiên học mới ngay lập tức.' },
+          { title: 'Phím Enter', text: 'Gửi kết quả kiểm tra trong chế độ gõ từ.' },
+          { title: 'Phím 1, 2, 3, 4', text: 'Đánh giá nhanh mức độ ghi nhớ khi dùng Flashcard (Again, Hard, Good, Easy).' },
+        ]}
+      />
     </div>
   );
 };
