@@ -204,11 +204,57 @@ const LearningSession = () => {
     navigate(setId ? `/vocabulary/${setId}` : '/app');
   };
 
+  // Refs giữ trạng thái động để listener phím tắt được đăng ký MỘT LẦN duy nhất,
+  // tránh re-subscribe (và rò rỉ listener) sau mỗi câu hỏi.
+  const keyboardStateRef = useRef({
+    mode,
+    isAnswerRevealed,
+    isRated,
+    isRating,
+    flipped,
+    isSessionComplete,
+  });
+  keyboardStateRef.current = {
+    mode,
+    isAnswerRevealed,
+    isRated,
+    isRating,
+    flipped,
+    isSessionComplete,
+  };
+  const keyboardHandlersRef = useRef({
+    handleSubmit,
+    handleFlip,
+    handleRating,
+    commitProceed,
+  });
+  keyboardHandlersRef.current = {
+    handleSubmit,
+    handleFlip,
+    handleRating,
+    commitProceed,
+  };
+
   // Keyboard: Enter = submit/flip/continue, Space = lật thẻ (flashcard) /
   // continue (sau rating), 1-4 = rating. Space không bao giờ submit hoặc rating.
   useEffect(() => {
     const handler = (e) => {
-      if (isSessionComplete) {
+      const {
+        mode: currentMode,
+        isAnswerRevealed: revealedState,
+        isRated: ratedState,
+        isRating: ratingState,
+        flipped: flippedState,
+        isSessionComplete: sessionComplete,
+      } = keyboardStateRef.current;
+      const {
+        handleSubmit: submit,
+        handleFlip: flip,
+        handleRating: rate,
+        commitProceed: proceed,
+      } = keyboardHandlersRef.current;
+
+      if (sessionComplete) {
         if (e.repeat) return;
         if (e.code === 'Space' || e.key === ' ') {
           e.preventDefault();
@@ -225,65 +271,57 @@ const LearningSession = () => {
           el.tagName === 'SELECT' ||
           el.isContentEditable);
 
-      // SPACE:
-      //  - đang nhập liệu (input/textarea/select/contenteditable) → chèn space bình thường;
-      //  - đã rating thành công → "Tiếp tục";
-      //  - Flashcard đang ở mặt trước (chưa lật) → lật thẻ (tương đương click);
-      //  - còn lại → chặn để không cuộn trang / kích hoạt nút ngoài ý muốn.
+      // SPACE
       if (e.key === ' ' || e.code === 'Space') {
-        if (isTyping) return; // nhập space bình thường
-        const canContinue = isRated && !isRating;
+        if (isTyping) return;
+        const canContinue = ratedState && !ratingState;
         if (canContinue) {
           e.preventDefault();
-          commitProceed();
+          proceed();
           return;
         }
-        // Flashcard: Space = lật thẻ (như click vào vùng lật thẻ).
-        if (mode === 'flashcard' && !flipped) {
+        if (currentMode === 'flashcard' && !flippedState) {
           e.preventDefault();
-          handleFlip();
+          flip();
           return;
         }
-        // Ngăn Space kích hoạt nút đang focus (rating/submit/flip) hoặc cuộn trang.
         e.preventDefault();
         return;
       }
 
-      // ENTER: submit / flip / continue
+      // ENTER
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (isRated) {
-          commitProceed();
+        if (ratedState) {
+          proceed();
           return;
         }
-        if (mode === 'typing' && !isAnswerRevealed) {
-          handleSubmit();
+        if (currentMode === 'typing' && !revealedState) {
+          submit();
           return;
         }
-        if (mode === 'flashcard') {
-          handleFlip();
+        if (currentMode === 'flashcard') {
+          flip();
           return;
         }
         return;
       }
 
-      // Keys 1-4 → rating (chỉ khi reveal + chưa rating + không đang lưu)
-      const revealed = mode === 'flashcard' ? flipped : isAnswerRevealed;
-      if (revealed && !isRated && !isRating) {
+      // Keys 1-4
+      const revealed = currentMode === 'flashcard' ? flippedState : revealedState;
+      if (revealed && !ratedState && !ratingState) {
         const idx = ['1', '2', '3', '4'].indexOf(e.key);
         if (idx >= 0) {
           e.preventDefault();
-          handleRating(RATING_BUTTONS[idx].key);
+          rate(RATING_BUTTONS[idx].key);
         }
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [
-    mode, isAnswerRevealed, isRated, isRating, flipped,
-    isSessionComplete, handleSubmit, handleFlip, handleRating, commitProceed,
-  ]);
+  }, []);
+
 
   if (loading) {
     return <Spinner />;

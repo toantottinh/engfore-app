@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, memo } from "react";
 import VocabularyAnswerDetails from "../VocabularyAnswerDetails.jsx";
 
-export default function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered, autoEvaluationEnabled }) {
+function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered, autoEvaluationEnabled }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const ratingRef = useRef(null);
@@ -227,3 +227,5 @@ export default function QuizExercise({ item, options, onSubmitRating, ratingSect
     </div>
   );
 }
+export default memo(QuizExercise);
+

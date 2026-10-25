@@ -197,6 +197,13 @@ export function useLearningSession(setId) {
 
   const isFlashcard = mode === 'flashcard';
 
+  // Precompute unique meanings once per word list to avoid O(n) work on every question.
+  const allMeanings = useMemo(() => {
+    const getMeaning = (w) =>
+      (w && (w.meaning || w.vietnamese || w.definition_vi || w.definitionVi)) || '';
+    return [...new Set(allWords.map(getMeaning).filter(Boolean))];
+  }, [allWords]);
+
   const quizOptions = useMemo(() => {
     if (!currentWord) return [];
 
@@ -204,25 +211,20 @@ export function useLearningSession(setId) {
       (w && (w.meaning || w.vietnamese || w.definition_vi || w.definitionVi)) || '';
 
     const currentMeaning = getMeaning(currentWord);
-    const distractors = [...new Set(
-      allWords
-        .map((word) => getMeaning(word))
-        .filter((m) => m && m !== currentMeaning)
-    )];
+    const distractors = allMeanings.filter((m) => m !== currentMeaning);
+    // Fisher-Yates only on the (small) distractor list, not the whole word list.
     for (let i = distractors.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
     }
 
-    const options = [...distractors.slice(0, 3), currentMeaning];
-    // Guard: if not enough distractors, pad? Keep as is; filter empties
-    const cleaned = options.filter(Boolean);
-    for (let i = cleaned.length - 1; i > 0; i -= 1) {
+    const options = [...distractors.slice(0, 3), currentMeaning].filter(Boolean);
+    for (let i = options.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
-      [cleaned[i], cleaned[j]] = [cleaned[j], cleaned[i]];
+      [options[i], options[j]] = [options[j], options[i]];
     }
-    return cleaned;
-  }, [allWords, currentWord]);
+    return options;
+  }, [allMeanings, currentWord]);
 
   // Preview intervals: dự đoán review_due_at cho từng rating button
   const previewIntervals = useMemo(() => {
