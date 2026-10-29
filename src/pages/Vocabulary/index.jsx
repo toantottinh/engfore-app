@@ -166,6 +166,20 @@ export default function Vocabulary() {
     );
   }, [sets, searchTerm]);
 
+  // The "active" set is the first not-yet-completed set in the user's learning
+  // order. It is highlighted as "Đang học" even before any of its words have
+  // been reviewed, because it is the set the learning engine pulls NEW words
+  // from next. This avoids a shared/duplicate word in a later set hijacking the
+  // "Đang học" highlight.
+  const activeSetId = useMemo(() => {
+    const candidate = (sets || []).find((s) => {
+      const total = s.word_count || 0;
+      const learned = s.learned_words ?? 0;
+      return total > 0 && learned < total;
+    });
+    return candidate?.id ?? null;
+  }, [sets]);
+
   const toggleSetSelection = (id) => {
     setSelectedSetIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -291,12 +305,13 @@ export default function Vocabulary() {
 
     const totalWords = set.word_count || 0;
     const learnedWords = set.learned_words ?? 0;
+    const isActiveSet = set.id === activeSetId;
     let statusLabel = 'Chưa học';
     let statusClasses = 'bg-white border-slate-200';
     if (totalWords > 0 && learnedWords === totalWords) {
       statusLabel = 'Đã học';
       statusClasses = 'bg-slate-100/90 border-slate-200 text-slate-600';
-    } else if (learnedWords > 0) {
+    } else if (learnedWords > 0 || isActiveSet) {
       statusLabel = 'Đang học';
       statusClasses = 'bg-amber-50/80 border-amber-200';
     }
@@ -1280,7 +1295,7 @@ export default function Vocabulary() {
             title: 'Màu sắc trạng thái',
             bullets: [
               'Trắng: Bộ từ mới, chưa học từ nào.',
-              'Vàng: Đang học dở dang (đã học ít nhất 1 từ).',
+              'Vàng: Đang học (bộ ưu tiên hiện tại hoặc đã học ít nhất 1 từ).',
               'Xám: Đã hoàn thành 100% từ trong bộ.',
             ],
           },

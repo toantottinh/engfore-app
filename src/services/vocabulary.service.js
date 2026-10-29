@@ -39,6 +39,7 @@ export async function getVocabularySets(userId) {
   // Fetch membership (set_id -> word_sense_id) and the user's progress rows so
   // we can derive how many words in each set have been studied at least once.
   let membershipBySet = new Map();
+  let senseToSets = new Map(); // word_sense_id -> set_ids containing it
   let studiedSenseIds = new Set();
   if (setIds.length > 0) {
     const { data: links } = await supabase
@@ -48,6 +49,8 @@ export async function getVocabularySets(userId) {
     for (const link of links || []) {
       if (!membershipBySet.has(link.set_id)) membershipBySet.set(link.set_id, []);
       membershipBySet.get(link.set_id).push(link.word_sense_id);
+      if (!senseToSets.has(link.word_sense_id)) senseToSets.set(link.word_sense_id, []);
+      senseToSets.get(link.word_sense_id).push(link.set_id);
     }
 
     const { data: progressRows } = await supabase
@@ -59,10 +62,37 @@ export async function getVocabularySets(userId) {
     }
   }
 
+  // Attribute each studied word sense to a SINGLE primary set to avoid
+  // "duplicate-word leakage": a word sense shared by several sets must not
+  // mark every one of them as "Đang học". The primary set is the one with the
+  // highest learning priority (lowest learn_priority), then created_at, then id.
+  const setCreatedMap = new Map((data || []).map((s) => [s.id, s.created_at]));
+  const attributedLearned = new Map();
+  for (const senseId of studiedSenseIds) {
+    const containing = senseToSets.get(senseId) || [];
+    if (containing.length === 0) continue;
+    let primary = containing[0];
+    for (const sid of containing.slice(1)) {
+      const pp = prioMap.get(primary) ?? 999;
+      const ps = prioMap.get(sid) ?? 999;
+      if (ps < pp) {
+        primary = sid;
+        continue;
+      }
+      if (ps === pp) {
+        const tp = new Date(setCreatedMap.get(primary) || 0).getTime() || 0;
+        const ts = new Date(setCreatedMap.get(sid) || 0).getTime() || 0;
+        if (ts < tp || (ts === tp && String(sid).localeCompare(String(primary)) < 0)) {
+          primary = sid;
+        }
+      }
+    }
+    attributedLearned.set(primary, (attributedLearned.get(primary) || 0) + 1);
+  }
+
   const mapped = (data || []).map((set) => {
     const count = set.set_words?.[0]?.count ?? 0;
-    const senseIds = membershipBySet.get(set.id) || [];
-    const learned = senseIds.filter((id) => studiedSenseIds.has(id)).length;
+    const learned = attributedLearned.get(set.id) || 0;
     const { set_words: _sw, ...rest } = set;
     return {
       ...rest,
