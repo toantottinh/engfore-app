@@ -311,7 +311,7 @@ export default function Vocabulary() {
     if (totalWords > 0 && learnedWords === totalWords) {
       statusLabel = 'Đã học';
       statusClasses = 'bg-slate-100/90 border-slate-200 text-slate-600';
-    } else if (learnedWords > 0 || isActiveSet) {
+    } else if (isActiveSet) {
       statusLabel = 'Đang học';
       statusClasses = 'bg-amber-50/80 border-amber-200';
     }
@@ -1295,7 +1295,7 @@ export default function Vocabulary() {
             title: 'Màu sắc trạng thái',
             bullets: [
               'Trắng: Bộ từ mới, chưa học từ nào.',
-              'Vàng: Đang học (bộ ưu tiên hiện tại hoặc đã học ít nhất 1 từ).',
+              'Vàng: Đang học (chỉ bộ đang active/ưu tiên hiện tại).',
               'Xám: Đã hoàn thành 100% từ trong bộ.',
             ],
           },
