@@ -801,6 +801,16 @@ const toggleSetCompleted = (setId) => {
                       <p className="mt-1 text-zinc-600 text-truncate line-clamp-1 max-w-xs">
                         {word.meaning || ''}
                       </p>
+                      {word.example && (
+                        <p className="mt-1 text-zinc-500 text-sm italic">
+                          {word.example}
+                        </p>
+                      )}
+                      {word.description && (
+                        <p className="mt-1 text-zinc-500 text-sm italic">
+                          {word.description}
+                        </p>
+                      )}
                       <div className="mt-2 flex items-center gap-2">
                         <span className={`text-${isMastered ? 'green-500' : 'zinc-400'} text-xs font-medium ${isMastered ? 'opacity-80' : ''}`}>
                           {mastery}/5 {isMastered && '🟢'}

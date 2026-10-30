@@ -232,8 +232,10 @@ const BASE_PROGRESS_SELECT = `word_sense_id,
             cefr_level
           ),
           set_words!inner (
+            set_id,
             vocabulary_sets!inner (
-              user_id
+              user_id,
+              name
             )
           ),
           user_vocabulary ( user_id, example, memory_clue )
@@ -264,8 +266,10 @@ const SRS_PROGRESS_SELECT = `word_sense_id,
             cefr_level
           ),
           set_words!inner (
+            set_id,
             vocabulary_sets!inner (
-              user_id
+              user_id,
+              name
             )
           ),
           user_vocabulary ( user_id, example, memory_clue )
@@ -316,6 +320,21 @@ function mapProgressRow(item, userId) {
     (userId ? uvRows.find((row) => row?.user_id === userId) : null) ||
     uvRows[0] ||
     {};
+  const setWords = Array.isArray(sense.set_words)
+    ? sense.set_words
+    : sense.set_words
+      ? [sense.set_words]
+      : Array.isArray(item.set_words)
+        ? item.set_words
+        : item.set_words
+          ? [item.set_words]
+          : [];
+  const linkedSetName = setWords
+    .map((link) => {
+      const sets = link?.vocabulary_sets;
+      return Array.isArray(sets) ? sets[0]?.name : sets?.name;
+    })
+    .find(Boolean);
   const uvExample = uv?.example ?? null;
   const uvMemoryClue = uv?.memory_clue ?? null;
   return {
@@ -339,6 +358,7 @@ function mapProgressRow(item, userId) {
     lapses: item.lapses ?? 0,
     state: item.state ?? 'new',
     learning_step: item.learning_step ?? 0,
+    set_name: item.set_name || item.setName || item.vocabulary_sets?.name || linkedSetName || null,
   };
 }
 
@@ -397,22 +417,13 @@ export async function getDueReviewWords(userId, limit = REVIEW_QUEUE_LIMIT) {
 export async function getDueReviewWordsInSet(userId, setId, limit = REVIEW_QUEUE_LIMIT) {
   if (!userId || !setId) return { data: null, error: { message: 'Thiếu userId hoặc setId.' } };
 
-  const { data: links, error: linkError } = await supabase
-    .from('set_words')
-    .select('word_sense_id')
-    .eq('set_id', setId);
-  if (linkError) return { data: null, error: linkError };
-
-  const senseIds = (links || []).map((l) => l.word_sense_id);
-  if (senseIds.length === 0) return { data: [], error: null };
-
   const { data, error } = await supabase
     .from('user_progress')
     .select(SRS_PROGRESS_SELECT)
     .eq('user_id', userId)
     .filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId)
+    .eq('word_senses.set_words.set_id', setId)
     .lte('review_due_at', new Date().toISOString())
-    .in('word_sense_id', senseIds)
     .order('review_due_at', { ascending: true })
     .limit(limit);
   if (error) return { data: null, error };
@@ -438,18 +449,6 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
   // reappear in the session, forcing the user to re-study them.
   const ACTIVE_STATES = ['learning', 'relearning', 'new'];
 
-  // Resolve set-scoped sense IDs first so we never pass a large client-side
-  // UUID list to .in() (root cause of HTTP 400 on VocabularyDetail with large sets).
-  let setSenseIds = null;
-  if (setId) {
-    const { data: setLinks, error: setError } = await supabase
-      .from('set_words')
-      .select('word_sense_id')
-      .eq('set_id', setId);
-    if (setError) return { data: null, error: setError };
-    setSenseIds = (setLinks || []).map((l) => l.word_sense_id);
-  }
-
   let query = supabase
     .from('user_progress')
     .select(SRS_PROGRESS_SELECT)
@@ -462,14 +461,12 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
     // (set_words + vocabulary_sets is the source of truth). Set-scoped sessions restrict
     // to the chosen set's set_words links already, so no extra filter is needed there.
     if (!setId) {
-    query = query.filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId);
-  }
+      query = query.filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId);
+    } else {
+      query = query.eq('word_senses.set_words.set_id', setId);
+    }
 
-  if (setSenseIds && setSenseIds.length > 0) {
-    query = query.in('word_sense_id', setSenseIds);
-  }
-
-  let { data, error } = await query;
+    let { data, error } = await query;
 
   // Fallback: if the 'state' column does not yet exist (old DB), retry with the
   // base column set and apply a client-side filter.  In environments without
@@ -484,15 +481,13 @@ export async function getLearningWords(userId, setId, limit = REVIEW_QUEUE_LIMIT
       .order('review_due_at', { ascending: true })
       .limit(limit);
 
-    if (setSenseIds && setSenseIds.length > 0) {
-      fallbackQuery = fallbackQuery.in('word_sense_id', setSenseIds);
-    }
-
     // Global scope needs the same CURRENT-vocabulary membership guard in the
     // fallback (state column missing) path.
 
     if (!setId) {
       fallbackQuery = fallbackQuery.filter(VOCAB_MEMBERSHIP_FILTER.column, VOCAB_MEMBERSHIP_FILTER.operator, userId);
+    } else {
+      fallbackQuery = fallbackQuery.eq('word_senses.set_words.set_id', setId);
     }
 
     ({ data, error } = await fallbackQuery);

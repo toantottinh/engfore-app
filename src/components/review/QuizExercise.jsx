@@ -109,6 +109,12 @@ function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered
 
   return (
     <div className={`max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 ${submitted ? 'p-4 sm:p-5 mt-4' : 'p-6 sm:p-8 mt-6'} text-center`}>
+      <div className="mb-3 flex justify-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 shadow-sm">
+          📁 {item?.set_name || item?.setName || 'Ôn tập tổng hợp'}
+        </span>
+      </div>
+
       <p className="text-xs uppercase tracking-wider font-semibold text-gray-400 mb-2">
         CHỌN NGHĨA TIẾNG VIỆT CHÍNH XÁC
       </p>
@@ -232,4 +238,3 @@ function QuizExercise({ item, options, onSubmitRating, ratingSection, onAnswered
   );
 }
 export default memo(QuizExercise);
-

@@ -76,6 +76,8 @@ const LearningSession = () => {
     noWords,
   } = useLearningSession(setId);
 
+  console.log("LEARNING SESSION CURRENT ITEM:", currentWord);
+
   const [exitModalOpen, setExitModalOpen] = useState(false);
   const isReadyToProceed = isRated && !isRating;
   const [helpOpen, setHelpOpen] = useState(false);
@@ -628,6 +630,11 @@ const LearningSession = () => {
                     <p className="text-xs uppercase tracking-widest text-text-secondary">
                       Nhấn để lật thẻ · Space
                     </p>
+                    <div className="mb-2 flex justify-center">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 shadow-sm">
+                        📁 {currentWord?.set_name || currentWord?.setName || 'Ôn tập tổng hợp'}
+                      </span>
+                    </div>
                     <div className="mt-4 flex items-center gap-1">
                       <p className="text-4xl font-bold tracking-tight text-text-primary">
                         {currentWord.word}
@@ -653,6 +660,11 @@ const LearningSession = () => {
                   </>
                 ) : (
                   <div className="w-full">
+                    <div className="mb-3 flex justify-center">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 shadow-sm">
+                        📁 {currentWord?.set_name || currentWord?.setName || 'Ôn tập tổng hợp'}
+                      </span>
+                    </div>
                     <VocabularyAnswerDetails word={currentWord} />
                   </div>
                 )}
@@ -674,6 +686,11 @@ const LearningSession = () => {
               {/* Question Area */}
               <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
                 <div>
+                  <div className="mb-3 flex justify-center">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 shadow-sm">
+                      📁 {currentWord?.set_name || currentWord?.setName || 'Ôn tập tổng hợp'}
+                    </span>
+                  </div>
                   {currentWord.word_type && (
                     <span className="inline-block mb-1.5 bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                       {currentWord.word_type}

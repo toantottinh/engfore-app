@@ -440,6 +440,13 @@ export function TypingCard({ word, onResult, onNext }) {
         <p className="text-xs uppercase tracking-wide text-zinc-400">
           Gõ từ tiếng Anh cho nghĩa sau
         </p>
+        {word?.set_name && (
+          <div className="mt-2 flex justify-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 shadow-sm">
+              📁 {word.set_name}
+            </span>
+          </div>
+        )}
         <p className="mt-3 text-3xl font-bold text-zinc-900">{word.meaning}</p>
         {word.word_type && (
           <p className="mt-1 text-sm text-zinc-500">{wordTypeLabel(word.word_type)}</p>
@@ -524,6 +531,15 @@ export function TypingCard({ word, onResult, onNext }) {
 export function FlashcardCard({ word, onResult, onNext }) {
   const [flipped, setFlipped] = useState(false);
   const [rated, setRated] = useState(false);
+  
+  // Set name badge
+  const setNameBadge = word.set_name && (
+    <div className="mb-2 flex justify-center">
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">
+        📁 {word.set_name}
+      </span>
+    </div>
+  );
 
   const flip = () => {
     if (!rated) setFlipped((f) => !f);

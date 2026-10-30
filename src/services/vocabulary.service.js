@@ -1,5 +1,15 @@
 import { supabase } from './supabase.js';
 
+const ID_QUERY_CHUNK_SIZE = 100;
+
+function chunkIds(ids) {
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += ID_QUERY_CHUNK_SIZE) {
+    chunks.push(ids.slice(i, i + ID_QUERY_CHUNK_SIZE));
+  }
+  return chunks;
+}
+
 /**
  * Dịch vụ từ vựng — thao tác với schema Supabase hiện tại.
  * Bảng dùng chung: vocabulary_sets, set_words, word_senses, words, users.
@@ -193,8 +203,65 @@ export async function updateVocabularySet(setId, updates) {
 
 /** Xóa một bộ từ. */
 export async function deleteVocabularySet(setId) {
-  const { error } = await supabase.from('vocabulary_sets').delete().eq('id', setId);
-  return { error };
+  if (!setId) return { error: { message: 'Thiếu id của bộ từ.' } };
+
+  try {
+    const { data: set, error: setError } = await supabase
+      .from('vocabulary_sets')
+      .select('user_id')
+      .eq('id', setId)
+      .maybeSingle();
+    if (setError) return { error: setError };
+    if (!set) {
+      return { error: { message: 'Không tìm thấy bộ từ hoặc bạn không có quyền xóa.' } };
+    }
+
+    const { data: links, error: linksError } = await supabase
+      .from('set_words')
+      .select('word_sense_id')
+      .eq('set_id', setId);
+    if (linksError) return { error: linksError };
+
+    const wordSenseIds = [
+      ...new Set((links || []).map((link) => link.word_sense_id).filter(Boolean)),
+    ];
+
+    if (wordSenseIds.length > 0) {
+      for (const chunk of chunkIds(wordSenseIds)) {
+        const { error: progressError } = await supabase
+          .from('user_progress')
+          .delete()
+          .eq('user_id', set.user_id)
+          .in('word_sense_id', chunk);
+        if (progressError) return { error: progressError };
+      }
+
+      for (const chunk of chunkIds(wordSenseIds)) {
+        const { error: vocabularyError } = await supabase
+          .from('user_vocabulary')
+          .delete()
+          .eq('user_id', set.user_id)
+          .in('word_sense_id', chunk);
+        if (vocabularyError) return { error: vocabularyError };
+      }
+    }
+
+    const { error: linksDeleteError } = await supabase
+      .from('set_words')
+      .delete()
+      .eq('set_id', setId);
+    if (linksDeleteError) return { error: linksDeleteError };
+
+    const { error } = await supabase
+      .from('vocabulary_sets')
+      .delete()
+      .eq('id', setId)
+      .eq('user_id', set.user_id);
+    return { error };
+  } catch (error) {
+    console.error('Không thể xóa bộ từ và dữ liệu liên quan:', error);
+    return { error };
+  }
 }
 
 /**
@@ -360,9 +427,7 @@ export async function getUserVocabulary(userId, options = {}) {
       .ilike('word', like);
     const wordIds = (words || []).map((w) => w.id).filter(Boolean);
 
-    const CHUNK = 100;
-    for (let i = 0; i < wordIds.length; i += CHUNK) {
-      const chunk = wordIds.slice(i, i + CHUNK);
+    for (const chunk of chunkIds(wordIds)) {
       const { data: senses } = await supabase
         .from('word_senses')
         .select('id')
@@ -392,11 +457,11 @@ export async function getUserVocabulary(userId, options = {}) {
     )
   `;
 
-  const applyFilters = (query) => {
+  const applyFilters = (query, senseIds = searchSenseIds, rangeStart = from, rangeEnd = to) => {
     let q = query.eq('user_id', userId);
 
-    if (searchSenseIds) {
-      q = q.in('word_sense_id', searchSenseIds);
+    if (senseIds) {
+      q = q.in('word_sense_id', senseIds);
     }
 
     const nowIso = new Date().toISOString();
@@ -412,19 +477,49 @@ export async function getUserVocabulary(userId, options = {}) {
       q = q.gte('word_senses.user_progress.mastery_level', 4);
     }
 
-    return q.order('created_at', { ascending: false }).range(from, to);
+    return q.order('created_at', { ascending: false }).range(rangeStart, rangeEnd);
+  };
+
+  const executeVocabularyQuery = async (progCols) => {
+    const chunks = searchSenseIds ? chunkIds(searchSenseIds) : null;
+
+    if (!chunks) {
+      return applyFilters(
+        supabase.from('user_vocabulary').select(buildSelect(progCols), { count: 'exact' })
+      );
+    }
+
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        applyFilters(
+          supabase.from('user_vocabulary').select(buildSelect(progCols), { count: 'exact' }),
+          chunk,
+          0,
+          to
+        )
+      )
+    );
+    const failedResult = results.find((result) => result.error);
+    if (failedResult) return failedResult;
+
+    const combinedRows = results.flatMap((result) => result.data || []);
+    combinedRows.sort(
+      (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
+
+    return {
+      data: combinedRows.slice(from, to + 1),
+      count: results.reduce((total, result) => total + (result.count ?? 0), 0),
+      error: null,
+    };
   };
 
   let progCols = SRS_PRO;
-  let exec = await applyFilters(
-    supabase.from('user_vocabulary').select(buildSelect(progCols), { count: 'exact' })
-  );
+  let exec = await executeVocabularyQuery(progCols);
 
   if (exec.error && /column .* does not exist/i.test(exec.error?.message || '')) {
     progCols = BASE_PRO;
-    exec = await applyFilters(
-      supabase.from('user_vocabulary').select(buildSelect(progCols), { count: 'exact' })
-    );
+    exec = await executeVocabularyQuery(progCols);
   }
 
   if (exec.error) return { data: null, count: 0, error: exec.error };
@@ -446,11 +541,22 @@ export async function getUserVocabulary(userId, options = {}) {
 
   const setNamesMap = {};
   if (mySetIds.length > 0 && senseIds.length > 0) {
-    const { data: links } = await supabase
-      .from('set_words')
-      .select('set_id, word_sense_id')
-      .in('set_id', mySetIds)
-      .in('word_sense_id', senseIds);
+    const setIdChunks = chunkIds(mySetIds);
+    const senseIdChunks = chunkIds(senseIds);
+    const linkResults = await Promise.all(
+      setIdChunks.flatMap((setIdChunk) =>
+        senseIdChunks.map((senseIdChunk) =>
+          supabase
+            .from('set_words')
+            .select('set_id, word_sense_id')
+            .in('set_id', setIdChunk)
+            .in('word_sense_id', senseIdChunk)
+        )
+      )
+    );
+    const linkError = linkResults.find((result) => result.error)?.error;
+    if (linkError) return { data: null, count: 0, error: linkError };
+    const links = linkResults.flatMap((result) => result.data || []);
     (links || []).forEach((l) => {
       if (setIdName[l.set_id]) {
         (setNamesMap[l.word_sense_id] = setNamesMap[l.word_sense_id] || []).push(setIdName[l.set_id]);
