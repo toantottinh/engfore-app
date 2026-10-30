@@ -94,13 +94,26 @@ export async function getVocabularySets(userId) {
     const count = set.set_words?.[0]?.count ?? 0;
     const learned = attributedLearned.get(set.id) || 0;
     const { set_words: _sw, ...rest } = set;
+    const total = Number(count) || 0;
     return {
       ...rest,
-      word_count: Number(count) || 0,
+      word_count: total,
+      total_words: total,
       learned_words: learned,
       learn_priority: prioMap.get(set.id) ?? 999,
     };
   });
+
+  // DEBUG: xem chính xác learned/total của mỗi set để chẩn đoán lý do completed/sai trạng thái
+  console.log(
+    "SET PROGRESS DEBUG:",
+    mapped.map((s) => ({
+      title: s.name,
+      learned: s.learned_words,
+      total: s.total_words,
+      ratio: s.total_words > 0 ? (s.learned_words / s.total_words).toFixed(2) : 0,
+    }))
+  );
 
   // Sort by learn_priority (ascending, lower = learned first). Stable
   // tiebreak on created_at ASC then id ASC (documented deterministic order).
