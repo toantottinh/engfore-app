@@ -62,32 +62,21 @@ export async function getVocabularySets(userId) {
     }
   }
 
-  // Attribute each studied word sense to a SINGLE primary set to avoid
-  // "duplicate-word leakage": a word sense shared by several sets must not
-  // mark every one of them as "Đang học". The primary set is the one with the
-  // highest learning priority (lowest learn_priority), then created_at, then id.
-  const setCreatedMap = new Map((data || []).map((s) => [s.id, s.created_at]));
+  // DEBUG: in ra danh sách word_sense_id user đã học trong user_progress
+  console.log(
+    "SET PROGRESS DEBUG - user_progress word_sense_ids:",
+    Array.from(studiedSenseIds),
+    "count:", studiedSenseIds.size
+  );
+
+  // Tính learned_words ĐỘC LẬP cho từng set: nếu một từ thuộc nhiều set và user
+  // đã học nó, nó phải tính vào TẤT CẢ các set chứa nó (không gán nhầm cho một
+  // set chính khiến các set khác rớt về 0).
   const attributedLearned = new Map();
-  for (const senseId of studiedSenseIds) {
-    const containing = senseToSets.get(senseId) || [];
-    if (containing.length === 0) continue;
-    let primary = containing[0];
-    for (const sid of containing.slice(1)) {
-      const pp = prioMap.get(primary) ?? 999;
-      const ps = prioMap.get(sid) ?? 999;
-      if (ps < pp) {
-        primary = sid;
-        continue;
-      }
-      if (ps === pp) {
-        const tp = new Date(setCreatedMap.get(primary) || 0).getTime() || 0;
-        const ts = new Date(setCreatedMap.get(sid) || 0).getTime() || 0;
-        if (ts < tp || (ts === tp && String(sid).localeCompare(String(primary)) < 0)) {
-          primary = sid;
-        }
-      }
-    }
-    attributedLearned.set(primary, (attributedLearned.get(primary) || 0) + 1);
+  for (const set of data || []) {
+    const setSenseIds = membershipBySet.get(set.id) || [];
+    const learnedCount = setSenseIds.filter((sid) => studiedSenseIds.has(sid)).length;
+    attributedLearned.set(set.id, learnedCount);
   }
 
   const mapped = (data || []).map((set) => {
@@ -103,6 +92,24 @@ export async function getVocabularySets(userId) {
       learn_priority: prioMap.get(set.id) ?? 999,
     };
   });
+
+  // --- Cơ chế ghi nhớ trạng thái completed của set qua localStorage ---
+  // Nếu set đã được đánh dấu completed (bằng cách nào đó trong UI, ví dụ user
+  // nhấn "Đánh dấu đã học"), thì bypass query lẻ từng từ và gán learned = total.
+  try {
+    const completedSetsJson = localStorage.getItem('engfore.completed_sets');
+    const completedSets = completedSetsJson ? JSON.parse(completedSetsJson) : [];
+    if (Array.isArray(completedSets) && completedSets.length > 0) {
+      const completedSetIds = new Set(completedSets);
+      for (const set of mapped) {
+        if (completedSetIds.has(set.id)) {
+          set.learned_words = set.total_words;
+        }
+      }
+    }
+  } catch {
+    // localStorage unavailable — silently ignore, fall back to DB query result.
+  }
 
   // DEBUG: xem chính xác learned/total của mỗi set để chẩn đoán lý do completed/sai trạng thái
   console.log(

@@ -82,6 +82,34 @@ export default function Vocabulary() {
 
   // Bộ từ được chọn cho "Học ngay" (multi-set practice, không dùng SRS).
   const [selectedSetIds, setSelectedSetIds] = useState([]);
+// Completed sets state (ghi nhớ vào localStorage).
+const [completedSetIds, setCompletedSetIds] = useState(() => {
+  try {
+    const raw = localStorage.getItem('engfore.completed_sets');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+});
+
+// Persist completedSetIds to localStorage whenever it changes.
+useEffect(() => {
+  try {
+    localStorage.setItem('engfore.completed_sets', JSON.stringify(Array.from(completedSetIds)));
+  } catch {
+    // localStorage unavailable — ignore.
+  }
+}, [completedSetIds]);
+
+const toggleSetCompleted = (setId) => {
+  setCompletedSetIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(setId)) next.delete(setId);
+    else next.add(setId);
+    return next;
+  });
+};
+
 
   // Delete word confirmation modal state
   const [deleteWordOpen, setDeleteWordOpen] = useState(false);
@@ -173,13 +201,13 @@ export default function Vocabulary() {
   // "Đang học" highlight.
   const activeSetId = useMemo(() => {
     const candidate = (sets || []).find((s) => {
+      if (completedSetIds.has(s.id)) return false;
       const total = Number(s.total_words ?? s.word_count) || 0;
       const learned = Number(s.learned_words) || 0;
-      // Chưa hoàn thành: learned < total (hoặc chưa đạt ngưỡng 95%)
       return total > 0 && learned / total < 0.95;
     });
     return candidate?.id ?? null;
-  }, [sets]);
+  }, [sets, completedSetIds]);
 
   const toggleSetSelection = (id) => {
     setSelectedSetIds((prev) =>
@@ -300,13 +328,17 @@ export default function Vocabulary() {
     reorderLoading = false,
     onMoveUp,
     onMoveDown,
+    completedSetIds,
+    toggleSetCompleted,
   }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
     const totalWords = Number(set.total_words ?? set.word_count) || 0;
     const learnedWords = Number(set.learned_words) || 0;
-    const isCompleted = totalWords > 0 && learnedWords / totalWords >= 0.95;
+    const isCompletedFromDb = totalWords > 0 && learnedWords / totalWords >= 0.95;
+    const isCompletedFromStorage = completedSetIds.has(set.id);
+    const isCompleted = isCompletedFromDb || isCompletedFromStorage;
     const isActiveSet = !isCompleted && set.id === activeSetId;
     let statusLabel = 'Chưa học';
     let statusClasses = 'bg-white border-slate-200';
@@ -375,6 +407,17 @@ export default function Vocabulary() {
                   className="block w-full px-4 py-2 text-left text-sm text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 >
                   Chỉnh sửa
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    toggleSetCompleted(set.id);
+                  }}
+                  className="block w-full px-4 py-2 text-left text-sm text-brand-primary hover:bg-surface-hover hover:text-brand-primary"
+                >
+                  {completedSetIds.has(set.id)
+                    ? 'Đánh dấu chưa học'
+                    : 'Đánh dấu đã học'}
                 </button>
                 <button
                   onClick={() => {
@@ -941,6 +984,8 @@ export default function Vocabulary() {
                     reorderLoading={reorderLoadingId === set.id}
                     onMoveUp={() => moveSet(set.id, 'up')}
                     onMoveDown={() => moveSet(set.id, 'down')}
+                    completedSetIds={completedSetIds}
+                    toggleSetCompleted={toggleSetCompleted}
                   />
                 ))
               ) : searchTerm ? (
