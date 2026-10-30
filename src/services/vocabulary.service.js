@@ -96,7 +96,7 @@ export async function getVocabularySets(userId) {
     const { set_words: _sw, ...rest } = set;
     return {
       ...rest,
-      word_count: count,
+      word_count: Number(count) || 0,
       learned_words: learned,
       learn_priority: prioMap.get(set.id) ?? 999,
     };

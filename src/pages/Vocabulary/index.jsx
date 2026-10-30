@@ -173,8 +173,8 @@ export default function Vocabulary() {
   // "Đang học" highlight.
   const activeSetId = useMemo(() => {
     const candidate = (sets || []).find((s) => {
-      const total = s.word_count || 0;
-      const learned = s.learned_words ?? 0;
+      const total = Number(s.word_count) || 0;
+      const learned = Number(s.learned_words) || 0;
       return total > 0 && learned < total;
     });
     return candidate?.id ?? null;
@@ -303,12 +303,13 @@ export default function Vocabulary() {
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
-    const totalWords = set.word_count || 0;
-    const learnedWords = set.learned_words ?? 0;
+    const totalWords = Number(set.word_count) || 0;
+    const learnedWords = Number(set.learned_words) || 0;
+    const isCompleted = totalWords > 0 && learnedWords === totalWords;
     const isActiveSet = set.id === activeSetId;
     let statusLabel = 'Chưa học';
     let statusClasses = 'bg-white border-slate-200';
-    if (totalWords > 0 && learnedWords === totalWords) {
+    if (isCompleted) {
       statusLabel = 'Đã học';
       statusClasses = 'bg-slate-100/90 border-slate-200 text-slate-600';
     } else if (isActiveSet) {
