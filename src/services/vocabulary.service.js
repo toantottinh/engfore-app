@@ -40,7 +40,7 @@ export async function getVocabularySets(userId) {
   // we can derive how many words in each set have been studied at least once.
   let membershipBySet = new Map();
   let senseToSets = new Map(); // word_sense_id -> set_ids containing it
-  let studiedSenseIds = new Set();
+  let studiedIds = new Set(); // lưu linh hoạt: word_sense_id, word_id, id (chuẩn hóa String().trim())
   if (setIds.length > 0) {
     const { data: links } = await supabase
       .from('set_words')
@@ -55,18 +55,24 @@ export async function getVocabularySets(userId) {
 
     const { data: progressRows } = await supabase
       .from('user_progress')
-      .select('word_sense_id')
+      .select('word_sense_id, word_id, id')
       .eq('user_id', userId);
     for (const row of progressRows || []) {
-      if (row?.word_sense_id) studiedSenseIds.add(row.word_sense_id);
+      if (row?.word_sense_id) studiedIds.add(String(row.word_sense_id).trim());
+      if (row?.word_id) studiedIds.add(String(row.word_id).trim());
+      if (row?.id) studiedIds.add(String(row.id).trim());
     }
+
+    // DEBUG: xem sample row thực tế của progressRows và links để chẩn đoán sai lệch cột
+    console.log("DEBUG PROGRESS SAMPLE ROW:", progressRows?.[0]);
+    console.log("DEBUG SET_WORDS SAMPLE ROW:", links?.[0]);
   }
 
-  // DEBUG: in ra danh sách word_sense_id user đã học trong user_progress
+  // DEBUG: in ra danh sách ID user đã học trong user_progress
   console.log(
-    "SET PROGRESS DEBUG - user_progress word_sense_ids:",
-    Array.from(studiedSenseIds),
-    "count:", studiedSenseIds.size
+    "SET PROGRESS DEBUG - user_progress studied_ids:",
+    Array.from(studiedIds),
+    "count:", studiedIds.size
   );
 
   // Tính learned_words ĐỘC LẬP cho từng set: nếu một từ thuộc nhiều set và user
@@ -75,7 +81,7 @@ export async function getVocabularySets(userId) {
   const attributedLearned = new Map();
   for (const set of data || []) {
     const setSenseIds = membershipBySet.get(set.id) || [];
-    const learnedCount = setSenseIds.filter((sid) => studiedSenseIds.has(sid)).length;
+    const learnedCount = setSenseIds.filter((sid) => studiedIds.has(String(sid).trim())).length;
     attributedLearned.set(set.id, learnedCount);
   }
 
@@ -104,6 +110,7 @@ export async function getVocabularySets(userId) {
       for (const set of mapped) {
         if (completedSetIds.has(set.id)) {
           set.learned_words = set.total_words;
+          set.is_completed = true;
         }
       }
     }
