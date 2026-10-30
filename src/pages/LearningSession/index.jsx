@@ -76,6 +76,8 @@ const LearningSession = () => {
     noWords,
   } = useLearningSession(setId);
 
+  const questionMode = currentWord?.forcedMode === 'typing' ? 'typing' : mode;
+
   console.log("LEARNING SESSION CURRENT ITEM:", currentWord);
 
   const [exitModalOpen, setExitModalOpen] = useState(false);
@@ -115,20 +117,20 @@ const LearningSession = () => {
   }, []);
 
   useEffect(() => {
-    if (mode === 'typing' && !isAnswerRevealed && inputRef.current) {
+    if (questionMode === 'typing' && !isAnswerRevealed && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [mode, isAnswerRevealed, currentWord]);
+  }, [questionMode, isAnswerRevealed, currentWord]);
 
   useEffect(() => {
-    if (mode !== 'typing' || !isAnswerRevealed) return;
+    if (questionMode !== 'typing' || !isAnswerRevealed) return;
     const t = setTimeout(() => {
       requestAnimationFrame(() => {
         ratingRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
       });
     }, 120);
     return () => clearTimeout(t);
-  }, [mode, isAnswerRevealed]);
+  }, [questionMode, isAnswerRevealed]);
 
     const speakWord = useCallback(() => {
     if (!currentWord) return;
@@ -187,7 +189,7 @@ const LearningSession = () => {
         const userAnswer = userInput.trim().toLowerCase();
         const correctAnswer = (currentWord.word || '').trim().toLowerCase();
         const correct = userAnswer === correctAnswer;
-        handleRating(correct ? 'good' : 'again');
+        handleRating(correct ? 'good' : 'again', !correct, correct);
       }
     });
     speakWordAndExample();
@@ -229,7 +231,7 @@ const LearningSession = () => {
   // Refs giữ trạng thái động để listener phím tắt được đăng ký MỘT LẦN duy nhất,
   // tránh re-subscribe (và rò rỉ listener) sau mỗi câu hỏi.
   const keyboardStateRef = useRef({
-    mode,
+    mode: questionMode,
     isAnswerRevealed,
     isRated,
     isRating,
@@ -237,7 +239,7 @@ const LearningSession = () => {
     isSessionComplete,
   });
   keyboardStateRef.current = {
-    mode,
+    mode: questionMode,
     isAnswerRevealed,
     isRated,
     isRating,
@@ -469,7 +471,7 @@ const LearningSession = () => {
     <div className="space-y-3 text-center">
       {ratingError && <Alert type="error" message={ratingError} className="text-left" />}
 
-      {(!autoEvalEnabled || mode === 'flashcard' || isRated) && !isRated && renderRatingButtons()}
+      {(!autoEvalEnabled || questionMode === 'flashcard' || isRated) && !isRated && renderRatingButtons()}
 
       {isRated && lastReviewResult && (
         <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
@@ -590,7 +592,7 @@ const LearningSession = () => {
         </div>
       ) : (
       <div className="flex flex-1 flex-col items-center justify-center p-3">
-        <div className={`w-full ${mode === 'flashcard' ? 'max-w-md' : 'max-w-2xl'} space-y-3 py-2`}>
+        <div className={`w-full ${questionMode === 'flashcard' ? 'max-w-md' : 'max-w-2xl'} space-y-3 py-2`}>
                     {/* Status counts (small, non-intrusive) */}
           <div className="space-y-2">
             {/* Current card type indicator */}
@@ -612,7 +614,7 @@ const LearningSession = () => {
           </div>
 
           {/* FLASHCARD MODE */}
-          {mode === 'flashcard' && (
+          {questionMode === 'flashcard' && (
             <>
               <div
                 role="button"
@@ -681,7 +683,7 @@ const LearningSession = () => {
           )}
 
           {/* TYPING MODE */}
-          {mode === 'typing' && (
+          {questionMode === 'typing' && (
             <>
               {/* Question Area */}
               <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
@@ -761,11 +763,13 @@ const LearningSession = () => {
           )}
 
           {/* QUIZ MODE */}
-          {mode === 'quiz' && currentWord && (
+          {questionMode === 'quiz' && currentWord && (
             <QuizExercise
               item={currentWord}
               options={quizOptions}
-              onSubmitRating={(rating) => handleRating(rating)}
+              onSubmitRating={(rating, _item, wasIncorrect) =>
+                handleRating(rating, wasIncorrect)
+              }
               ratingSection={renderRatingSection()}
               onAnswered={speakWordAndExample}
               autoEvaluationEnabled={autoEvalEnabled}

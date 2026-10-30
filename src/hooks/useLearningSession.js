@@ -22,6 +22,53 @@ const RATING_MAP = {
   easy: RATING.EASY,   // 4
 };
 
+const FORCED_TYPING_STORAGE_KEY = 'engfore.forcedTypingWords';
+
+function getWordPersistenceId(word) {
+  return word?.word_sense_id ?? word?.id;
+}
+
+function readForcedTypingWordIds() {
+  try {
+    const stored = window.localStorage.getItem(FORCED_TYPING_STORAGE_KEY);
+    const ids = stored ? JSON.parse(stored) : [];
+    if (!Array.isArray(ids)) {
+      console.error(`[useLearningSession] Invalid ${FORCED_TYPING_STORAGE_KEY} value.`);
+      return new Set();
+    }
+    return new Set(ids.filter((id) => id != null).map(String));
+  } catch (error) {
+    console.error('[useLearningSession] Could not read forced typing words.', error);
+    return new Set();
+  }
+}
+
+function updateForcedTypingWordId(word, shouldForceTyping) {
+  const id = getWordPersistenceId(word);
+  if (id == null) return;
+
+  try {
+    const ids = readForcedTypingWordIds();
+    if (shouldForceTyping) ids.add(String(id));
+    else ids.delete(String(id));
+    if (ids.size === 0) {
+      window.localStorage.removeItem(FORCED_TYPING_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(FORCED_TYPING_STORAGE_KEY, JSON.stringify([...ids]));
+    }
+  } catch (error) {
+    console.error('[useLearningSession] Could not save forced typing words.', error);
+  }
+}
+
+function clearForcedTypingWordIds() {
+  try {
+    window.localStorage.removeItem(FORCED_TYPING_STORAGE_KEY);
+  } catch (error) {
+    console.error('[useLearningSession] Could not clear forced typing words.', error);
+  }
+}
+
 // Session display states (per unique word). One word is always in exactly one.
 export const SESSION_STATE = {
   NEW: 'new',      // 🟢 Mới
@@ -185,6 +232,7 @@ export function useLearningSession(setId) {
   // 0-1 flashcard, 2 typing, 3 quiz, then alternate typing and quiz.
   const mode = useMemo(() => {
     if (!currentWord) return 'typing';
+    if (currentWord.forcedMode === 'typing') return 'typing';
     const rawReviewCount = currentWord.review_count ?? currentWord.flashcard_reviews ?? 0;
     const reviewCount = Number.isFinite(Number(rawReviewCount))
       ? Math.max(0, Number(rawReviewCount))
@@ -347,11 +395,16 @@ export function useLearningSession(setId) {
 
       // Color coding: 🟢 New = brand-new words, 🟡 Review = words due /
       // in-progress review. A card rated Again later turns 🔴 and is requeued.
-      const initialQueue = queue.map((word) => ({
-        ...word,
-        againCount: 0,
-        sessionStatus: word.state === 'new' ? 'new' : 'review',
-      }));
+      const forcedTypingWordIds = readForcedTypingWordIds();
+      const initialQueue = queue.map((word) => {
+        const isForcedTyping = forcedTypingWordIds.has(String(getWordPersistenceId(word)));
+        return {
+          ...word,
+          ...(isForcedTyping ? { forcedMode: 'typing' } : {}),
+          againCount: 0,
+          sessionStatus: word.state === 'new' ? 'new' : 'review',
+        };
+      });
 
       // Build the initial per-word display-state map used by the counters.
       const initialStates = {};
@@ -389,19 +442,23 @@ export function useLearningSession(setId) {
     setIsAnswerRevealed(true);
   }, [currentWord, userInput, isAnswerRevealed]);
 
-    // Handle rating selection (Again/Hard/Good/Easy)
+  // Handle rating selection (Again/Hard/Good/Easy)
   const handleRating = useCallback(
-    (rating) => {
+    (rating, answerWasIncorrect = false, answerWasCorrect = false) => {
       if (!currentWord || isRating || isRated) return;
+
+      const incorrectAnswer =
+        answerWasIncorrect || (mode === 'typing' && isAnswerRevealed && !isCorrect);
+      const effectiveRating = incorrectAnswer ? 'again' : rating;
 
       setIsRating(false);
       setRatingError(null);
       // Optimistic UI: show result + next button immediately.
       setIsRated(true);
-      setLastReviewResult({ review_due_at: previewIntervals[rating] || null });
+      setLastReviewResult({ review_due_at: previewIntervals[effectiveRating] || null });
 
       recordProgress(currentWord.id, {
-        rating: RATING_MAP[rating],
+        rating: RATING_MAP[effectiveRating],
         isFlashcard,
       }).then(({ progress, error: srsError }) => {
         if (srsError) {
@@ -437,7 +494,7 @@ export function useLearningSession(setId) {
         setStats((prev) => {
           const newAttempted = new Set(prev.attemptedWords);
           newAttempted.add(currentWord.id);
-          const correct = RATING_MAP[rating] >= RATING.HARD;
+          const correct = RATING_MAP[effectiveRating] >= RATING.HARD;
           return {
             ...prev,
             correctAnswers: prev.correctAnswers + (correct ? 1 : 0),
@@ -460,7 +517,7 @@ export function useLearningSession(setId) {
         setSessionWordStates((prev) => {
           const initialForWord = currentWord.state === 'new' ? 'new' : 'review';
           const currentState = prev[currentWord.id] ?? initialForWord;
-          const nextState = resolveSessionWordState(currentState, rating, initialForWord);
+          const nextState = resolveSessionWordState(currentState, effectiveRating, initialForWord);
           if (nextState === currentState) return prev;
           return { ...prev, [currentWord.id]: nextState };
         });
@@ -482,34 +539,61 @@ export function useLearningSession(setId) {
               )
             : currentWord.session_flashcard_reviews,
           // The inserted copy is waiting for its early in-session retry.
-          sessionStatus: rating === 'again' ? 'review' : 'normal',
-          againCount: (currentWord.againCount ?? 0) + (rating === 'again' ? 1 : 0),
+          sessionStatus: effectiveRating === 'again' ? 'review' : 'normal',
+          againCount: (currentWord.againCount ?? 0) + (effectiveRating === 'again' ? 1 : 0),
         };
         // Every 🔴 Again always requeues the card so it is seen again inside this
         // session. The session therefore cannot finish while a red/pending card exists.
-        const shouldRepeatAfterAgain = rating === 'again';
+        const shouldRepeatAfterAgain = effectiveRating === 'again';
+        const isForcedTypingPass =
+          currentWord.forcedMode === 'typing' &&
+          mode === 'typing' &&
+          (answerWasCorrect || (isAnswerRevealed && isCorrect));
 
-        if (rating === 'again') {
+        if (effectiveRating === 'again') {
           setStats((prev) => ({ ...prev, againCount: prev.againCount + 1 }));
-          // Preserve a red marker on the answered card. The separately queued
-          // copy below is yellow because it is waiting to be seen again.
-          setSessionQueue((queue) => queue.map((word, index) =>
-            index === currentIndex ? { ...word, sessionStatus: 'again' } : word
-          ));
         }
 
-        if (rating !== 'again' && currentWord.sessionStatus === 'again') {
-          // A successful retry clears the red session marker for every queued
-          // instance of this word; it is session-only metadata, not SRS state.
-          setSessionQueue((queue) => queue.map((word) =>
-            word.id === currentWord.id ? { ...word, sessionStatus: 'normal' } : word
-          ));
+        const retryWord = shouldRepeatAfterAgain ? { ...updatedWord } : null;
+        if (retryWord) {
+          if (isForcedTypingPass) delete retryWord.forcedMode;
+          else retryWord.forcedMode = 'typing';
         }
 
-        if (shouldRepeatAfterAgain) {
-          // Đơn giản hoá: đẩy từ hiện tại vào CUỐI danh sách, không sort/filter/rebalance.
-          setSessionQueue((prev) => [...prev, updatedWord]);
-        }
+        if (isForcedTypingPass) updateForcedTypingWordId(currentWord, false);
+        else if (shouldRepeatAfterAgain) updateForcedTypingWordId(currentWord, true);
+
+        setSessionQueue((prev) => {
+          let nextQueue = prev.map((word, index) => {
+            let nextWord = word;
+            if (index === currentIndex && shouldRepeatAfterAgain) {
+              nextWord = { ...nextWord, sessionStatus: 'again' };
+            } else if (
+              !shouldRepeatAfterAgain &&
+              currentWord.sessionStatus === 'again' &&
+              word.id === currentWord.id
+            ) {
+              nextWord = { ...nextWord, sessionStatus: 'normal' };
+            }
+
+            if (isForcedTypingPass && word.id === currentWord.id) {
+              const wordWithoutForcedMode = { ...nextWord };
+              delete wordWithoutForcedMode.forcedMode;
+              return wordWithoutForcedMode;
+            }
+            return nextWord;
+          });
+
+          if (retryWord) {
+            const retryIndex = Math.min(currentIndex + 4, nextQueue.length);
+            nextQueue = [
+              ...nextQueue.slice(0, retryIndex),
+              retryWord,
+              ...nextQueue.slice(retryIndex),
+            ];
+          }
+          return nextQueue;
+        });
 
         setLastReviewResult(progress || lastReviewResult);
         setIsRating(false);
@@ -522,7 +606,7 @@ export function useLearningSession(setId) {
         setIsRating(false);
       });
     },
-    [currentWord, isRating, isRated, recordProgress, isFlashcard, sessionQueue, currentIndex, refreshVocabularyStats, previewIntervals]
+    [currentWord, isRating, isRated, recordProgress, isFlashcard, currentIndex, refreshVocabularyStats, previewIntervals, mode, isAnswerRevealed, isCorrect]
   );
 
   // Proceed to next word (only after rating or "Again" re-queue).
@@ -542,6 +626,7 @@ export function useLearningSession(setId) {
   useEffect(() => {
     if (sessionQueue.length > 0 && currentIndex >= sessionQueue.length) {
       setIsSessionComplete(true);
+      clearForcedTypingWordIds();
     }
   }, [currentIndex, sessionQueue.length]);
 
