@@ -53,18 +53,20 @@ export async function getVocabularySets(userId) {
       senseToSets.get(link.word_sense_id).push(link.set_id);
     }
 
-    const { data: progressRows } = await supabase
+    const { data: progressRows, error: progressError } = await supabase
       .from('user_progress')
-      .select('word_sense_id, word_id, id')
+      .select('word_sense_id')
       .eq('user_id', userId);
+    if (progressError) {
+      console.error("USER_PROGRESS ERROR:", progressError);
+    }
     for (const row of progressRows || []) {
       if (row?.word_sense_id) studiedIds.add(String(row.word_sense_id).trim());
-      if (row?.word_id) studiedIds.add(String(row.word_id).trim());
-      if (row?.id) studiedIds.add(String(row.id).trim());
     }
 
     // DEBUG: xem sample row thực tế của progressRows và links để chẩn đoán sai lệch cột
     console.log("DEBUG PROGRESS SAMPLE ROW:", progressRows?.[0]);
+    console.log("DEBUG PROGRESS ERROR:", progressError);
     console.log("DEBUG SET_WORDS SAMPLE ROW:", links?.[0]);
   }
 
