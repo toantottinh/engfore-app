@@ -674,6 +674,11 @@ const LearningSession = () => {
               {/* Question Area */}
               <div className="rounded-lg border border-border-color bg-surface-sidebar p-3 text-center shadow-sm">
                 <div>
+                  {currentWord.word_type && (
+                    <span className="inline-block mb-1.5 bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      {currentWord.word_type}
+                    </span>
+                  )}
                   <p className="text-xs font-medium uppercase tracking-widest text-text-secondary">
                     Nghĩa tiếng Việt
                   </p>
