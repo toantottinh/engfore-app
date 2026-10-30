@@ -110,6 +110,14 @@ export default function VocabularyAnswerDetails({ word, hideMeaning = false, hid
           </button>
         </div>
       )}
+      {/* Example translation (Tiếng Việt) — chỉ hiện khi có câu ví dụ AND có bản dịch */}{
+        (word.example || word.example_sentence) &&
+        (word.example_vi || word.example_meaning) && (
+          <div className="mt-0.5 text-xs text-text-secondary/70 italic">
+            “{word.example_vi || word.example_meaning}”
+          </div>
+        )
+      }
     </div>
   );
 }

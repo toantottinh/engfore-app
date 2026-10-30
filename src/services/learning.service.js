@@ -327,6 +327,7 @@ function mapProgressRow(item, userId) {
     meaning: sense.meaning || '',
     memory_clue: uvMemoryClue || sense.description || '',
     example: uvExample || sense.example || '',
+    example_vi: sense.example_vi || uv.example_vi || '',
     mastery_level: item.mastery_level ?? 0,
     review_count: item.review_count ?? 0,
     flashcard_reviews: item.flashcard_reviews ?? 0,
